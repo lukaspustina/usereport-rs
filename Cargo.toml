@@ -33,4 +33,11 @@ name = "usereport"
 path = "src/lib.rs"
 
 [dependencies]
+log = "0.4"
+snafu = "0.6"
+subprocess = "0.1"
+
+[dev-dependencies]
+env_logger = "0.7"
+spectral = "0.6"
 
