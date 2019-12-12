@@ -1,0 +1,36 @@
+[package]
+name = "usereport-rs"
+version = "0.0.1"
+authors = ["Lukas Pustina <lukas@pustina.net>"]
+description = "Collect information for Linux Performance Analysis in 60,000 Milliseconds"
+repository = "https://github.com/lukaspustina/usereport-es.git"
+documentation = "https://github.com/lukaspustina/usereport-es.git"
+readme = "README.md"
+license = "MIT"
+keywords = ["performance", "analysis", "sre"]
+categories = ["command-line-utilities" ]
+include = [
+  "README.md",
+  "LICENSE",
+  "**/*.rs",
+  "Cargo.toml",
+]
+edition = "2018"
+
+[badges]
+
+[features]
+bin = []
+
+[[bin]]
+name = "usereport"
+path = "src/bin/usereport.rs"
+doc = false
+required-features = ["bin"]
+
+[lib]
+name = "usereport"
+path = "src/lib.rs"
+
+[dependencies]
+
