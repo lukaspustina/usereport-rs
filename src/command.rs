@@ -134,14 +134,11 @@ pub enum CommandResult {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tests::init;
 
     use env_logger;
     use spectral::{AssertionFailure, Spec};
     use spectral::prelude::*;
-
-    fn init() {
-        let _ = env_logger::builder().is_test(true).try_init();
-    }
 
     #[test]
     fn execution_ok() {
@@ -163,7 +160,7 @@ mod tests {
     fn execution_failed() {
         init();
 
-        let command = Command::new("uname", r#"/usr/bin/false"#, 1);
+        let command = Command::new("false", r#"/usr/bin/false"#, 1);
 
         let res = command.exec();
 
@@ -174,7 +171,7 @@ mod tests {
     fn execution_timeout() {
         init();
 
-        let command = Command::new("uname", r#"/bin/sleep 5"#, 1);
+        let command = Command::new("sleep", r#"/bin/sleep 5"#, 1);
 
         let res = command.exec();
 
@@ -185,7 +182,7 @@ mod tests {
     fn execution_error() {
         init();
 
-        let command = Command::new("uname", r#"/no_such_command"#, 1);
+        let command = Command::new("no_such_command", r#"/no_such_command"#, 1);
 
         let res = command.exec();
 
