@@ -34,9 +34,9 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 ///     .title("Host OS")
 ///     .run_by_default(false);
 /// match command.exec() {
-///     Ok(CommandResult::Success(stdout)) => println!("Command output '{}'", stdout),
-///     Ok(CommandResult::Failed) => println!("Command failed"),
-///     Ok(CommandResult::Timeout) => println!("Command timed out"),
+///     Ok(CommandResult::Success(_, stdout)) => println!("Command output '{}'", stdout),
+///     Ok(CommandResult::Failed(_)) => println!("Command failed"),
+///     Ok(CommandResult::Timeout(_)) => println!("Command timed out"),
 ///     _ => println!("Command execution failed"),
 /// };
 /// ```
@@ -115,12 +115,11 @@ impl Command {
     }
 
     /// Execute this command
-    pub fn exec(&self) -> Result<CommandResult> {
+    pub fn exec(self) -> Result<CommandResult> {
         let mut p = Popen::create(&self.args, PopenConfig {
                 stdout: Redirection::Pipe, ..Default::default()
             }).context(ProcessFailed {name: self.name.clone()})?;
         debug!("Running '{:?}' as '{:?}'", self.args, p);
-
 
         match p.wait_timeout(Duration::new(self.timeout_sec, 0)) {
             Ok(Some(status)) if status.success() => {
@@ -129,21 +128,21 @@ impl Command {
                 let _ = p.stdout.as_ref().unwrap().read_to_string(&mut stdout); // TODO: unwrap is unsafe
                 debug!("stdout '{}'", stdout);
 
-                Ok(CommandResult::Success(stdout))
+                Ok(CommandResult::Success(self, stdout))
             }
             Ok(Some(status)) => {
                 trace!("process successfully finished as {:?}", status);
-                Ok(CommandResult::Failed)
+                Ok(CommandResult::Failed(self))
             }
             Ok(None) => {
                 trace!("process timed out and will be killed");
                 self.terminate(&mut p)?;
-                Ok(CommandResult::Timeout)
+                Ok(CommandResult::Timeout(self))
             }
             err => {
                 trace!("process failed '{:?}'", err);
                 self.terminate(&mut p)?;
-                Ok(CommandResult::Error)
+                Ok(CommandResult::Error(self))
             }
         }
     }
@@ -156,17 +155,17 @@ impl Command {
     }
 }
 
-/// Encapsulates an command execution result
-#[derive(Debug, Eq, PartialEq)]
+/// Encapsulates a command execution result
+#[derive(Debug, PartialEq)]
 pub enum CommandResult {
     /// `Command` has been executed successfully and `String` contains stdout.
-    Success(String),
+    Success(Command, String),
     /// `Command` failed to execute
-    Failed,
+    Failed(Command),
     /// `Command` execution exceeded specified timeout
-    Timeout,
+    Timeout(Command),
     /// `Command` could not be executed
-    Error,
+    Error(Command),
 }
 
 #[cfg(test)]
@@ -201,7 +200,7 @@ mod tests {
 
         let res = command.exec();
 
-        asserting("executing command successfully").that(&res).is_ok().is_equal_to(CommandResult::Failed)
+        asserting("executing command successfully").that(&res).is_ok().is_failed();
     }
 
     #[test]
@@ -212,7 +211,7 @@ mod tests {
 
         let res = command.exec();
 
-        asserting("executing command successfully").that(&res).is_ok().is_equal_to(CommandResult::Timeout)
+        asserting("executing command successfully").that(&res).is_ok().is_timeout();
     }
 
     #[test]
