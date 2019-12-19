@@ -1,11 +1,9 @@
-use log::{debug,trace};
-use serde::{Deserialize, Deserializer, Serialize, de};
-use std::time::Duration;
-use std::io::Read;
-use snafu::{ResultExt, Snafu};
-use subprocess::{Popen, PopenConfig, PopenError, Redirection};
-use serde::de::Visitor;
 use core::fmt;
+use log::{debug, trace};
+use serde::{de, de::Visitor, Deserialize, Deserializer, Serialize};
+use snafu::{ResultExt, Snafu};
+use std::{io::Read, time::Duration};
+use subprocess::{Popen, PopenConfig, PopenError, Redirection};
 
 /// Error type
 #[derive(Debug, Snafu)]
@@ -34,27 +32,30 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 ///     .title("Host OS")
 ///     .run_by_default(false);
 /// match command.exec() {
-///     Ok(CommandResult::Success{ command: _, stdout: stdout }) => println!("Command output '{}'", stdout),
-///     Ok(CommandResult::Failed{ command: _ }) => println!("Command failed"),
-///     Ok(CommandResult::Timeout{ command: _}) => println!("Command timed out"),
+///     Ok(CommandResult::Success {
+///         command: _,
+///         stdout: stdout,
+///     }) => println!("Command output '{}'", stdout),
+///     Ok(CommandResult::Failed { command: _ }) => println!("Command failed"),
+///     Ok(CommandResult::Timeout { command: _ }) => println!("Command timed out"),
 ///     _ => println!("Command execution failed"),
 /// };
 /// ```
 #[derive(Debug, Deserialize, PartialEq, Serialize)]
 pub struct Command {
-    pub(crate) name: String,
-    pub(crate) title: Option<String>,
+    pub(crate) name:        String,
+    pub(crate) title:       Option<String>,
     pub(crate) description: Option<String>,
     #[serde(rename = "command", deserialize_with = "de_ser_args")]
-    pub(crate) args: Vec<String>,
+    pub(crate) args:        Vec<String>,
     #[serde(rename = "timeout")]
     pub(crate) timeout_sec: u64,
     pub(crate) default_run: bool,
 }
 
 fn de_ser_args<'de, D>(deserializer: D) -> ::std::result::Result<Vec<String>, D::Error>
-    where
-        D: Deserializer<'de>,
+where
+    D: Deserializer<'de>,
 {
     struct ArgsVisitor;
 
@@ -65,7 +66,10 @@ fn de_ser_args<'de, D>(deserializer: D) -> ::std::result::Result<Vec<String>, D:
             formatter.write_str("valid command string")
         }
 
-        fn visit_str<E>(self, s: &str) -> ::std::result::Result<Self::Value, E> where E: de::Error {
+        fn visit_str<E>(self, s: &str) -> ::std::result::Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
             let args: Vec<_> = s.split(' ').map(|x| x.into()).collect();
             Ok(args)
         }
@@ -78,7 +82,7 @@ impl Command {
     /// Create new command with default values
     pub fn new<T: Into<String>>(name: T, command: T, timeout_sec: u64) -> Command {
         let args: Vec<_> = command.into().split(' ').map(|x| x.into()).collect();
-        assert!(args.len() > 0);
+        assert!(!args.is_empty());
 
         Command {
             name: name.into(),
@@ -116,9 +120,16 @@ impl Command {
 
     /// Execute this command
     pub fn exec(self) -> Result<CommandResult> {
-        let mut p = Popen::create(&self.args, PopenConfig {
-                stdout: Redirection::Pipe, ..Default::default()
-            }).context(ProcessFailed {name: self.name.clone()})?;
+        let mut p = Popen::create(
+            &self.args,
+            PopenConfig {
+                stdout: Redirection::Pipe,
+                ..Default::default()
+            },
+        )
+        .context(ProcessFailed {
+            name: self.name.clone(),
+        })?;
         debug!("Running '{:?}' as '{:?}'", self.args, p);
 
         match p.wait_timeout(Duration::new(self.timeout_sec, 0)) {
@@ -128,28 +139,32 @@ impl Command {
                 let _ = p.stdout.as_ref().unwrap().read_to_string(&mut stdout); // TODO: unwrap is unsafe
                 debug!("stdout '{}'", stdout);
 
-                Ok(CommandResult::Success{ command: self, stdout })
+                Ok(CommandResult::Success { command: self, stdout })
             }
             Ok(Some(status)) => {
                 trace!("process successfully finished as {:?}", status);
-                Ok(CommandResult::Failed{ command: self })
+                Ok(CommandResult::Failed { command: self })
             }
             Ok(None) => {
                 trace!("process timed out and will be killed");
                 self.terminate(&mut p)?;
-                Ok(CommandResult::Timeout{ command: self })
+                Ok(CommandResult::Timeout { command: self })
             }
             err => {
                 trace!("process failed '{:?}'", err);
                 self.terminate(&mut p)?;
-                Ok(CommandResult::Error{ command: self })
+                Ok(CommandResult::Error { command: self })
             }
         }
     }
 
     fn terminate(&self, p: &mut Popen) -> Result<()> {
-        p.kill().context(KillFailed {name: self.name.clone()})?;
-        p.wait().context(WaitFailed {name: self.name.clone()})?;
+        p.kill().context(KillFailed {
+            name: self.name.clone(),
+        })?;
+        p.wait().context(WaitFailed {
+            name: self.name.clone(),
+        })?;
         trace!("process killed");
         Ok(())
     }
@@ -159,13 +174,13 @@ impl Command {
 #[derive(Debug, PartialEq, Serialize)]
 pub enum CommandResult {
     /// `Command` has been executed successfully and `String` contains stdout.
-    Success{ command: Command, stdout: String},
+    Success { command: Command, stdout: String },
     /// `Command` failed to execute
-    Failed{ command: Command },
+    Failed { command: Command },
     /// `Command` execution exceeded specified timeout
-    Timeout{ command: Command },
+    Timeout { command: Command },
     /// `Command` could not be executed
-    Error{ command: Command },
+    Error { command: Command },
 }
 
 #[cfg(test)]
@@ -187,7 +202,9 @@ mod tests {
 
         let res = command.exec();
 
-        asserting("executing command successfully").that(&res).is_ok()
+        asserting("executing command successfully")
+            .that(&res)
+            .is_ok()
             .is_success_contains(expected)
     }
 
@@ -199,7 +216,10 @@ mod tests {
 
         let res = command.exec();
 
-        asserting("executing command successfully").that(&res).is_ok().is_failed();
+        asserting("executing command successfully")
+            .that(&res)
+            .is_ok()
+            .is_failed();
     }
 
     #[test]
@@ -210,7 +230,10 @@ mod tests {
 
         let res = command.exec();
 
-        asserting("executing command successfully").that(&res).is_ok().is_timeout();
+        asserting("executing command successfully")
+            .that(&res)
+            .is_ok()
+            .is_timeout();
     }
 
     #[test]

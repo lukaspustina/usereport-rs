@@ -1,5 +1,4 @@
-use usereport::{Config, Report, Runner, Renderer, command, report, runner};
-use usereport::command::CommandResult;
+use usereport::{command, command::CommandResult, report, runner, Config, Renderer, Report, Runner};
 
 fn main() {
     #[cfg(target_os = "macos")]

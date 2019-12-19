@@ -2,9 +2,12 @@ use crate::command::Command;
 
 use serde::Deserialize;
 use snafu::{ResultExt, Snafu};
-use std::io::Read;
-use std::path::{Path, PathBuf};
-use std::fs::File;
+use std::{
+    fs::File,
+    io::Read,
+    path::{Path, PathBuf},
+    str::FromStr,
+};
 
 /// Error type
 #[derive(Debug, Snafu)]
@@ -12,7 +15,7 @@ use std::fs::File;
 pub enum Error {
     /// Failed to parse Config
     #[snafu(display("Failed parse config: {}", source))]
-    ParsingFailed { source: toml::de::Error},
+    ParsingFailed { source: toml::de::Error },
     /// Failed to read file
     #[snafu(display("Failed read file config '{:?}': {}", path, source))]
     ReadFileFailed { path: PathBuf, source: std::io::Error },
@@ -28,18 +31,24 @@ pub struct Config {
     pub commands: Vec<Command>,
 }
 
-impl Config {
-    pub fn from_str(toml: &str) -> Result<Config> {
+impl FromStr for Config {
+    type Err = Error;
+
+    fn from_str(toml: &str) -> Result<Config> {
         let config: Config = toml::from_str(toml).context(ParsingFailed {})?;
         Ok(config)
     }
+}
 
+impl Config {
     pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Config> {
-        let mut file = File::open(path.as_ref())
-            .context(ReadFileFailed{ path: path.as_ref().to_path_buf() })?;
+        let mut file = File::open(path.as_ref()).context(ReadFileFailed {
+            path: path.as_ref().to_path_buf(),
+        })?;
         let mut toml = String::new();
-        file.read_to_string(&mut toml)
-            .context(ReadFileFailed{ path: path.as_ref().to_path_buf() })?;
+        file.read_to_string(&mut toml).context(ReadFileFailed {
+            path: path.as_ref().to_path_buf(),
+        })?;
         Config::from_str(&toml)
     }
 }
@@ -50,9 +59,7 @@ pub struct Defaults {
     pub timeout: u64,
 }
 
-fn default_timeout() -> u64 {
-    5
-}
+fn default_timeout() -> u64 { 5 }
 
 #[cfg(test)]
 mod tests {
@@ -75,22 +82,20 @@ timeout = 1
 default_run = true
 
 "#;
-        let defaults = Defaults {
-            timeout: 5
-        };
+        let defaults = Defaults { timeout: 5 };
         let mut commands = Vec::new();
-        commands.push( Command::new("uname", "/usr/bin/uname -a", 1)
-                           .title("Host OS")
-                           .description("Basic host OS information")
-                           .run_by_default(true));
-        let expected = Config {
-            defaults,
-            commands,
-        };
+        commands.push(
+            Command::new("uname", "/usr/bin/uname -a", 1)
+                .title("Host OS")
+                .description("Basic host OS information")
+                .run_by_default(true),
+        );
+        let expected = Config { defaults, commands };
 
         let config = Config::from_str(config_txt);
 
-        asserting("Reading config from toml").that(&config)
+        asserting("Reading config from toml")
+            .that(&config)
             .is_ok()
             .is_equal_to(&expected);
     }
@@ -104,7 +109,8 @@ default_run = true
 
         let config = Config::from_file(path);
 
-        asserting("Reading config from file").that(&config)
+        asserting("Reading config from file")
+            .that(&config)
             .is_ok()
             .map(|x| &x.commands)
             .has_length(6)

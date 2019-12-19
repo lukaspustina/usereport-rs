@@ -15,7 +15,7 @@ pub mod report;
 pub mod runner;
 
 pub use config::Config;
-pub use report::{Report, Renderer};
+pub use report::{Renderer, Report};
 pub use runner::Runner;
 
 /// Test helper
