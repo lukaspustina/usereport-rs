@@ -34,9 +34,9 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 ///     .title("Host OS")
 ///     .run_by_default(false);
 /// match command.exec() {
-///     Ok(CommandResult::Success(_, stdout)) => println!("Command output '{}'", stdout),
-///     Ok(CommandResult::Failed(_)) => println!("Command failed"),
-///     Ok(CommandResult::Timeout(_)) => println!("Command timed out"),
+///     Ok(CommandResult::Success{ command: _, stdout: stdout }) => println!("Command output '{}'", stdout),
+///     Ok(CommandResult::Failed{ command: _ }) => println!("Command failed"),
+///     Ok(CommandResult::Timeout{ command: _}) => println!("Command timed out"),
 ///     _ => println!("Command execution failed"),
 /// };
 /// ```
@@ -128,21 +128,21 @@ impl Command {
                 let _ = p.stdout.as_ref().unwrap().read_to_string(&mut stdout); // TODO: unwrap is unsafe
                 debug!("stdout '{}'", stdout);
 
-                Ok(CommandResult::Success(self, stdout))
+                Ok(CommandResult::Success{ command: self, stdout })
             }
             Ok(Some(status)) => {
                 trace!("process successfully finished as {:?}", status);
-                Ok(CommandResult::Failed(self))
+                Ok(CommandResult::Failed{ command: self })
             }
             Ok(None) => {
                 trace!("process timed out and will be killed");
                 self.terminate(&mut p)?;
-                Ok(CommandResult::Timeout(self))
+                Ok(CommandResult::Timeout{ command: self })
             }
             err => {
                 trace!("process failed '{:?}'", err);
                 self.terminate(&mut p)?;
-                Ok(CommandResult::Error(self))
+                Ok(CommandResult::Error{ command: self })
             }
         }
     }
@@ -159,13 +159,13 @@ impl Command {
 #[derive(Debug, PartialEq, Serialize)]
 pub enum CommandResult {
     /// `Command` has been executed successfully and `String` contains stdout.
-    Success(Command, String),
+    Success{ command: Command, stdout: String},
     /// `Command` failed to execute
-    Failed(Command),
+    Failed{ command: Command },
     /// `Command` execution exceeded specified timeout
-    Timeout(Command),
+    Timeout{ command: Command },
     /// `Command` could not be executed
-    Error(Command),
+    Error{ command: Command },
 }
 
 #[cfg(test)]
@@ -173,7 +173,6 @@ mod tests {
     use super::*;
     use crate::tests::*;
 
-    use env_logger;
     use spectral::prelude::*;
 
     #[test]

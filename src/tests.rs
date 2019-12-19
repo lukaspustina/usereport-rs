@@ -17,7 +17,7 @@ impl<'s> CommandResultSuccess for Spec<'s, CommandResult> {
     fn is_success_contains(&mut self, expected: &str) {
         let subject = self.subject;
         match subject {
-            CommandResult::Success(_, x) if x.contains(expected) => {},
+            CommandResult::Success{ command: _, stdout: x} if x.contains(expected) => {},
             _ => AssertionFailure::from_spec(self)
                 .with_expected(format!("command result is success and contains '{}'", expected))
                 .with_actual(format!("'{:?}'", subject))
@@ -28,7 +28,7 @@ impl<'s> CommandResultSuccess for Spec<'s, CommandResult> {
     fn is_failed(&mut self) {
         let subject = self.subject;
         match subject {
-            CommandResult::Failed(_) => {},
+            CommandResult::Failed{ command: _ } => {},
             _ => AssertionFailure::from_spec(self)
                 .with_expected(format!("command result is failed"))
                 .with_actual(format!("'{:?}'", subject))
@@ -39,7 +39,7 @@ impl<'s> CommandResultSuccess for Spec<'s, CommandResult> {
     fn is_timeout(&mut self) {
         let subject = self.subject;
         match subject {
-            CommandResult::Timeout(_) => {},
+            CommandResult::Timeout{ command: _ } => {},
             _ => AssertionFailure::from_spec(self)
                 .with_expected(format!("command result is failed"))
                 .with_actual(format!("'{:?}'", subject))
