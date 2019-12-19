@@ -1,5 +1,5 @@
 use log::{debug,trace};
-use serde::{Deserialize, Deserializer, de};
+use serde::{Deserialize, Deserializer, Serialize, de};
 use std::time::Duration;
 use std::io::Read;
 use snafu::{ResultExt, Snafu};
@@ -40,7 +40,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 ///     _ => println!("Command execution failed"),
 /// };
 /// ```
-#[derive(Debug, Deserialize, PartialEq)]
+#[derive(Debug, Deserialize, PartialEq, Serialize)]
 pub struct Command {
     pub(crate) name: String,
     pub(crate) title: Option<String>,
@@ -156,7 +156,7 @@ impl Command {
 }
 
 /// Encapsulates a command execution result
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Serialize)]
 pub enum CommandResult {
     /// `Command` has been executed successfully and `String` contains stdout.
     Success(Command, String),
