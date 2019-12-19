@@ -5,6 +5,9 @@
 /// External CLI commands used to collect USE report information.
 pub mod command;
 
+/// Configuration
+pub mod config;
+
 /// Trait and default implementation to run commands and collect their output
 pub mod runner;
 

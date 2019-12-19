@@ -1,8 +1,11 @@
 use log::{debug,trace};
+use serde::{Deserialize, Deserializer, de};
 use std::time::Duration;
 use std::io::Read;
 use snafu::{ResultExt, Snafu};
 use subprocess::{Popen, PopenConfig, PopenError, Redirection};
+use serde::de::Visitor;
+use core::fmt;
 
 /// Error type
 #[derive(Debug, Snafu)]
@@ -37,12 +40,38 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 ///     _ => println!("Command execution failed"),
 /// };
 /// ```
+#[derive(Debug, Deserialize, PartialEq)]
 pub struct Command {
     pub(crate) name: String,
     pub(crate) title: Option<String>,
+    pub(crate) description: Option<String>,
+    #[serde(rename = "command", deserialize_with = "de_ser_args")]
     pub(crate) args: Vec<String>,
+    #[serde(rename = "timeout")]
     pub(crate) timeout_sec: u64,
     pub(crate) default_run: bool,
+}
+
+fn de_ser_args<'de, D>(deserializer: D) -> ::std::result::Result<Vec<String>, D::Error>
+    where
+        D: Deserializer<'de>,
+{
+    struct ArgsVisitor;
+
+    impl<'a> Visitor<'a> for ArgsVisitor {
+        type Value = Vec<String>;
+
+        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            formatter.write_str("valid command string")
+        }
+
+        fn visit_str<E>(self, s: &str) -> ::std::result::Result<Self::Value, E> where E: de::Error {
+            let args: Vec<_> = s.split(' ').map(|x| x.into()).collect();
+            Ok(args)
+        }
+    }
+
+    deserializer.deserialize_string(ArgsVisitor)
 }
 
 impl Command {
@@ -54,6 +83,7 @@ impl Command {
         Command {
             name: name.into(),
             title: None,
+            description: None,
             args,
             timeout_sec,
             default_run: true,
@@ -64,6 +94,14 @@ impl Command {
     pub fn title<T: Into<String>>(self, title: T) -> Command {
         Command {
             title: Some(title.into()),
+            ..self
+        }
+    }
+
+    /// Set description of command
+    pub fn description<T: Into<String>>(self, description: T) -> Command {
+        Command {
+            description: Some(description.into()),
             ..self
         }
     }
