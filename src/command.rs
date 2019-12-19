@@ -7,20 +7,20 @@ use subprocess::{Popen, PopenConfig, PopenError, Redirection};
 /// Error type
 #[derive(Debug, Snafu)]
 #[allow(missing_docs)]
-pub enum Error<'a> {
+pub enum Error {
     /// Process creation or execution failed
     #[snafu(display("Failed to run command {}: {}", name, source))]
-    ProcessFailed { name: &'a str, source: PopenError },
+    ProcessFailed { name: String, source: PopenError },
     /// Process could not be killed
     #[snafu(display("Failed to kill command {}: {}", name, source))]
-    KillFailed { name: &'a str, source: std::io::Error },
+    KillFailed { name: String, source: std::io::Error },
     /// Waiting for process termination failed
     #[snafu(display("Failed to wait for command {}: {}", name, source))]
-    WaitFailed { name: &'a str, source: PopenError },
+    WaitFailed { name: String, source: PopenError },
 }
 
 /// Result type
-pub type Result<'a, T, E = Error<'a>> = std::result::Result<T, E>;
+pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Run a CLI command and store its stdout.
 ///
@@ -37,23 +37,23 @@ pub type Result<'a, T, E = Error<'a>> = std::result::Result<T, E>;
 ///     _ => println!("Command execution failed"),
 /// };
 /// ```
-pub struct Command<'a> {
-    name: &'a str,
-    title: &'a str,
-    args: Vec<&'a str>,
-    timeout_sec: u64,
-    default_run: bool,
+pub struct Command {
+    pub(crate) name: String,
+    pub(crate) title: Option<String>,
+    pub(crate) args: Vec<String>,
+    pub(crate) timeout_sec: u64,
+    pub(crate) default_run: bool,
 }
 
-impl<'a> Command<'a> {
+impl Command {
     /// Create new command with default values
-    pub fn new(name: &'a str, command: &'a str, timeout_sec: u64) -> Command<'a> {
-        let args: Vec<_> = command.split(' ').collect();
+    pub fn new<T: Into<String>>(name: T, command: T, timeout_sec: u64) -> Command {
+        let args: Vec<_> = command.into().split(' ').map(|x| x.into()).collect();
         assert!(args.len() > 0);
 
         Command {
-            name,
-            title: name,
+            name: name.into(),
+            title: None,
             args,
             timeout_sec,
             default_run: true,
@@ -61,15 +61,15 @@ impl<'a> Command<'a> {
     }
 
     /// Set title of command
-    pub fn title(self, title: &'a str) -> Command<'a> {
+    pub fn title<T: Into<String>>(self, title: T) -> Command {
         Command {
-            title,
+            title: Some(title.into()),
             ..self
         }
     }
 
     /// Set whether to run this command by default
-    pub fn run_by_default(self, value: bool) -> Command<'a>{
+    pub fn run_by_default(self, value: bool) -> Command {
         Command {
             default_run: value,
             ..self
@@ -80,7 +80,7 @@ impl<'a> Command<'a> {
     pub fn exec(&self) -> Result<CommandResult> {
         let mut p = Popen::create(&self.args, PopenConfig {
                 stdout: Redirection::Pipe, ..Default::default()
-            }).context(ProcessFailed {name: self.name})?;
+            }).context(ProcessFailed {name: self.name.clone()})?;
         debug!("Running '{:?}' as '{:?}'", self.args, p);
 
 
@@ -111,8 +111,8 @@ impl<'a> Command<'a> {
     }
 
     fn terminate(&self, p: &mut Popen) -> Result<()> {
-        p.kill().context(KillFailed {name: self.name})?;
-        p.wait().context(WaitFailed {name: self.name})?;
+        p.kill().context(KillFailed {name: self.name.clone()})?;
+        p.wait().context(WaitFailed {name: self.name.clone()})?;
         trace!("process killed");
         Ok(())
     }
@@ -134,10 +134,9 @@ pub enum CommandResult {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tests::init;
+    use crate::tests::*;
 
     use env_logger;
-    use spectral::{AssertionFailure, Spec};
     use spectral::prelude::*;
 
     #[test]
@@ -188,22 +187,4 @@ mod tests {
 
         asserting("executing command errors").that(&res).is_err();
     }
-
-    trait CommandResultSuccess {
-        fn is_success_contains(&mut self, expected: &str);
-    }
-
-    impl<'s> CommandResultSuccess for Spec<'s, CommandResult> {
-        fn is_success_contains(&mut self, expected: &str) {
-            let subject = self.subject;
-            match subject {
-                CommandResult::Success(x) if x.contains(expected) => {},
-                _ => AssertionFailure::from_spec(self)
-                    .with_expected(format!("command result is success and contains '{}'", expected))
-                    .with_actual(format!("'{:?}'", subject))
-                    .fail()
-            }
-        }
-    }
-
 }
