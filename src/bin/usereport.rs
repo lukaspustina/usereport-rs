@@ -1,6 +1,7 @@
-use std::io::Write;
+use indicatif::{ProgressBar, ProgressStyle};
 use std::path::PathBuf;
 use std::str::FromStr;
+use std::sync::mpsc::{self, Receiver, Sender};
 use structopt::{StructOpt, clap};
 use usereport::{command, command::CommandResult, report, report::OutputType, runner, Config, Renderer, Report, Runner};
 
@@ -8,11 +9,14 @@ use usereport::{command, command::CommandResult, report, report::OutputType, run
 #[structopt(name = "usereport", author, about, setting = clap::AppSettings::ColoredHelp)]
 struct Opt {
     /// Configuration from file, or default if not present
-    #[structopt(short = "c", long = "config", parse(from_os_str))]
+    #[structopt(short, long, parse(from_os_str))]
     config: Option<PathBuf>,
     /// Output format
     #[structopt(short, long, possible_values = &["json", "markdown"], default_value = "markdown")]
     output_type: OutputType,
+    /// Show progress bar while waiting for all commands to finish
+    #[structopt(short, long)]
+    progress: bool,
     /// Activate debug mode
     #[structopt(short, long)]
     debug: bool,
@@ -20,17 +24,17 @@ struct Opt {
 
 fn main() {
     let opt = Opt::from_args();
-    let config =
-        opt.config.as_ref().map(Config::from_file).unwrap_or(Config::from_str(defaults::CONFIG))
-            .expect("Failed to load config file");
+    let config = opt.config.as_ref()
+        .map(Config::from_file)
+        .unwrap_or(Config::from_str(defaults::CONFIG))
+        .expect("Failed to load config file");
 
     if opt.debug {
         eprintln!("Options: {:#?}", &opt);
         eprintln!("Configuration: {:#?}", &config);
     }
 
-    let runner = runner::thread::ThreadRunner::new(config.commands);
-    let results = runner
+    let results = create_runner(&opt, config)
         .run()
         .expect("Failed to run commands")
         .into_iter()
@@ -39,17 +43,45 @@ fn main() {
 
     let report = Report::new(&results)
         .expect("Failed to create report");
-
-    let stdout = std::io::stdout();
-    let handle = stdout.lock();
-    render(&report, opt.output_type, handle)
+    render(&report, opt.output_type)
         .expect("Failed to render to stdout");
 }
 
-fn render<W: Write>(report: &Report, output_type: OutputType, writer: W) -> report::Result<()> {
+fn create_runner(opt: &Opt, config: Config) -> runner::ThreadRunner {
+    if opt.progress {
+        let tx = create_progress_bar(config.commands.len());
+         runner::ThreadRunner::with_progress(config.commands, tx)
+    } else {
+        runner::ThreadRunner::new(config.commands)
+    }
+}
+
+fn create_progress_bar(expected: usize) -> Sender<usize> {
+    let (tx, rx): (Sender<usize>, Receiver<usize>) = mpsc::channel();
+    let pb = ProgressBar::new(expected as u64)
+        .with_style(ProgressStyle::default_bar()
+            .template("Running commands {bar:40.cyan/blue} {pos}/{len}")
+        );
+
+    let _ = std::thread::Builder::new()
+        .name("Progress".to_string())
+        .spawn(move || {
+            for _ in 0..expected {
+                let _ = rx.recv().expect("Thread failed to receive progress via channel");
+                pb.inc(1);
+            }
+            pb.finish_and_clear();
+        });
+
+    tx
+}
+
+fn render(report: &Report, output_type: OutputType) -> report::Result<()> {
+    let stdout = std::io::stdout();
+    let handle = stdout.lock();
     match output_type {
-        OutputType::Markdown => report::MdRenderer::new(defaults::MD_TEMPLATE).render(&report, writer),
-        OutputType::JSON => report::JsonRenderer::new().render(&report, writer),
+        OutputType::Markdown => report::MdRenderer::new(defaults::MD_TEMPLATE).render(&report, handle),
+        OutputType::JSON => report::JsonRenderer::new().render(&report, handle),
     }
 }
 

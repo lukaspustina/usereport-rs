@@ -3,10 +3,8 @@
 ## Before 0.1
 
 * Markdown Report
-
-## Before 0.2
-
 * CLI with progressbar indication
+* Find a nice logger 
 
 ## Before 1.0
 

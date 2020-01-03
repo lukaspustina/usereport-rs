@@ -83,6 +83,7 @@ use std::str::FromStr;
 pub mod json {
     use super::*;
 
+    #[derive(Default)]
     pub struct JsonRenderer {}
 
     impl JsonRenderer {
@@ -123,22 +124,22 @@ mod handlebars_helper {
     use handlebars::{Context, Handlebars, Helper, HelperResult, Output, RenderContext, RenderError};
 
 
-    pub(crate) fn date_time_2822(h: &Helper, _: &Handlebars, _: &Context, rc: &mut RenderContext, out: &mut dyn Output) -> HelperResult {
+    pub(crate) fn date_time_2822(h: &Helper, _: &Handlebars, _: &Context, _: &mut RenderContext, out: &mut dyn Output) -> HelperResult {
         let dt = date_param(h)?;
-        out.write(&dt.to_rfc2822()).map_err(|e| RenderError::with(e))
+        out.write(&dt.to_rfc2822()).map_err(RenderError::with)
     }
 
-    pub(crate) fn date_time_3339(h: &Helper, _: &Handlebars, _: &Context, rc: &mut RenderContext, out: &mut dyn Output) -> HelperResult {
+    pub(crate) fn date_time_3339(h: &Helper, _: &Handlebars, _: &Context, _: &mut RenderContext, out: &mut dyn Output) -> HelperResult {
         let dt = date_param(h)?;
-        out.write(&dt.to_rfc3339()).map_err(|e| RenderError::with(e))
+        out.write(&dt.to_rfc3339()).map_err(RenderError::with)
     }
 
     fn date_param(h: &Helper) -> ::std::result::Result<DateTime<Local>, RenderError> {
         let dt_str = h.param(0)
-            .ok_or(RenderError::new("no such parameter"))?
+            .ok_or_else(|| RenderError::new("no such parameter"))?
             .value()
             .as_str()
-            .ok_or(RenderError::new("parameter is not a string"))?;
-        dt_str.parse::<DateTime<Local>>().map_err(|e| RenderError::with(e))
+            .ok_or_else(|| RenderError::new("parameter is not a string"))?;
+        dt_str.parse::<DateTime<Local>>().map_err(RenderError::with)
     }
 }
