@@ -1,0 +1,20 @@
+# Use Report
+
+{{#each command_results as |result|}}
+
+{{#if result.Success}}
+{{#with result.Success}}
+## {{#if this.command.title}}{{this.command.title}}{{else}}{{this.command.name}}{{/if}}
+```sh
+{{this.stdout}}
+```
+<small>
+{{#with this.command}}
+Command: `{{#each this.command as |arg|}}{{arg}} {{/each}}`
+{{this.description}}
+{{/with}}
+</small>
+{{/with}}
+{{/if}}
+
+{{/each}}

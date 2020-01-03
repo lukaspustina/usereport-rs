@@ -6,6 +6,8 @@ fn main() {
     #[cfg(target_os = "linux")]
     let config = Config::from_file("contrib/linux.conf").expect("Failed to load config file");
 
+    let template = include_str!("../contrib/markdown.hbs");
+
     let runner = runner::thread::ThreadRunner::new(config.commands);
     let results = runner
         .run()
@@ -15,7 +17,7 @@ fn main() {
         .expect("Some commands failed");
 
     let report = Report::new(&results);
-    let json = report::JsonRenderer::new(&report);
+    let json = report::MdRenderer::new(&report, template);
 
     let stdout = std::io::stdout();
     let handle = stdout.lock();
