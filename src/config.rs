@@ -113,6 +113,6 @@ default_run = true
             .that(&config)
             .is_ok()
             .map(|x| &x.commands)
-            .has_length(6)
+            .has_length(3)
     }
 }
