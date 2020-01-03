@@ -11,6 +11,9 @@ use uname;
 #[derive(Debug, Snafu)]
 #[allow(missing_docs)]
 pub enum Error {
+    /// Failed to parse output type
+    #[snafu(display("Failed to parse output type"))]
+    OutputTypeParseError,
     /// Failed to create a new report
     #[snafu(display("Failed to create a new report: {}", source))]
     CreateFailed{ source: std::io::Error },
@@ -26,9 +29,21 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Debug)]
 pub enum OutputType {
-    HTML,
     JSON,
     Markdown,
+}
+
+impl FromStr for OutputType {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_ref() {
+            "json" => Ok(OutputType::JSON),
+            "markdown" => Ok(OutputType::Markdown),
+            "md" => Ok(OutputType::Markdown),
+            _ => Err(Error::OutputTypeParseError),
+        }
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -58,26 +73,25 @@ impl<'a> Report<'a> {
 }
 
 pub trait Renderer {
-    fn render<W: Write>(&self, w: W) -> Result<()>;
+    fn render<'a, W: Write>(&self, report: &Report<'a>, w: W) -> Result<()>;
 }
 
 pub use json::JsonRenderer;
 pub use markdown::MdRenderer;
+use std::str::FromStr;
 
 pub mod json {
     use super::*;
 
-    pub struct JsonRenderer<'a> {
-        report: &'a Report<'a>,
+    pub struct JsonRenderer {}
+
+    impl JsonRenderer {
+        pub fn new() -> Self { JsonRenderer {} }
     }
 
-    impl<'a> JsonRenderer<'a> {
-        pub fn new<'r: 'a>(report: &'a Report<'r>) -> Self { JsonRenderer { report } }
-    }
-
-    impl<'a> Renderer for JsonRenderer<'a> {
-        fn render<W: Write>(&self, w: W) -> Result<()> {
-            serde_json::to_writer(w, self.report).context(JsonRenderingFailed {})
+    impl Renderer for JsonRenderer {
+        fn render<'a, W: Write>(&self, report: &Report<'a>, w: W) -> Result<()> {
+            serde_json::to_writer(w, report).context(JsonRenderingFailed {})
         }
     }
 }
@@ -86,20 +100,19 @@ pub mod markdown {
     use super::*;
 
     pub struct MdRenderer<'a> {
-        report: &'a Report<'a>,
         template: &'a str,
     }
 
     impl<'a> MdRenderer<'a> {
-        pub fn new<'r: 'a>(report: &'a Report<'r>, template: &'a str) -> Self { MdRenderer { report, template } }
+        pub fn new(template: &'a str) -> Self { MdRenderer { template } }
     }
 
     impl<'a> Renderer for MdRenderer<'a> {
-        fn render<W: Write>(&self, w: W) -> Result<()> {
+        fn render<'r, W: Write>(&self, report: &Report<'r>, w: W) -> Result<()> {
             let mut handlebars = Handlebars::new();
             handlebars.register_helper("rfc2822", Box::new(handlebars_helper::date_time_2822));
             handlebars.register_helper("rfc3339", Box::new(handlebars_helper::date_time_3339));
-            handlebars.render_template_to_write(self.template, self.report, w)
+            handlebars.render_template_to_write(self.template, report, w)
                 .context(MdRenderingFailed {})
         }
     }

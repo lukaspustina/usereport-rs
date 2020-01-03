@@ -2,7 +2,7 @@
 name = "usereport-rs"
 version = "0.0.1"
 authors = ["Lukas Pustina <lukas@pustina.net>"]
-description = "Collect information for Linux Performance Analysis in 60,000 Milliseconds"
+description = "Collect system information for the first 60 seconds of a performance analysis"
 repository = "https://github.com/lukaspustina/usereport-es.git"
 documentation = "https://github.com/lukaspustina/usereport-es.git"
 readme = "README.md"
@@ -20,7 +20,7 @@ edition = "2018"
 [badges]
 
 [features]
-bin = []
+bin = ["env_logger", "structopt"]
 
 [[bin]]
 name = "usereport"
@@ -36,12 +36,14 @@ path = "src/lib.rs"
 name = "json_report"
 
 [dependencies]
+env_logger = { version = "0.7", optional = true }
 chrono = { version = "0.4", features = ["serde"] }
 log = "0.4"
 handlebars = "2.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 snafu = "0.6"
+structopt = { version = "0.3.7", optional = true }
 subprocess = "0.1"
 toml = "0.5"
 uname = "0.1"
