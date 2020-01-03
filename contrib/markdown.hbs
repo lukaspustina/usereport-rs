@@ -1,4 +1,8 @@
-# Use Report
+# Use Report - {{this.hostname}}
+
+Now: {{rfc2822 this.date_time}}
+Hostname: {{this.hostname}}
+Host OS: {{this.uname}}
 
 {{#each command_results as |result|}}
 
@@ -18,3 +22,7 @@ Command: `{{#each this.command as |arg|}}{{arg}} {{/each}}`
 {{/if}}
 
 {{/each}}
+
+---
+
+<small>Please see [Linux Performance Analysis in 60,000 Milliseconds](https://medium.com/netflix-techblog/linux-performance-analysis-in-60-000-milliseconds-accc10403c55) for details about the individual reports.</small>

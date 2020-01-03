@@ -36,6 +36,7 @@ path = "src/lib.rs"
 name = "json_report"
 
 [dependencies]
+chrono = { version = "0.4", features = ["serde"] }
 log = "0.4"
 handlebars = "2.0"
 serde = { version = "1.0", features = ["derive"] }
@@ -43,6 +44,7 @@ serde_json = "1.0"
 snafu = "0.6"
 subprocess = "0.1"
 toml = "0.5"
+uname = "0.1"
 
 [dev-dependencies]
 env_logger = "0.7"

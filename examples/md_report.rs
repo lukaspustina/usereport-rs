@@ -16,10 +16,10 @@ fn main() {
         .collect::<command::Result<Vec<CommandResult>>>()
         .expect("Some commands failed");
 
-    let report = Report::new(&results);
-    let json = report::MdRenderer::new(&report, template);
+    let report = Report::new(&results).expect("Failed to create report");
+    let renderer= report::MdRenderer::new(&report, template);
 
     let stdout = std::io::stdout();
     let handle = stdout.lock();
-    json.render(handle).expect("Failed to render to stdout");
+    renderer.render(handle).expect("Failed to render to stdout");
 }
