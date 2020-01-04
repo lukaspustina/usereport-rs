@@ -14,10 +14,10 @@ use std::{
 #[allow(missing_docs)]
 pub enum Error {
     /// Failed to parse Config
-    #[snafu(display("Failed parse config: {}", source))]
+    #[snafu(display("failed to parse config: {}", source))]
     ParsingFailed { source: toml::de::Error },
     /// Failed to read file
-    #[snafu(display("Failed read file config '{:?}': {}", path, source))]
+    #[snafu(display("failed to read file config '{}': {}", path.display(), source))]
     ReadFileFailed { path: PathBuf, source: std::io::Error },
 }
 

@@ -12,17 +12,20 @@ use uname;
 #[allow(missing_docs)]
 pub enum Error {
     /// Failed to parse output type
-    #[snafu(display("Failed to parse output type"))]
+    #[snafu(display("failed to parse output type"))]
     OutputTypeParseError,
     /// Failed to create a new report
-    #[snafu(display("Failed to create a new report: {}", source))]
+    #[snafu(display("failed to create a new report: {}", source))]
     CreateFailed{ source: std::io::Error },
     /// Rendering of report to Json failed
-    #[snafu(display("Failed to render report to Json: {}", source))]
+    #[snafu(display("failed to render report to Json: {}", source))]
     JsonRenderingFailed { source: serde_json::Error },
+    /// Handlebars template for Markdown is invalid
+    #[snafu(display("Handlebars template for Markdown is invalid: {}", source))]
+    MdTemplateFailed { source: handlebars::TemplateError},
     /// Rendering of report to Markdown failed
-    #[snafu(display("Failed to render report to Markdown: {}", source))]
-    MdRenderingFailed { source: handlebars::TemplateRenderError},
+    #[snafu(display("failed to render report to Markdown: {}", source))]
+    MdRenderingFailed { source: handlebars::RenderError},
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -113,7 +116,9 @@ pub mod markdown {
             let mut handlebars = Handlebars::new();
             handlebars.register_helper("rfc2822", Box::new(handlebars_helper::date_time_2822));
             handlebars.register_helper("rfc3339", Box::new(handlebars_helper::date_time_3339));
-            handlebars.render_template_to_write(self.template, report, w)
+            handlebars.register_template_string("markdown", self.template)
+                .context(MdTemplateFailed {})?;
+            handlebars.render_to_write("markdown", report, w)
                 .context(MdRenderingFailed {})
         }
     }

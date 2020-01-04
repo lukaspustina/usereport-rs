@@ -10,13 +10,13 @@ use subprocess::{Popen, PopenConfig, PopenError, Redirection};
 #[allow(missing_docs)]
 pub enum Error {
     /// Process creation or execution failed
-    #[snafu(display("Failed to run command {}: {}", name, source))]
+    #[snafu(display("failed to run command {}: {}", name, source))]
     ProcessFailed { name: String, source: PopenError },
     /// Process could not be killed
-    #[snafu(display("Failed to kill command {}: {}", name, source))]
+    #[snafu(display("failed to kill command {}: {}", name, source))]
     KillFailed { name: String, source: std::io::Error },
     /// Waiting for process termination failed
-    #[snafu(display("Failed to wait for command {}: {}", name, source))]
+    #[snafu(display("failed to wait for command {}: {}", name, source))]
     WaitFailed { name: String, source: PopenError },
 }
 

@@ -1,3 +1,5 @@
+use exitfailure::ExitFailure;
+use failure::ResultExt;
 use indicatif::{ProgressBar, ProgressStyle};
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -22,12 +24,14 @@ struct Opt {
     debug: bool,
 }
 
-fn main() {
+fn main() -> Result<(), ExitFailure>{
+    human_panic::setup_panic!();
+
     let opt = Opt::from_args();
     let config = opt.config.as_ref()
         .map(Config::from_file)
         .unwrap_or(Config::from_str(defaults::CONFIG))
-        .expect("Failed to load config file");
+        .with_context(|_| "could not load configuration file")?;
 
     if opt.debug {
         eprintln!("Options: {:#?}", &opt);
@@ -36,15 +40,17 @@ fn main() {
 
     let results = create_runner(&opt, config)
         .run()
-        .expect("Failed to run commands")
+        .with_context(|_| "failed to execute commands")?
         .into_iter()
         .collect::<command::Result<Vec<CommandResult>>>()
-        .expect("Some commands failed");
+        .with_context(|_| "failed to execute some commands")?;
 
     let report = Report::new(&results)
-        .expect("Failed to create report");
+        .with_context(|_| "failed to create report")?;
     render(&report, opt.output_type)
-        .expect("Failed to render to stdout");
+        .with_context(|_| "failed to render report")?;
+
+    Ok(())
 }
 
 fn create_runner(opt: &Opt, config: Config) -> runner::ThreadRunner {

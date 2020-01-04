@@ -18,7 +18,7 @@ pub trait Runner {
 #[allow(missing_docs)]
 pub enum Error {
     /// Command execution failed
-    #[snafu(display("Failed to run command {}: {}", name, source))]
+    #[snafu(display("failed to run command {}: {}", name, source))]
     CommandFailed { name: String, source: std::io::Error },
 }
 
