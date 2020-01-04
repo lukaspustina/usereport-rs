@@ -5,7 +5,8 @@
 * [x] Markdown Report
 * [x] CLI with progressbar indication
 * [x] Error handling in binary
-* [ ] Find a nice logger 
+* [x] Find a nice logger 
+* [ ] Create linux and macos configuration
 
 ## Before 1.0
 

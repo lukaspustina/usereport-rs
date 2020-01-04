@@ -26,6 +26,7 @@ struct Opt {
 
 fn main() -> Result<(), ExitFailure>{
     human_panic::setup_panic!();
+    env_logger::init();
 
     let opt = Opt::from_args();
     let config = opt.config.as_ref()
