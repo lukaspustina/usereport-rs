@@ -88,7 +88,6 @@ default_run = true
             Command::new("uname", "/usr/bin/uname -a", 1)
                 .title("Host OS")
                 .description("Basic host OS information")
-                .run_by_default(true),
         );
         let expected = Config { defaults, commands };
 

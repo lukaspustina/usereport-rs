@@ -7,9 +7,17 @@
 * [x] Error handling in binary
 * [x] Find a nice logger 
 * [ ] Create linux and macos configuration
+    * macOS
+        * sw_vers
+        * softwareupdate -l
+        * http://www.brendangregg.com/USEmethod/use-macosx.html
+    * Linux
+        * https://www.cyberciti.biz/tips/top-linux-monitoring-tools.html
+        * http://www.brendangregg.com/USEmethod/use-linux.html
 
 ## Before 1.0
 
+* Profiles, Categories, 
 * Config: Use defaults
 * Use a abstract type to hold results
     * Include Host information etc. that are currently in Report (maybe)

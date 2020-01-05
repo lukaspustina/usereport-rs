@@ -29,8 +29,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// ```
 /// # use usereport::command::{Command, CommandResult};
 /// let command = Command::new("uname", r#"/usr/bin/uname -a"#, 5)
-///     .title("Host OS")
-///     .run_by_default(false);
+///     .title("Host OS");
 /// match command.exec() {
 ///     Ok(CommandResult::Success {
 ///         command: _,
@@ -50,7 +49,6 @@ pub struct Command {
     pub(crate) args:        Vec<String>,
     #[serde(rename = "timeout")]
     pub(crate) timeout_sec: u64,
-    pub(crate) default_run: bool,
 }
 
 fn de_ser_args<'de, D>(deserializer: D) -> ::std::result::Result<Vec<String>, D::Error>
@@ -90,7 +88,6 @@ impl Command {
             description: None,
             args,
             timeout_sec,
-            default_run: true,
         }
     }
 
@@ -106,14 +103,6 @@ impl Command {
     pub fn description<T: Into<String>>(self, description: T) -> Command {
         Command {
             description: Some(description.into()),
-            ..self
-        }
-    }
-
-    /// Set whether to run this command by default
-    pub fn run_by_default(self, value: bool) -> Command {
-        Command {
-            default_run: value,
             ..self
         }
     }
