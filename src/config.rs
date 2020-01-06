@@ -27,6 +27,9 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Debug, Deserialize, PartialEq)]
 pub struct Config {
     pub defaults: Defaults,
+    pub hostinfo: Option<Hostinfo>,
+    #[serde(rename = "profile")]
+    pub profiles: Vec<Profile>,
     #[serde(rename = "command")]
     pub commands: Vec<Command>,
 }
@@ -55,11 +58,64 @@ impl Config {
 
 #[derive(Debug, Deserialize, PartialEq)]
 pub struct Defaults {
+    #[serde(default = "default_profile")]
+    pub profile: String,
     #[serde(default = "default_timeout")]
     pub timeout: u64,
+    #[serde(default = "default_repetitions")]
+    pub repetitions: u64,
+    #[serde(default = "default_max_parallel_commands")]
+    pub max_parallel_commands: u64,
 }
 
-fn default_timeout() -> u64 { 5 }
+impl Default for Defaults {
+    fn default() -> Self {
+        Defaults {
+            profile: "default".to_string(),
+            timeout: 5,
+            repetitions: 1,
+            max_parallel_commands: 64,
+        }
+    }
+}
+
+fn default_profile() -> String { Defaults::default().profile }
+
+fn default_timeout() -> u64 { Defaults::default().timeout }
+
+fn default_repetitions() -> u64 { Defaults::default().repetitions }
+
+fn default_max_parallel_commands() -> u64 { Defaults::default().max_parallel_commands }
+
+#[derive(Debug, Deserialize, PartialEq)]
+pub struct Hostinfo {
+    pub commands: Vec<String>,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+pub struct Profile {
+    pub name: String,
+    pub commands: Vec<String>,
+    pub description: Option<String>,
+}
+
+impl Profile{
+    pub fn new<T: Into<String> + Clone>(name: T, commands: &[T]) -> Profile {
+        Self::with_description(name, commands, None)
+    }
+
+    pub fn with_description<T: Into<String> + Clone>(name: T, commands: &[T], description: Option<T>) -> Profile {
+        let name = name.into();
+        let commands = commands.iter().map(|x| x.clone().into()).collect();
+        let description = description.map(Into::into);
+
+        Profile {
+            name,
+            commands,
+            description,
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -73,23 +129,30 @@ mod tests {
 [defaults]
 timeout = 5
 
+[[profile]]
+name = "default"
+commands = ["uname"]
+
 [[command]]
 name = "uname"
 title = "Host OS"
 description = "Basic host OS information"
 command = "/usr/bin/uname -a"
 timeout = 1
-default_run = true
 
 "#;
-        let defaults = Defaults { timeout: 5 };
+        let defaults = Defaults { timeout: 5, ..Defaults::default() };
+        let mut profiles = Vec::new();
+        profiles.push(
+            Profile::new("default", &["uname"])
+        );
         let mut commands = Vec::new();
         commands.push(
             Command::new("uname", "/usr/bin/uname -a", 1)
                 .title("Host OS")
                 .description("Basic host OS information")
         );
-        let expected = Config { defaults, commands };
+        let expected = Config { defaults, hostinfo: None, profiles, commands };
 
         let config = Config::from_str(config_txt);
 
