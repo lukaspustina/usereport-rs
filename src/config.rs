@@ -242,7 +242,7 @@ timeout = 1
             .that(&config)
             .is_ok()
             .map(|x| &x.commands)
-            .has_length(3)
+            .has_length(4)
     }
 
     #[test]
