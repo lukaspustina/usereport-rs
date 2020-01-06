@@ -1,11 +1,13 @@
 use exitfailure::ExitFailure;
 use failure::ResultExt;
 use indicatif::{ProgressBar, ProgressStyle};
+use prettytable::{Table, Row, Cell, format, row, cell};
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::mpsc::{self, Receiver, Sender};
 use structopt::{StructOpt, clap};
 use usereport::{Command, CommandResult, command, report, report::OutputType, runner, Config, Renderer, Report, Runner};
+use std::process::exit;
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "usereport", author, about, setting = clap::AppSettings::ColoredHelp)]
@@ -25,6 +27,9 @@ struct Opt {
     /// Set profile to use
     #[structopt(short="p", long)]
     profile: Option<String>,
+    /// Show available profiles
+    #[structopt(long)]
+    show_profiles: bool,
 }
 
 fn main() -> Result<(), ExitFailure>{
@@ -45,6 +50,11 @@ fn main() -> Result<(), ExitFailure>{
         eprintln!("Using profile '{}'", profile);
     }
 
+    if opt.show_profiles {
+        show_profiles(&config);
+        exit(0);
+    }
+
     let commands = config.profile(profile).and_then(|p| config.commands_for_profile(p))?;
     let results = create_runner(&opt, commands)
         .run()
@@ -59,6 +69,20 @@ fn main() -> Result<(), ExitFailure>{
         .with_context(|_| "failed to render report")?;
 
     Ok(())
+}
+
+fn show_profiles(config: &Config) {
+    let mut table = Table::new();
+    table.set_format(*format::consts::FORMAT_NO_LINESEP_WITH_TITLE);
+    table.set_titles(row!["Profile", "Commands", "Description"]);
+    for p in &config.profiles {
+        table.add_row(Row::new(vec![
+            Cell::new(&p.name),
+            Cell::new(&p.commands.as_slice().join("\n")),
+            Cell::new(&p.description.as_ref().map(|x| x.as_str()).unwrap_or("-")),
+        ]));
+    }
+    table.printstd();
 }
 
 fn create_runner<'a>(opt: &Opt, commands: Vec<&'a Command>) -> runner::ThreadRunner<'a> {

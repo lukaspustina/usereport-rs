@@ -20,7 +20,7 @@ edition = "2018"
 [badges]
 
 [features]
-bin = ["env_logger", "exitfailure", "failure", "human-panic", "indicatif", "structopt"]
+bin = ["env_logger", "exitfailure", "failure", "human-panic", "indicatif", "prettytable-rs", "structopt"]
 
 [[bin]]
 name = "usereport"
@@ -44,6 +44,7 @@ handlebars = "2.0"
 human-panic = { version = "1", optional = true }
 indicatif = { version = "0.13", optional = true }
 log = "0.4"
+prettytable-rs = { version = "0.8", optional = true }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 snafu = "0.6"
