@@ -51,6 +51,7 @@ impl FromStr for OutputType {
 
 #[derive(Debug, Serialize)]
 pub struct Report<'a> {
+    hostinfo_results: Option<&'a [CommandResult]>,
     command_results: &'a [CommandResult],
     hostname: String,
     uname: String,
@@ -67,11 +68,16 @@ impl<'a> Report<'a> {
         let date_time = Local::now();
 
         Ok(Report {
+            hostinfo_results: None,
             command_results,
             hostname,
             uname,
             date_time,
         })
+    }
+
+    pub fn set_hostinfo_results(&mut self, command_results: &'a [CommandResult]) {
+        self.hostinfo_results = Some(command_results);
     }
 }
 
@@ -82,6 +88,7 @@ pub trait Renderer {
 pub use json::JsonRenderer;
 pub use markdown::MdRenderer;
 use std::str::FromStr;
+use crate::config::Hostinfo;
 
 pub mod json {
     use super::*;
@@ -127,7 +134,6 @@ pub mod markdown {
 mod handlebars_helper {
     use chrono::{DateTime, Local};
     use handlebars::{Context, Handlebars, Helper, HelperResult, Output, RenderContext, RenderError};
-
 
     pub(crate) fn date_time_2822(h: &Helper, _: &Handlebars, _: &Context, _: &mut RenderContext, out: &mut dyn Output) -> HelperResult {
         let dt = date_param(h)?;

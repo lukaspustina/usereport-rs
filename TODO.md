@@ -9,7 +9,7 @@
 * Profiles
     * [X] Config
     * [X] CLI opts: --show-profiles, --show-commands, --profile
-* [ ] Hostinfo
+* [X] Hostinfo
 * [ ] Repetitions
 * [ ] Max Parallel
 * [ ] Create linux and macos configuration
@@ -20,6 +20,7 @@
     * Linux
         * https://www.cyberciti.biz/tips/top-linux-monitoring-tools.html
         * http://www.brendangregg.com/USEmethod/use-linux.html
+* [ ] Include failures in report
 
 ## Before 1.0
 

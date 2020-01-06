@@ -1,27 +1,51 @@
-# Use Report - {{this.hostname}}
+# Use Report - {{hostname}}
 
-Now: {{rfc2822 this.date_time}}
-Hostname: {{this.hostname}}
-Host OS: {{this.uname}}
+Now: {{rfc2822 date_time}}
+Hostname: {{hostname}}
+Host OS: {{uname}}
 
-{{#each command_results as |result|}}
+## Host Information
+{{#each hostinfo_results as |result|}}
+{{~#if result.Success}}
+{{~#with result.Success}}
+### {{#if this.command.title}}{{this.command.title}}{{else}}{{this.command.name}}{{/if}}
 
-{{#if result.Success}}
-{{#with result.Success}}
-## {{#if this.command.title}}{{this.command.title}}{{else}}{{this.command.name}}{{/if}}
 ```sh
 {{this.stdout}}
 ```
+
 <small>
-{{#with this.command}}
-Command: `{{#each this.command as |arg|}}{{arg}} {{/each}}`
+{{~#with this.command}}
+Command: `{{this.command}}`
 {{this.description}}
-{{/with}}
+{{~/with}}
+</small>
+
+{{~/with}}
+{{~/if}}
+
+{{~/each}}
+
+## Commands
+{{#each command_results as |result|}}
+{{~#if result.Success}}
+{{~#with result.Success}}
+### {{#if this.command.title}}{{this.command.title}}{{else}}{{this.command.name}}{{/if}}
+
+```sh
+{{this.stdout}}
+```
+
+<small>
+{{~#with this.command}}
+Command: `{{this.command}}`
+{{this.description}}
+{{~/with}}
 </small>
 {{/with}}
-{{/if}}
+{{~/if}}
 
-{{/each}}
+{{~/each}}
 
 ---
 

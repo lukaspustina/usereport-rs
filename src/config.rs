@@ -65,12 +65,21 @@ impl Config {
             .ok_or_else(|| Error::InvalidConfig { reason: "no such profile" })
     }
 
-    pub fn commands_for_profile(&self, profile: &Profile) -> Result<Vec<&Command>> {
-        let commands = self.commands.iter()
-            .filter(|c| profile.commands.contains(&c.name))
-            .collect();
+    pub fn commands_for_hostinfo(&self) -> Option<Vec<&Command>> {
+        if let Some(hostinfo) = &self.hostinfo {
+            let commands = self.commands.iter()
+                .filter(|c| hostinfo.commands.contains(&c.name))
+                .collect();
+            Some(commands)
+        } else {
+            None
+        }
+    }
 
-        Ok(commands)
+    pub fn commands_for_profile(&self, profile: &Profile) -> Vec<&Command> {
+        self.commands.iter()
+            .filter(|c| profile.commands.contains(&c.name))
+            .collect()
     }
 
     pub fn validate(&self) -> Result<()> {
@@ -87,7 +96,7 @@ impl Config {
         if let Some(ref hostinfo) = self.hostinfo {
             for c in &hostinfo.commands {
                 command_names.get(c)
-                    .ok_or_else(|| Error::InvalidConfig { reason: "profile command not found" })?;
+                    .ok_or_else(|| Error::InvalidConfig { reason: "hostinfo command not found" })?;
             }
         }
 

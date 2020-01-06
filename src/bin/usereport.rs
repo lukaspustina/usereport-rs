@@ -48,12 +48,12 @@ fn main() -> Result<(), ExitFailure> {
         .unwrap_or(Config::from_str(defaults::CONFIG))
         .with_context(|_| "could not load configuration file")?;
     let _ = config.validate()?;
-    let profile = opt.profile.as_ref().unwrap_or(&config.defaults.profile);
+    let profile_name = opt.profile.as_ref().unwrap_or(&config.defaults.profile);
 
     if opt.debug {
         eprintln!("Options: {:#?}", &opt);
         eprintln!("Configuration: {:#?}", &config);
-        eprintln!("Using profile '{}'", profile);
+        eprintln!("Using profile '{}'", profile_name);
     }
 
     if opt.show_config {
@@ -69,7 +69,7 @@ fn main() -> Result<(), ExitFailure> {
         return Ok(())
     }
 
-    generate_report(&opt, &config)
+    generate_report(&opt, &config, profile_name)
 }
 
 fn show_config(config: &Config) {
@@ -109,21 +109,35 @@ fn show_commands(config: &Config) {
     table.printstd();
 }
 
-fn generate_report(opt: &Opt, config: &Config) -> Result<(), ExitFailure> {
-    let commands = config.profile(profile).and_then(|p| config.commands_for_profile(p))?;
-    let results = create_runner(&opt, commands)
+fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> Result<(), ExitFailure> {
+    let hostinfo_results = if let Some(cmds) = config.commands_for_hostinfo() {
+        let res = run_commands(opt, cmds)?;
+        Some(res)
+    } else {
+        None
+    };
+
+    let commands = config.profile(profile_name).and_then(|p| Ok(config.commands_for_profile(p)))?;
+    let command_results = run_commands(opt, commands)?;
+    let mut report = Report::new(&command_results)
+        .with_context(|_| "failed to create report")?;
+    hostinfo_results.as_ref().map(|x| report.set_hostinfo_results(x));
+
+    render(&report, &opt.output_type)
+        .with_context(|_| "failed to render report")?;
+
+    Ok(())
+}
+
+fn run_commands(opt: &Opt, commands: Vec<&Command>) -> Result<Vec<CommandResult>, ExitFailure> {
+    let res = create_runner(&opt, commands)
         .run()
         .with_context(|_| "failed to execute commands")?
         .into_iter()
         .collect::<command::Result<Vec<CommandResult>>>()
         .with_context(|_| "failed to execute some commands")?;
 
-    let report = Report::new(&results)
-        .with_context(|_| "failed to create report")?;
-    render(&report, opt.output_type)
-        .with_context(|_| "failed to render report")?;
-
-    Ok(())
+    Ok(res)
 }
 
 fn create_runner<'a>(opt: &Opt, commands: Vec<&'a Command>) -> runner::ThreadRunner<'a> {
@@ -155,7 +169,7 @@ fn create_progress_bar(expected: usize) -> Sender<usize> {
     tx
 }
 
-fn render(report: &Report, output_type: OutputType) -> report::Result<()> {
+fn render(report: &Report, output_type: &OutputType) -> report::Result<()> {
     let stdout = std::io::stdout();
     let handle = stdout.lock();
     match output_type {
