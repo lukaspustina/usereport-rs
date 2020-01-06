@@ -6,7 +6,7 @@ fn main() {
     #[cfg(target_os = "linux")]
     let config = Config::from_file("contrib/linux.conf").expect("Failed to load config file");
 
-    let runner = runner::ThreadRunner::new(config.commands);
+    let runner = runner::ThreadRunner::new(&config.commands);
     let results = runner
         .run()
         .expect("Failed to run commands")

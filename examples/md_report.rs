@@ -8,7 +8,7 @@ fn main() {
 
     let template = include_str!("../contrib/markdown.hbs");
 
-    let runner = runner::ThreadRunner::new(config.commands);
+    let runner = runner::ThreadRunner::new(&config.commands);
     let results = runner
         .run()
         .expect("Failed to run commands")

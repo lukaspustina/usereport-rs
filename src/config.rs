@@ -8,6 +8,8 @@ use std::{
     path::{Path, PathBuf},
     str::FromStr,
 };
+use std::collections::HashSet;
+use std::iter::FromIterator;
 
 /// Error type
 #[derive(Debug, Snafu)]
@@ -19,6 +21,9 @@ pub enum Error {
     /// Failed to read file
     #[snafu(display("failed to read file config '{}': {}", path.display(), source))]
     ReadFileFailed { path: PathBuf, source: std::io::Error },
+    /// Configuration is invalid
+    #[snafu(display("configuration is invalid because {}", reason))]
+    InvalidConfig { reason: &'static str },
 }
 
 /// Result type
@@ -53,6 +58,59 @@ impl Config {
             path: path.as_ref().to_path_buf(),
         })?;
         Config::from_str(&toml)
+    }
+
+    pub fn profile(&self, profile_name: &str) -> Result<&Profile> {
+        self.profiles.iter().find(|x| &x.name == profile_name)
+            .ok_or_else(|| Error::InvalidConfig { reason: "no such profile" })
+    }
+
+    pub fn commands_for_profile(&self, profile: &Profile) -> Result<Vec<&Command>> {
+        let commands = self.commands.iter()
+            .filter(|c| profile.commands.contains(&c.name))
+            .collect();
+
+        Ok(commands)
+    }
+
+    pub fn validate(&self) -> Result<()> {
+        self.validate_host_info()?;
+        self.validate_default_profile()?;
+        self.validate_profiles_commands()?;
+
+        Ok(())
+    }
+
+    fn validate_host_info(&self) -> Result<()> {
+        let command_names: HashSet<&String> = HashSet::from_iter(self.commands.iter().map(|x| &x.name));
+
+        if let Some(ref hostinfo) = self.hostinfo {
+            for c in &hostinfo.commands {
+                command_names.get(c)
+                    .ok_or_else(|| Error::InvalidConfig { reason: "profile command not found" })?;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn validate_default_profile(&self) -> Result<()> {
+        let p_name = self.defaults.profile.as_ref();
+        self.profile(p_name)
+            .map(|_| ())
+    }
+
+    fn validate_profiles_commands(&self) -> Result<()> {
+        let command_names: HashSet<&String> = HashSet::from_iter(self.commands.iter().map(|x| &x.name));
+
+        for p in &self.profiles {
+            for c in &p.commands {
+                command_names.get(c)
+                    .ok_or_else(|| Error::InvalidConfig { reason: "profile command not found" })?;
+            }
+        }
+
+        Ok(())
     }
 }
 
@@ -99,7 +157,7 @@ pub struct Profile {
     pub description: Option<String>,
 }
 
-impl Profile{
+impl Profile {
     pub fn new<T: Into<String> + Clone>(name: T, commands: &[T]) -> Profile {
         Self::with_description(name, commands, None)
     }
@@ -124,7 +182,7 @@ mod tests {
     use spectral::prelude::*;
 
     #[test]
-    fn config_read_ok() {
+    fn config_read_from_str_ok() {
         let config_txt = r#"
 [defaults]
 timeout = 5
@@ -163,11 +221,11 @@ timeout = 1
     }
 
     #[test]
-    fn config_file_ok() {
+    fn config_read_from_file_ok() {
         #[cfg(target_os = "macos")]
-        let path = "contrib/osx.conf";
+            let path = "contrib/osx.conf";
         #[cfg(target_os = "linux")]
-        let path = "contrib/linux.conf";
+            let path = "contrib/linux.conf";
 
         let config = Config::from_file(path);
 
@@ -176,5 +234,86 @@ timeout = 1
             .is_ok()
             .map(|x| &x.commands)
             .has_length(3)
+    }
+
+    #[test]
+    fn config_invalid_default_profile() {
+        let config_txt = r#"
+[defaults]
+timeout = 5
+
+[[profile]]
+name = "not-the-default"
+commands = ["uname"]
+
+[[command]]
+name = "uname"
+title = "Host OS"
+description = "Basic host OS information"
+command = "/usr/bin/uname -a"
+timeout = 1
+
+"#;
+        let config = Config::from_str(config_txt).expect("syntax ok");
+        let validation = config.validate();
+
+        asserting("validating config")
+            .that(&validation)
+            .is_err();
+    }
+
+    #[test]
+    fn config_invalid_profile_commands() {
+        let config_txt = r#"
+[defaults]
+timeout = 5
+
+[[profile]]
+name = "default"
+commands = ["unam"]
+
+[[command]]
+name = "uname"
+title = "Host OS"
+description = "Basic host OS information"
+command = "/usr/bin/uname -a"
+timeout = 1
+
+"#;
+        let config = Config::from_str(config_txt).expect("syntax ok");
+        let validation = config.validate();
+
+        asserting("validating config")
+            .that(&validation)
+            .is_err();
+    }
+
+    #[test]
+    fn config_invalid_hostinfo_commands() {
+        let config_txt = r#"
+[defaults]
+timeout = 5
+
+[hostinfo]
+commands = ["unam"]
+
+[[profile]]
+name = "default"
+commands = ["uname"]
+
+[[command]]
+name = "uname"
+title = "Host OS"
+description = "Basic host OS information"
+command = "/usr/bin/uname -a"
+timeout = 1
+
+"#;
+        let config = Config::from_str(config_txt).expect("syntax ok");
+        let validation = config.validate();
+
+        asserting("validating config")
+            .that(&validation)
+            .is_err();
     }
 }

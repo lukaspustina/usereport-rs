@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::mpsc::{self, Receiver, Sender};
 use structopt::{StructOpt, clap};
-use usereport::{command, command::CommandResult, report, report::OutputType, runner, Config, Renderer, Report, Runner};
+use usereport::{Command, CommandResult, command, report, report::OutputType, runner, Config, Renderer, Report, Runner};
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "usereport", author, about, setting = clap::AppSettings::ColoredHelp)]
@@ -17,11 +17,14 @@ struct Opt {
     #[structopt(short, long, possible_values = &["json", "markdown"], default_value = "markdown")]
     output_type: OutputType,
     /// Show progress bar while waiting for all commands to finish
-    #[structopt(short, long)]
+    #[structopt(short="P", long)]
     progress: bool,
     /// Activate debug mode
     #[structopt(short, long)]
     debug: bool,
+    /// Set profile to use
+    #[structopt(short="p", long)]
+    profile: Option<String>,
 }
 
 fn main() -> Result<(), ExitFailure>{
@@ -33,13 +36,17 @@ fn main() -> Result<(), ExitFailure>{
         .map(Config::from_file)
         .unwrap_or(Config::from_str(defaults::CONFIG))
         .with_context(|_| "could not load configuration file")?;
+    let _ = config.validate()?;
+    let profile = opt.profile.as_ref().unwrap_or(&config.defaults.profile);
 
     if opt.debug {
         eprintln!("Options: {:#?}", &opt);
         eprintln!("Configuration: {:#?}", &config);
+        eprintln!("Using profile '{}'", profile);
     }
 
-    let results = create_runner(&opt, config)
+    let commands = config.profile(profile).and_then(|p| config.commands_for_profile(p))?;
+    let results = create_runner(&opt, commands)
         .run()
         .with_context(|_| "failed to execute commands")?
         .into_iter()
@@ -54,12 +61,12 @@ fn main() -> Result<(), ExitFailure>{
     Ok(())
 }
 
-fn create_runner(opt: &Opt, config: Config) -> runner::ThreadRunner {
+fn create_runner<'a>(opt: &Opt, commands: Vec<&'a Command>) -> runner::ThreadRunner<'a> {
     if opt.progress {
-        let tx = create_progress_bar(config.commands.len());
-         runner::ThreadRunner::with_progress(config.commands, tx)
+        let tx = create_progress_bar(commands.len());
+         runner::ThreadRunner::with_progress(commands, tx)
     } else {
-        runner::ThreadRunner::new(config.commands)
+        runner::ThreadRunner::new(commands)
     }
 }
 

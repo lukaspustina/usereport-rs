@@ -6,6 +6,9 @@
 * [x] CLI with progressbar indication
 * [x] Error handling in binary
 * [x] Find a nice logger 
+* Profiles
+    * [X] Config
+    * [ ] CLI opts: --show-profiles, --show-commands, --profile
 * [ ] Create linux and macos configuration
     * macOS
         * sw_vers
@@ -17,7 +20,6 @@
 
 ## Before 1.0
 
-* Profiles, Categories, 
 * Config: Use defaults
 * Use a abstract type to hold results
     * Include Host information etc. that are currently in Report (maybe)

@@ -14,6 +14,7 @@ pub mod report;
 /// Trait and default implementation to run commands and collect their output
 pub mod runner;
 
+pub use command::{Command, CommandResult};
 pub use config::Config;
 pub use report::{Renderer, Report};
 pub use runner::Runner;

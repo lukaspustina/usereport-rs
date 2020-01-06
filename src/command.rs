@@ -40,7 +40,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 ///     _ => println!("Command execution failed"),
 /// };
 /// ```
-#[derive(Debug, Deserialize, PartialEq, Serialize)]
+#[derive(Debug, Deserialize, PartialEq, Serialize, Clone)]
 pub struct Command {
     pub(crate) name:        String,
     pub(crate) title:       Option<String>,

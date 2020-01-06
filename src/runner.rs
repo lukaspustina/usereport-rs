@@ -4,11 +4,11 @@ use std::sync::mpsc::Sender;
 use snafu::{ResultExt, Snafu};
 
 /// Runner Interface
-pub trait Runner {
+pub trait Runner<'a> {
     /// Create Runner with commands
-    fn new(commands: Vec<Command>) -> Self;
+    fn new<I: IntoIterator<Item=&'a Command>>(commands: I) -> Self;
     /// Create Runner with commands with progress indication channel
-    fn with_progress(commands: Vec<Command>, progress_tx: Sender<usize>) -> Self;
+    fn with_progress<I: IntoIterator<Item=&'a Command>>(commands: I, progress_tx: Sender<usize>) -> Self;
     /// Execute all commands and wait until all commands return
     fn run(self) -> Result<Vec<command::Result<CommandResult>>>;
 }
@@ -37,21 +37,25 @@ pub mod thread {
         thread::JoinHandle,
     };
 
-    pub struct ThreadRunner {
-        commands: Vec<Command>,
+    pub struct ThreadRunner<'a> {
+        commands: Vec<&'a Command>,
         progress_tx: Option<Sender<usize>>,
     }
 
-    impl super::Runner for ThreadRunner {
-        fn new(commands: Vec<Command>) -> Self { ThreadRunner { commands, progress_tx: None, } }
+    impl<'a> super::Runner<'a> for ThreadRunner<'a> {
+        fn new<I: IntoIterator<Item=&'a Command>>(commands: I) -> Self {
+            let commands = commands.into_iter().collect();
+            ThreadRunner { commands, progress_tx: None }
+        }
 
-        fn with_progress(commands: Vec<Command>, progress_tx: Sender<usize>) -> Self {
+        fn with_progress<I: IntoIterator<Item=&'a Command>>(commands: I, progress_tx: Sender<usize>) -> Self {
+            let commands = commands.into_iter().collect();
             ThreadRunner { commands, progress_tx: Some(progress_tx) }
         }
 
         fn run(self) -> Result<Vec<command::Result<CommandResult>>> {
             // Create child threads and run commands
-            let (children, rx) = ThreadRunner::create_children(self.commands, self.progress_tx)?;
+            let (children, rx) = ThreadRunner::create_children(self.commands.as_slice(), self.progress_tx)?;
             // Wait for results
             let results = ThreadRunner::wait_for_results(children, rx);
 
@@ -61,9 +65,9 @@ pub mod thread {
 
     type ChildrenSupervision = (Vec<JoinHandle<()>>, Receiver<command::Result<CommandResult>>);
 
-    impl ThreadRunner {
+    impl<'a> ThreadRunner<'a> {
         fn create_children(
-            commands: Vec<Command>,
+            commands: &'a [&Command],
             progress_tx: Option<Sender<usize>>,
         ) -> Result<ChildrenSupervision> {
             let (tx, rx): (
@@ -80,10 +84,11 @@ pub mod thread {
             Ok((children, rx))
         }
 
-        fn create_child(command: Command, tx: Sender<command::Result<CommandResult>>, progress_tx: Option<Sender<usize>>) -> Result<JoinHandle<()>> {
+        fn create_child(command: &Command, tx: Sender<command::Result<CommandResult>>, progress_tx: Option<Sender<usize>>) -> Result<JoinHandle<()>> {
+            let command = command.clone();
             let name = command.name.clone();
             thread::Builder::new()
-                .name(name.clone())
+                .name(command.name.clone())
                 .spawn(move || {
                     let res = command.exec();
                     // This should not happen as long as the parent is alive; if it happens, this is a valid reason to
@@ -138,7 +143,7 @@ pub mod thread {
             #[cfg(target_os = "linux")]
             let expected = "Linux";
 
-            let r = ThreadRunner::new(commands);
+            let r = ThreadRunner::new(&commands);
             let results = r.run();
 
             asserting("Command run").that(&results).is_ok().has_length(2);
