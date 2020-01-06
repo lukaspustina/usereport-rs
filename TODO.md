@@ -8,7 +8,7 @@
 * [x] Find a nice logger 
 * Profiles
     * [X] Config
-    * [ ] CLI opts: --show-profiles, --show-commands, --profile
+    * [X] CLI opts: --show-profiles, --show-commands, --profile
 * [ ] Create linux and macos configuration
     * macOS
         * sw_vers

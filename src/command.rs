@@ -1,6 +1,6 @@
 use core::fmt;
 use log::{debug, trace};
-use serde::{de, de::Visitor, Deserialize, Deserializer, Serialize};
+use serde::{de, de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
 use snafu::{ResultExt, Snafu};
 use std::{io::Read, time::Duration};
 use subprocess::{Popen, PopenConfig, PopenError, Redirection};
@@ -29,7 +29,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// ```
 /// # use usereport::command::{Command, CommandResult};
 /// let command = Command::new("uname", r#"/usr/bin/uname -a"#, 5)
-///     .title("Host OS");
+///     .set_title("Host OS");
 /// match command.exec() {
 ///     Ok(CommandResult::Success {
 ///         command: _,
@@ -45,7 +45,7 @@ pub struct Command {
     pub(crate) name:        String,
     pub(crate) title:       Option<String>,
     pub(crate) description: Option<String>,
-    #[serde(rename = "command", deserialize_with = "de_ser_args")]
+    #[serde(rename = "command", deserialize_with = "de_ser_args", serialize_with = "ser_args")]
     pub(crate) args:        Vec<String>,
     #[serde(rename = "timeout")]
     pub(crate) timeout_sec: u64,
@@ -76,6 +76,14 @@ where
     deserializer.deserialize_string(ArgsVisitor)
 }
 
+pub fn ser_args<S>(args: &Vec<String>, serializer: S) -> ::std::result::Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+{
+    let command: String = args.as_slice().join(" ");
+    serializer.serialize_str(&command)
+}
+
 impl Command {
     /// Create new command with default values
     pub fn new<T: Into<String>>(name: T, command: T, timeout_sec: u64) -> Command {
@@ -91,8 +99,20 @@ impl Command {
         }
     }
 
+    /// Get name of command
+    pub fn name(&self) -> &str { &self.name }
+
+    /// Get command args
+    pub fn args(&self) -> &[String] { self.args.as_slice() }
+
+    /// Get title of command
+    pub fn title(&self) -> Option<&str> { self.title.as_ref().map(|x| x.as_str()) }
+
+    /// Get description of command
+    pub fn description(&self) -> Option<&str> { self.description.as_ref().map(|x| x.as_str()) }
+
     /// Set title of command
-    pub fn title<T: Into<String>>(self, title: T) -> Command {
+    pub fn set_title<T: Into<String>>(self, title: T) -> Command {
         Command {
             title: Some(title.into()),
             ..self
@@ -100,7 +120,7 @@ impl Command {
     }
 
     /// Set description of command
-    pub fn description<T: Into<String>>(self, description: T) -> Command {
+    pub fn set_description<T: Into<String>>(self, description: T) -> Command {
         Command {
             description: Some(description.into()),
             ..self

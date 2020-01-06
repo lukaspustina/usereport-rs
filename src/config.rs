@@ -1,6 +1,6 @@
 use crate::command::Command;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use snafu::{ResultExt, Snafu};
 use std::{
     fs::File,
@@ -29,7 +29,7 @@ pub enum Error {
 /// Result type
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-#[derive(Debug, Deserialize, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, PartialEq)]
 pub struct Config {
     pub defaults: Defaults,
     pub hostinfo: Option<Hostinfo>,
@@ -114,7 +114,7 @@ impl Config {
     }
 }
 
-#[derive(Debug, Deserialize, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, PartialEq)]
 pub struct Defaults {
     #[serde(default = "default_profile")]
     pub profile: String,
@@ -145,12 +145,12 @@ fn default_repetitions() -> u64 { Defaults::default().repetitions }
 
 fn default_max_parallel_commands() -> u64 { Defaults::default().max_parallel_commands }
 
-#[derive(Debug, Deserialize, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, PartialEq)]
 pub struct Hostinfo {
     pub commands: Vec<String>,
 }
 
-#[derive(Debug, Deserialize, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, PartialEq)]
 pub struct Profile {
     pub name: String,
     pub commands: Vec<String>,
@@ -207,8 +207,8 @@ timeout = 1
         let mut commands = Vec::new();
         commands.push(
             Command::new("uname", "/usr/bin/uname -a", 1)
-                .title("Host OS")
-                .description("Basic host OS information")
+                .set_title("Host OS")
+                .set_description("Basic host OS information")
         );
         let expected = Config { defaults, hostinfo: None, profiles, commands };
 

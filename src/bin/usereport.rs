@@ -7,7 +7,7 @@ use std::str::FromStr;
 use std::sync::mpsc::{self, Receiver, Sender};
 use structopt::{StructOpt, clap};
 use usereport::{Command, CommandResult, command, report, report::OutputType, runner, Config, Renderer, Report, Runner};
-use std::process::exit;
+use std::io::Write;
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "usereport", author, about, setting = clap::AppSettings::ColoredHelp)]
@@ -15,6 +15,9 @@ struct Opt {
     /// Configuration from file, or default if not present
     #[structopt(short, long, parse(from_os_str))]
     config: Option<PathBuf>,
+    /// Show active config
+    #[structopt(long)]
+    show_config: bool,
     /// Output format
     #[structopt(short, long, possible_values = &["json", "markdown"], default_value = "markdown")]
     output_type: OutputType,
@@ -30,6 +33,9 @@ struct Opt {
     /// Show available profiles
     #[structopt(long)]
     show_profiles: bool,
+    /// Show available commands
+    #[structopt(long)]
+    show_commands: bool,
 }
 
 fn main() -> Result<(), ExitFailure>{
@@ -50,9 +56,17 @@ fn main() -> Result<(), ExitFailure>{
         eprintln!("Using profile '{}'", profile);
     }
 
+    if opt.show_config {
+        show_config(&config);
+        return Ok(())
+    }
     if opt.show_profiles {
         show_profiles(&config);
-        exit(0);
+        return Ok(())
+    }
+    if opt.show_commands {
+        show_commands(&config);
+        return Ok(())
     }
 
     let commands = config.profile(profile).and_then(|p| config.commands_for_profile(p))?;
@@ -71,15 +85,38 @@ fn main() -> Result<(), ExitFailure>{
     Ok(())
 }
 
+fn show_config(config: &Config) {
+    let toml = toml::to_string_pretty(config)
+        .expect("failed to serialize active config in TOML");
+    let stdout = std::io::stdout();
+    let mut handle = stdout.lock();
+    handle.write_all(toml.as_bytes())
+        .expect("failed write TOML to stdout");
+}
+
 fn show_profiles(config: &Config) {
     let mut table = Table::new();
     table.set_format(*format::consts::FORMAT_NO_LINESEP_WITH_TITLE);
-    table.set_titles(row!["Profile", "Commands", "Description"]);
+    table.set_titles(row!["Name", "Commands", "Description"]);
     for p in &config.profiles {
         table.add_row(Row::new(vec![
             Cell::new(&p.name),
             Cell::new(&p.commands.as_slice().join("\n")),
             Cell::new(&p.description.as_ref().map(|x| x.as_str()).unwrap_or("-")),
+        ]));
+    }
+    table.printstd();
+}
+
+fn show_commands(config: &Config) {
+    let mut table = Table::new();
+    table.set_format(*format::consts::FORMAT_NO_LINESEP_WITH_TITLE);
+    table.set_titles(row!["Name", "Command", "Title", "Description"]);
+    for c in &config.commands {
+        table.add_row(Row::new(vec![
+            Cell::new(&c.name()),
+            Cell::new(&c.args().join(" ")),
+            Cell::new(&c.title().unwrap_or("-")),
         ]));
     }
     table.printstd();
