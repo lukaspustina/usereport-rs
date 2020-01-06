@@ -38,7 +38,7 @@ struct Opt {
     show_commands: bool,
 }
 
-fn main() -> Result<(), ExitFailure>{
+fn main() -> Result<(), ExitFailure> {
     human_panic::setup_panic!();
     env_logger::init();
 
@@ -69,20 +69,7 @@ fn main() -> Result<(), ExitFailure>{
         return Ok(())
     }
 
-    let commands = config.profile(profile).and_then(|p| config.commands_for_profile(p))?;
-    let results = create_runner(&opt, commands)
-        .run()
-        .with_context(|_| "failed to execute commands")?
-        .into_iter()
-        .collect::<command::Result<Vec<CommandResult>>>()
-        .with_context(|_| "failed to execute some commands")?;
-
-    let report = Report::new(&results)
-        .with_context(|_| "failed to create report")?;
-    render(&report, opt.output_type)
-        .with_context(|_| "failed to render report")?;
-
-    Ok(())
+    generate_report(&opt, &config)
 }
 
 fn show_config(config: &Config) {
@@ -120,6 +107,23 @@ fn show_commands(config: &Config) {
         ]));
     }
     table.printstd();
+}
+
+fn generate_report(opt: &Opt, config: &Config) -> Result<(), ExitFailure> {
+    let commands = config.profile(profile).and_then(|p| config.commands_for_profile(p))?;
+    let results = create_runner(&opt, commands)
+        .run()
+        .with_context(|_| "failed to execute commands")?
+        .into_iter()
+        .collect::<command::Result<Vec<CommandResult>>>()
+        .with_context(|_| "failed to execute some commands")?;
+
+    let report = Report::new(&results)
+        .with_context(|_| "failed to create report")?;
+    render(&report, opt.output_type)
+        .with_context(|_| "failed to render report")?;
+
+    Ok(())
 }
 
 fn create_runner<'a>(opt: &Opt, commands: Vec<&'a Command>) -> runner::ThreadRunner<'a> {

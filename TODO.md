@@ -9,6 +9,9 @@
 * Profiles
     * [X] Config
     * [X] CLI opts: --show-profiles, --show-commands, --profile
+* [ ] Hostinfo
+* [ ] Repetitions
+* [ ] Max Parallel
 * [ ] Create linux and macos configuration
     * macOS
         * sw_vers
@@ -24,7 +27,6 @@
 * Use a abstract type to hold results
     * Include Host information etc. that are currently in Report (maybe)
     * Repeat measurements
-* Command results should be categorized, i.e., host information, network, virtual memory etc.
 * Commands should allow for arbitary links for further information or actions
 * Command result should store command execution time
 * Command result should allow easier access -- cf. command args in rendering
