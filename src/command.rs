@@ -17,18 +17,24 @@ use subprocess::{Popen, PopenConfig, Redirection};
 ///     .set_title("Just a successful command")
 ///     .set_timeout(5);
 /// match command.exec() {
-///     CommandResult::Success { command: _, stdout: stdout } => println!("Command output '{}'", stdout),
+///     CommandResult::Success {
+///         command: _,
+///         stdout: stdout,
+///     } => println!("Command output '{}'", stdout),
 ///     CommandResult::Failed { command: _ } => println!("Command failed"),
 ///     CommandResult::Timeout { command: _ } => println!("Command timed out"),
-///     CommandResult::Error{ command: _, reason: reason } => println!("Command errored because {}", reason)
+///     CommandResult::Error {
+///         command: _,
+///         reason: reason,
+///     } => println!("Command errored because {}", reason),
 /// };
 /// ```
 #[derive(Debug, Deserialize, PartialEq, Serialize, Clone)]
 pub struct Command {
-    pub(crate) name: String,
-    pub(crate) title: Option<String>,
+    pub(crate) name:        String,
+    pub(crate) title:       Option<String>,
     pub(crate) description: Option<String>,
-    pub(crate) command: String,
+    pub(crate) command:     String,
     #[serde(rename = "timeout")]
     /// Timeout for command execution, defaults to 1 sec if not set
     pub(crate) timeout_sec: Option<u64>,
@@ -38,10 +44,10 @@ impl Command {
     /// Create new command with default values
     pub fn new<T: Into<String>>(name: T, command: T) -> Command {
         Command {
-            name: name.into(),
-            title: None,
+            name:        name.into(),
+            title:       None,
             description: None,
-            command: command.into(),
+            command:     command.into(),
             timeout_sec: None,
         }
     }
@@ -85,12 +91,20 @@ impl Command {
     /// Execute this command; may panic
     pub fn exec(self) -> CommandResult {
         let args: Vec<_> = self.command.split(' ').collect();
-        let popen_config = PopenConfig { stdout: Redirection::Pipe, ..Default::default() };
+        let popen_config = PopenConfig {
+            stdout: Redirection::Pipe,
+            ..Default::default()
+        };
         let popen = Popen::create(&args, popen_config);
 
         let mut p = match popen {
             Ok(p) => p,
-            Err(err) => return CommandResult::Error { command: self, reason: err.to_string() }
+            Err(err) => {
+                return CommandResult::Error {
+                    command: self,
+                    reason:  err.to_string(),
+                }
+            }
         };
         debug!("Running '{:?}' as '{:?}'", args, p);
 
@@ -115,13 +129,16 @@ impl Command {
             Err(err) => {
                 trace!("process failed '{:?}'", err);
                 self.terminate(&mut p);
-                CommandResult::Error { command: self, reason: err.to_string() }
+                CommandResult::Error {
+                    command: self,
+                    reason:  err.to_string(),
+                }
             }
         }
     }
 
     /// Panics
-    fn terminate(&self, p: &mut Popen) -> () {
+    fn terminate(&self, p: &mut Popen) {
         p.kill().expect("failed to kill command");
         p.wait().expect("failed to wait for command to finish");
         trace!("process killed");
@@ -153,9 +170,9 @@ mod tests {
         init();
 
         #[cfg(target_os = "macos")]
-            let command = Command::new("true", r#"/usr/bin/true"#);
+        let command = Command::new("true", r#"/usr/bin/true"#);
         #[cfg(target_os = "linux")]
-            let command = Command::new("true", r#"/bin/true"#);
+        let command = Command::new("true", r#"/bin/true"#);
 
         let res = command.exec();
 
@@ -169,15 +186,13 @@ mod tests {
         init();
 
         #[cfg(target_os = "macos")]
-            let command = Command::new("false", r#"/usr/bin/false"#);
+        let command = Command::new("false", r#"/usr/bin/false"#);
         #[cfg(target_os = "linux")]
-            let command = Command::new("false", r#"/bin/false"#);
+        let command = Command::new("false", r#"/bin/false"#);
 
         let res = command.exec();
 
-        asserting("executing command successfully")
-            .that(&res)
-            .is_failed();
+        asserting("executing command successfully").that(&res).is_failed();
     }
 
     #[test]
@@ -188,9 +203,7 @@ mod tests {
 
         let res = command.exec();
 
-        asserting("executing command successfully")
-            .that(&res)
-            .is_timeout();
+        asserting("executing command successfully").that(&res).is_timeout();
     }
 
     #[test]

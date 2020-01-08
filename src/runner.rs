@@ -58,11 +58,11 @@ pub mod thread {
             }
         }
 
-        fn create_children<'a, I: IntoIterator<Item = &'a Command>>(commands: I, progress_tx: &Option<Sender<usize>>) -> Result<ChildrenSupervision> {
-            let (tx, rx): (
-                Sender<CommandResult>,
-                Receiver<CommandResult>,
-            ) = mpsc::channel();
+        fn create_children<'a, I: IntoIterator<Item = &'a Command>>(
+            commands: I,
+            progress_tx: &Option<Sender<usize>>,
+        ) -> Result<ChildrenSupervision> {
+            let (tx, rx): (Sender<CommandResult>, Receiver<CommandResult>) = mpsc::channel();
             let mut children = Vec::new();
 
             for c in commands {
@@ -73,7 +73,11 @@ pub mod thread {
             Ok((children, rx))
         }
 
-        fn create_child(command: &Command, tx: Sender<CommandResult>, progress_tx: Option<Sender<usize>>) -> Result<JoinHandle<()>> {
+        fn create_child(
+            command: &Command,
+            tx: Sender<CommandResult>,
+            progress_tx: Option<Sender<usize>>,
+        ) -> Result<JoinHandle<()>> {
             let command = command.clone();
             let name = command.name.clone();
             thread::Builder::new()
@@ -114,8 +118,7 @@ pub mod thread {
     #[cfg(test)]
     mod tests {
         use super::*;
-        use crate::tests::*;
-        use crate::runner::Runner;
+        use crate::{runner::Runner, tests::*};
 
         use spectral::prelude::*;
 

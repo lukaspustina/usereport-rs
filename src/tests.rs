@@ -55,7 +55,7 @@ impl<'s> CommandResultSuccess for Spec<'s, CommandResult> {
     fn is_error_contains(&mut self, expected: &str) {
         let subject = self.subject;
         match subject {
-            CommandResult::Error{ reason: x, .. } if x.contains(expected) => {}
+            CommandResult::Error { reason: x, .. } if x.contains(expected) => {}
             _ => {
                 AssertionFailure::from_spec(self)
                     .with_expected("command result is error".to_string())
