@@ -1,6 +1,5 @@
-use core::fmt;
 use log::{debug, trace};
-use serde::{de, de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Serialize};
 use snafu::{ResultExt, Snafu};
 use std::{io::Read, time::Duration};
 use subprocess::{Popen, PopenConfig, PopenError, Redirection};
@@ -47,56 +46,19 @@ pub struct Command {
     pub(crate) name:        String,
     pub(crate) title:       Option<String>,
     pub(crate) description: Option<String>,
-    #[serde(rename = "command", deserialize_with = "de_ser_args", serialize_with = "ser_args")]
-    pub(crate) args:        Vec<String>,
+    pub(crate) command:     String,
     #[serde(rename = "timeout")]
     pub(crate) timeout_sec: u64,
-}
-
-fn de_ser_args<'de, D>(deserializer: D) -> ::std::result::Result<Vec<String>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    struct ArgsVisitor;
-
-    impl<'a> Visitor<'a> for ArgsVisitor {
-        type Value = Vec<String>;
-
-        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-            formatter.write_str("valid command string")
-        }
-
-        fn visit_str<E>(self, s: &str) -> ::std::result::Result<Self::Value, E>
-        where
-            E: de::Error,
-        {
-            let args: Vec<_> = s.split(' ').map(|x| x.into()).collect();
-            Ok(args)
-        }
-    }
-
-    deserializer.deserialize_string(ArgsVisitor)
-}
-
-pub fn ser_args<S>(args: &[String], serializer: S) -> ::std::result::Result<S::Ok, S::Error>
-where
-    S: Serializer,
-{
-    let command: String = args.join(" ");
-    serializer.serialize_str(&command)
 }
 
 impl Command {
     /// Create new command with default values
     pub fn new<T: Into<String>>(name: T, command: T, timeout_sec: u64) -> Command {
-        let args: Vec<_> = command.into().split(' ').map(|x| x.into()).collect();
-        assert!(!args.is_empty());
-
         Command {
             name: name.into(),
             title: None,
             description: None,
-            args,
+            command: command.into(),
             timeout_sec,
         }
     }
@@ -105,7 +67,7 @@ impl Command {
     pub fn name(&self) -> &str { &self.name }
 
     /// Get command args
-    pub fn args(&self) -> &[String] { self.args.as_slice() }
+    pub fn command(&self) -> &str { &self.command }
 
     /// Get title of command
     pub fn title(&self) -> Option<&str> { self.title.as_ref().map(|x| x.as_str()) }
@@ -131,8 +93,9 @@ impl Command {
 
     /// Execute this command
     pub fn exec(self) -> Result<CommandResult> {
+        let args: Vec<_> = self.command.split(' ').collect();
         let mut p = Popen::create(
-            &self.args,
+            &args,
             PopenConfig {
                 stdout: Redirection::Pipe,
                 ..Default::default()
@@ -141,7 +104,7 @@ impl Command {
         .context(ProcessFailed {
             name: self.name.clone(),
         })?;
-        debug!("Running '{:?}' as '{:?}'", self.args, p);
+        debug!("Running '{:?}' as '{:?}'", args, p);
 
         match p.wait_timeout(Duration::new(self.timeout_sec, 0)) {
             Ok(Some(status)) if status.success() => {

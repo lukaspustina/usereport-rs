@@ -115,7 +115,7 @@ fn show_commands(config: &Config) {
     for c in &config.commands {
         table.add_row(Row::new(vec![
             Cell::new(&c.name()),
-            Cell::new(&c.args().join(" ")),
+            Cell::new(&c.command()),
             Cell::new(&c.title().unwrap_or("-")),
         ]));
     }
