@@ -1,4 +1,4 @@
-use usereport::{command, command::CommandResult, report, runner, Config, Renderer, Report, Runner, Analysis};
+use usereport::{command, command::CommandResult, report, runner, Analysis, Config, Renderer, Report, Runner};
 
 fn main() {
     #[cfg(target_os = "macos")]
@@ -9,10 +9,9 @@ fn main() {
     let runner = runner::ThreadRunner::new();
     let hostinfos = config.commands_for_hostinfo();
     let analysis = Analysis::new(Box::new(runner), &hostinfos, &config.commands);
-    let analysis_results = analysis.run()
-        .expect("failed to run analysis");
+    let analysis_results = analysis.run().expect("failed to run analysis");
 
-    let report = Report::new(&analysis_results);;
+    let report = Report::new(&analysis_results);
     let renderer = report::JsonRenderer::new();
 
     let stdout = std::io::stdout();

@@ -9,19 +9,7 @@ use std::{
     sync::mpsc::{self, Receiver, Sender},
 };
 use structopt::{clap, StructOpt};
-use usereport::{
-    command,
-    report,
-    report::OutputType,
-    runner,
-    Analysis,
-    Command,
-    CommandResult,
-    Config,
-    Renderer,
-    Report,
-    Runner,
-};
+use usereport::{report, report::OutputType, runner, Analysis, Config, Renderer, Report};
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "usereport", author, about, setting = clap::AppSettings::ColoredHelp)]
@@ -125,7 +113,8 @@ fn show_commands(config: &Config) {
 
 fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> Result<(), ExitFailure> {
     let hostinfo = config.commands_for_hostinfo();
-    let commands = config.profile(profile_name)
+    let commands = config
+        .profile(profile_name)
         .and_then(|p| Ok(config.commands_for_profile(p)))?;
 
     let runner = create_runner(&opt, commands.len());
@@ -173,10 +162,9 @@ fn render(report: &Report, output_type: &OutputType) -> report::Result<()> {
 fn renderer<W: Write>(output_type: &OutputType) -> Box<dyn Renderer<W>> {
     match output_type {
         OutputType::Markdown => Box::new(report::MdRenderer::new(defaults::MD_TEMPLATE)),
-        OutputType::JSON => Box::new(report::JsonRenderer::new())
+        OutputType::JSON => Box::new(report::JsonRenderer::new()),
     }
 }
-
 
 #[cfg(target_os = "macos")]
 mod defaults {

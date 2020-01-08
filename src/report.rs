@@ -146,7 +146,6 @@ mod handlebars_helper {
         out.write(&dt.to_rfc3339()).map_err(RenderError::with)
     }
 
-
     fn date_param(h: &Helper) -> ::std::result::Result<DateTime<Local>, RenderError> {
         let dt_str = h
             .param(0)

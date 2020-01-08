@@ -24,15 +24,15 @@ pub enum Error {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 // Copy: This allows to reuse the into_iter object; safe for &Vec or &[]
-pub struct Analysis<'a, I: IntoIterator<Item=&'a Command> + Copy> {
-    runner: Box<dyn Runner<'a, I>>,
-    hostinfos: I,
-    commands: I,
-    repetitions: u64,
+pub struct Analysis<'a, I: IntoIterator<Item = &'a Command> + Copy> {
+    runner:                Box<dyn Runner<'a, I>>,
+    hostinfos:             I,
+    commands:              I,
+    repetitions:           u64,
     max_parallel_commands: u64,
 }
 
-impl<'a, I: IntoIterator<Item=&'a Command> + Copy> Analysis<'a, I> {
+impl<'a, I: IntoIterator<Item = &'a Command> + Copy> Analysis<'a, I> {
     pub fn new(runner: Box<dyn Runner<'a, I>>, hostinfos: I, commands: I) -> Self {
         Analysis {
             hostinfos,
@@ -100,12 +100,12 @@ impl<'a, I: IntoIterator<Item=&'a Command> + Copy> Analysis<'a, I> {
 
 #[derive(Debug, Serialize)]
 pub struct AnalysisResult {
-    pub hostname: String,
-    pub uname: String,
-    pub date_time: DateTime<Local>,
-    pub hostinfo_results: Vec<CommandResult>,
-    pub command_results: Vec<Vec<CommandResult>>,
-    pub repetitions: u64,
+    pub hostname:              String,
+    pub uname:                 String,
+    pub date_time:             DateTime<Local>,
+    pub hostinfo_results:      Vec<CommandResult>,
+    pub command_results:       Vec<Vec<CommandResult>>,
+    pub repetitions:           u64,
     pub max_parallel_commands: u64,
 }
 
@@ -133,7 +133,7 @@ mod tests {
     fn second_runner() {
         struct MyRunner {};
 
-        impl<'a, I: IntoIterator<Item=&'a Command>> Runner<'a, I> for MyRunner {
+        impl<'a, I: IntoIterator<Item = &'a Command>> Runner<'a, I> for MyRunner {
             fn run(
                 &self,
                 _commands: I,

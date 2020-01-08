@@ -169,11 +169,11 @@ impl Config {
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
 pub struct Defaults {
     #[serde(default = "default_profile")]
-    pub profile: String,
+    pub profile:               String,
     #[serde(default = "default_timeout")]
-    pub timeout: u64,
+    pub timeout:               u64,
     #[serde(default = "default_repetitions")]
-    pub repetitions: u64,
+    pub repetitions:           u64,
     #[serde(default = "default_max_parallel_commands")]
     pub max_parallel_commands: u64,
 }
@@ -181,9 +181,9 @@ pub struct Defaults {
 impl Default for Defaults {
     fn default() -> Self {
         Defaults {
-            profile: "default".to_string(),
-            timeout: 5,
-            repetitions: 1,
+            profile:               "default".to_string(),
+            timeout:               5,
+            repetitions:           1,
             max_parallel_commands: 64,
         }
     }
@@ -204,8 +204,8 @@ pub struct Hostinfo {
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
 pub struct Profile {
-    pub name: String,
-    pub commands: Vec<String>,
+    pub name:        String,
+    pub commands:    Vec<String>,
     pub description: Option<String>,
 }
 
@@ -282,9 +282,9 @@ timeout = 1
     #[test]
     fn config_read_from_file_ok() {
         #[cfg(target_os = "macos")]
-            let path = "contrib/osx.conf";
+        let path = "contrib/osx.conf";
         #[cfg(target_os = "linux")]
-            let path = "contrib/linux.conf";
+        let path = "contrib/linux.conf";
 
         let config = Config::from_file(path);
 
