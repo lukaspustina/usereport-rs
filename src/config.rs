@@ -136,20 +136,26 @@ impl Config {
 
     fn populate_defaults(self) -> Self {
         let timeout = self.defaults.timeout;
-        let config = self.populate_commands_timeout(timeout);
-
-        config
+        self.populate_commands_timeout(timeout)
     }
 
     fn populate_commands_timeout(self, timeout: u64) -> Self {
-        let Config {defaults, hostinfo, profiles, commands} = self;
-        let commands = commands.into_iter().map(|x|
-            if x.timeout_sec.is_none() {
-                x.set_timeout(timeout)
-            } else {
-                x
-            }
-        ).collect();
+        let Config {
+            defaults,
+            hostinfo,
+            profiles,
+            commands,
+        } = self;
+        let commands = commands
+            .into_iter()
+            .map(|x| {
+                if x.timeout_sec.is_none() {
+                    x.set_timeout(timeout)
+                } else {
+                    x
+                }
+            })
+            .collect();
 
         Config {
             defaults,
@@ -256,7 +262,7 @@ timeout = 1
             Command::new("uname", "/usr/bin/uname -a")
                 .set_title("Host OS")
                 .set_description("Basic host OS information")
-                .set_timeout(1)
+                .set_timeout(1),
         );
         let expected = Config {
             defaults,
@@ -382,7 +388,8 @@ command = "/usr/bin/uname -a"
 "#;
         let config = Config::from_str(config_txt).expect("syntax ok");
 
-        asserting("default timeout set").that(&config.commands.first())
+        asserting("default timeout set")
+            .that(&config.commands.first())
             .is_some()
             .map(|x| &x.timeout_sec)
             .is_some()

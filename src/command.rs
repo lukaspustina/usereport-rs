@@ -60,10 +60,10 @@ impl Command {
     /// Create new command with default values
     pub fn new<T: Into<String>>(name: T, command: T) -> Command {
         Command {
-            name: name.into(),
-            title: None,
+            name:        name.into(),
+            title:       None,
             description: None,
-            command: command.into(),
+            command:     command.into(),
             timeout_sec: None,
         }
     }
