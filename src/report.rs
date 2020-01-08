@@ -50,8 +50,8 @@ impl<'a> Report<'a> {
     pub fn new(analysis_result: &'a AnalysisResult) -> Self { Report { analysis_result } }
 }
 
-pub trait Renderer {
-    fn render<'a, W: Write>(&self, report: &Report<'a>, w: W) -> Result<()>;
+pub trait Renderer<W: Write> {
+    fn render(&self, report: &Report, w: W) -> Result<()>;
 }
 
 use crate::analysis::AnalysisResult;
@@ -69,8 +69,8 @@ pub mod json {
         pub fn new() -> Self { JsonRenderer {} }
     }
 
-    impl Renderer for JsonRenderer {
-        fn render<'a, W: Write>(&self, report: &Report<'a>, w: W) -> Result<()> {
+    impl<W: Write> Renderer<W> for JsonRenderer {
+        fn render(&self, report: &Report, w: W) -> Result<()> {
             serde_json::to_writer(w, report.analysis_result).context(JsonRenderingFailed {})
         }
     }
@@ -87,8 +87,8 @@ pub mod markdown {
         pub fn new(template: &'a str) -> Self { MdRenderer { template } }
     }
 
-    impl<'a> Renderer for MdRenderer<'a> {
-        fn render<'r, W: Write>(&self, report: &Report<'r>, w: W) -> Result<()> {
+    impl<'a, W: Write> Renderer<W> for MdRenderer<'a> {
+        fn render(&self, report: &Report, w: W) -> Result<()> {
             let mut handlebars = Handlebars::new();
             handlebars.register_helper("inc", Box::new(handlebars_helper::inc));
             handlebars.register_helper("rfc2822", Box::new(handlebars_helper::date_time_2822));

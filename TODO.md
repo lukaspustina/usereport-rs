@@ -11,9 +11,9 @@
     * [X] CLI opts: --show-profiles, --show-commands, --profile
 * [X] Hostinfo
 * [X] Config: Use defaults
-* [ ] Repetitions
-* [ ] Refactore rendering using type class
+* [X] Repetitions
 * [ ] Max Parallel
+* [X] Refactore rendering using type class
 * [ ] Commands should allow for arbitary links for further information or actions
 * [ ] Command result should store command execution time
 * [ ] Rendering should allow for HTML

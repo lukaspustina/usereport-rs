@@ -166,11 +166,17 @@ fn create_progress_bar(expected: usize) -> Sender<usize> {
 fn render(report: &Report, output_type: &OutputType) -> report::Result<()> {
     let stdout = std::io::stdout();
     let handle = stdout.lock();
+    let r = renderer(output_type);
+    r.render(report, handle)
+}
+
+fn renderer<W: Write>(output_type: &OutputType) -> Box<dyn Renderer<W>> {
     match output_type {
-        OutputType::Markdown => report::MdRenderer::new(defaults::MD_TEMPLATE).render(&report, handle),
-        OutputType::JSON => report::JsonRenderer::new().render(&report, handle),
+        OutputType::Markdown => Box::new(report::MdRenderer::new(defaults::MD_TEMPLATE)),
+        OutputType::JSON => Box::new(report::JsonRenderer::new())
     }
 }
+
 
 #[cfg(target_os = "macos")]
 mod defaults {
