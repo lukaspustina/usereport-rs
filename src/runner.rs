@@ -146,10 +146,16 @@ pub mod thread {
         #[test]
         fn run_ok() {
             let mut commands = Vec::new();
+            #[cfg(target_os = "macos")]
             commands.push(Command::new("uname", r#"/usr/bin/uname -a"#, 1));
+            #[cfg(target_os = "macos")]
             commands.push(Command::new("uname", r#"/usr/bin/uname -a"#, 1));
             #[cfg(target_os = "macos")]
             let expected = "Darwin";
+            #[cfg(target_os = "linux")]
+            commands.push(Command::new("cat-uname", r#"/bin/cat /proc/version"#, 1));
+            #[cfg(target_os = "linux")]
+            commands.push(Command::new("cat-uname", r#"/bin/cat /proc/version"#, 1));
             #[cfg(target_os = "linux")]
             let expected = "Linux";
 
