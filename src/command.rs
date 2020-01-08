@@ -207,7 +207,7 @@ mod tests {
         #[cfg(target_os = "macos")]
         let expected = "Darwin";
         #[cfg(target_os = "linux")]
-        let command = Command::new("uname", r#"/usr/uname -a"#, 5);
+        let command = Command::new("uname", r#"/bin/uname -a"#, 5);
         #[cfg(target_os = "linux")]
         let expected = "Linux";
 
@@ -226,7 +226,7 @@ mod tests {
         #[cfg(target_os = "macos")]
         let command = Command::new("false", r#"/usr/bin/false"#, 1);
         #[cfg(target_os = "linux")]
-        let command = Command::new("false", r#"/usr/false"#, 1);
+        let command = Command::new("false", r#"/bin/false"#, 1);
 
         let res = command.exec();
 
