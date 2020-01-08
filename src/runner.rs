@@ -1,16 +1,6 @@
-use crate::command::{self, Command, CommandResult};
+use crate::command::{Command, CommandResult};
 
 use snafu::{ResultExt, Snafu};
-
-/// Runner Interface
-pub trait Runner<'a, I: IntoIterator<Item = &'a Command>> {
-    // Create Runner with commands
-    // fn new() -> Self;
-    // Create Runner with commands with progress indication channel
-    // fn with_progress(progress_tx: Sender<usize>) -> Self;
-    /// Execute all commands and wait until all commands return
-    fn run(&self, commands: I) -> Result<Vec<command::Result<CommandResult>>>;
-}
 
 /// Error type
 #[derive(Debug, Snafu)]
@@ -23,6 +13,12 @@ pub enum Error {
 
 /// Result type
 pub type Result<T, E = Error> = std::result::Result<T, E>;
+
+/// Runner Interface
+pub trait Runner<'a, I: IntoIterator<Item = &'a Command>> {
+    /// Execute all commands and wait until all commands return
+    fn run(&self, commands: I) -> Result<Vec<CommandResult>>;
+}
 
 pub use thread::ThreadRunner;
 
@@ -41,7 +37,7 @@ pub mod thread {
     }
 
     impl<'a, I: IntoIterator<Item = &'a Command>> super::Runner<'a, I> for ThreadRunner {
-        fn run(&self, commands: I) -> Result<Vec<command::Result<CommandResult>>> {
+        fn run(&self, commands: I) -> Result<Vec<CommandResult>> {
             // Create child threads and run commands
             let (children, rx) = ThreadRunner::create_children(commands, &self.progress_tx)?;
             // Wait for results
@@ -51,7 +47,7 @@ pub mod thread {
         }
     }
 
-    type ChildrenSupervision = (Vec<JoinHandle<()>>, Receiver<command::Result<CommandResult>>);
+    type ChildrenSupervision = (Vec<JoinHandle<()>>, Receiver<CommandResult>);
 
     impl ThreadRunner {
         pub fn new() -> Self { ThreadRunner { progress_tx: None } }
@@ -62,13 +58,10 @@ pub mod thread {
             }
         }
 
-        fn create_children<'a, I: IntoIterator<Item = &'a Command>>(
-            commands: I,
-            progress_tx: &Option<Sender<usize>>,
-        ) -> Result<ChildrenSupervision> {
+        fn create_children<'a, I: IntoIterator<Item = &'a Command>>(commands: I, progress_tx: &Option<Sender<usize>>) -> Result<ChildrenSupervision> {
             let (tx, rx): (
-                Sender<command::Result<CommandResult>>,
-                Receiver<command::Result<CommandResult>>,
+                Sender<CommandResult>,
+                Receiver<CommandResult>,
             ) = mpsc::channel();
             let mut children = Vec::new();
 
@@ -80,11 +73,7 @@ pub mod thread {
             Ok((children, rx))
         }
 
-        fn create_child(
-            command: &Command,
-            tx: Sender<command::Result<CommandResult>>,
-            progress_tx: Option<Sender<usize>>,
-        ) -> Result<JoinHandle<()>> {
+        fn create_child(command: &Command, tx: Sender<CommandResult>, progress_tx: Option<Sender<usize>>) -> Result<JoinHandle<()>> {
             let command = command.clone();
             let name = command.name.clone();
             thread::Builder::new()
@@ -101,10 +90,7 @@ pub mod thread {
                 .context(CommandFailed { name })
         }
 
-        fn wait_for_results(
-            children: Vec<JoinHandle<()>>,
-            rx: Receiver<command::Result<CommandResult>>,
-        ) -> Vec<command::Result<CommandResult>> {
+        fn wait_for_results(children: Vec<JoinHandle<()>>, rx: Receiver<CommandResult>) -> Vec<CommandResult> {
             let mut results = Vec::with_capacity(children.len());
             // Get results
             for _ in 0..children.len() {
@@ -128,9 +114,9 @@ pub mod thread {
     #[cfg(test)]
     mod tests {
         use super::*;
+        use crate::tests::*;
         use crate::runner::Runner;
 
-        use crate::tests::CommandResultSuccess;
         use spectral::prelude::*;
 
         #[test]
@@ -157,7 +143,6 @@ pub mod thread {
             let results = results.unwrap();
             asserting("First command result is success")
                 .that(&results[0])
-                .is_ok()
                 .is_success_contains(expected);
         }
     }

@@ -1,4 +1,4 @@
-use crate::{command, runner, Command, CommandResult, Runner};
+use crate::{runner, Command, CommandResult, Runner};
 
 use chrono::{DateTime, Local};
 use serde::Serialize;
@@ -15,9 +15,6 @@ pub enum Error {
     /// Analysis run failed
     #[snafu(display("analysis failed because {}", source))]
     AnalysisFailed { source: runner::Error },
-    /// Analysis command run failed
-    #[snafu(display("analysis command failed because {}", source))]
-    AnalysisCommandFailed { source: command::Error },
 }
 
 /// Result type
@@ -89,10 +86,7 @@ impl<'a, I: IntoIterator<Item = &'a Command> + Copy> Analysis<'a, I> {
         let results = self
             .runner
             .run(commands)
-            .context(AnalysisFailed {})?
-            .into_iter()
-            .collect::<command::Result<Vec<CommandResult>>>()
-            .context(AnalysisCommandFailed {})?;
+            .context(AnalysisFailed {})?;
 
         Ok(results)
     }
@@ -134,10 +128,7 @@ mod tests {
         struct MyRunner {};
 
         impl<'a, I: IntoIterator<Item = &'a Command>> Runner<'a, I> for MyRunner {
-            fn run(
-                &self,
-                _commands: I,
-            ) -> runner::Result<Vec<command::Result<CommandResult, command::Error>>, runner::Error> {
+            fn run(&self, _commands: I) -> runner::Result<Vec<CommandResult>> {
                 Ok(Vec::new())
             }
         }

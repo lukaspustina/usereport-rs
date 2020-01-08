@@ -1,23 +1,7 @@
 use log::{debug, trace};
 use serde::{Deserialize, Serialize};
-use snafu::{ResultExt, Snafu};
 use std::{io::Read, time::Duration};
-use subprocess::{Popen, PopenConfig, PopenError, Redirection};
-
-/// Error type
-#[derive(Debug, Snafu)]
-#[allow(missing_docs)]
-pub enum Error {
-    /// Process could not be killed
-    #[snafu(display("failed to kill command {}: {}", name, source))]
-    KillFailed { name: String, source: std::io::Error },
-    /// Waiting for process termination failed
-    #[snafu(display("failed to wait for command {}: {}", name, source))]
-    WaitFailed { name: String, source: PopenError },
-}
-
-/// Result type
-pub type Result<T, E = Error> = std::result::Result<T, E>;
+use subprocess::{Popen, PopenConfig, Redirection};
 
 /// Run a CLI command and store its stdout.
 ///
@@ -33,13 +17,10 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 ///     .set_title("Just a successful command")
 ///     .set_timeout(5);
 /// match command.exec() {
-///     Ok(CommandResult::Success {
-///         command: _,
-///         stdout: stdout,
-///     }) => println!("Command output '{}'", stdout),
-///     Ok(CommandResult::Failed { command: _ }) => println!("Command failed"),
-///     Ok(CommandResult::Timeout { command: _ }) => println!("Command timed out"),
-///     _ => println!("Command execution failed"),
+///     CommandResult::Success { command: _, stdout: stdout } => println!("Command output '{}'", stdout),
+///     CommandResult::Failed { command: _ } => println!("Command failed"),
+///     CommandResult::Timeout { command: _ } => println!("Command timed out"),
+///     CommandResult::Error{ command: _, reason: reason } => println!("Command errored because {}", reason)
 /// };
 /// ```
 #[derive(Debug, Deserialize, PartialEq, Serialize, Clone)]
@@ -101,19 +82,15 @@ impl Command {
         }
     }
 
-    /// Execute this command
-    pub fn exec(self) -> Result<CommandResult> {
+    /// Execute this command; may panic
+    pub fn exec(self) -> CommandResult {
         let args: Vec<_> = self.command.split(' ').collect();
-        let popen = Popen::create(
-            &args,
-            PopenConfig {
-                stdout: Redirection::Pipe,
-                ..Default::default()
-            },
-        );
+        let popen_config = PopenConfig { stdout: Redirection::Pipe, ..Default::default() };
+        let popen = Popen::create(&args, popen_config);
+
         let mut p = match popen {
             Ok(p) => p,
-            Err(err) => return Ok(CommandResult::Error { command: self, reason: err.to_string() })
+            Err(err) => return CommandResult::Error { command: self, reason: err.to_string() }
         };
         debug!("Running '{:?}' as '{:?}'", args, p);
 
@@ -124,34 +101,30 @@ impl Command {
                 let _ = p.stdout.as_ref().unwrap().read_to_string(&mut stdout); // TODO: unwrap is unsafe
                 debug!("stdout '{}'", stdout);
 
-                Ok(CommandResult::Success { command: self, stdout })
+                CommandResult::Success { command: self, stdout }
             }
             Ok(Some(status)) => {
                 trace!("process successfully finished as {:?}", status);
-                Ok(CommandResult::Failed { command: self })
+                CommandResult::Failed { command: self }
             }
             Ok(None) => {
                 trace!("process timed out and will be killed");
-                self.terminate(&mut p)?;
-                Ok(CommandResult::Timeout { command: self })
+                self.terminate(&mut p);
+                CommandResult::Timeout { command: self }
             }
             Err(err) => {
                 trace!("process failed '{:?}'", err);
-                self.terminate(&mut p)?;
-                Ok(CommandResult::Error { command: self, reason: err.to_string() })
+                self.terminate(&mut p);
+                CommandResult::Error { command: self, reason: err.to_string() }
             }
         }
     }
 
-    fn terminate(&self, p: &mut Popen) -> Result<()> {
-        p.kill().context(KillFailed {
-            name: self.name.clone(),
-        })?;
-        p.wait().context(WaitFailed {
-            name: self.name.clone(),
-        })?;
+    /// Panics
+    fn terminate(&self, p: &mut Popen) -> () {
+        p.kill().expect("failed to kill command");
+        p.wait().expect("failed to wait for command to finish");
         trace!("process killed");
-        Ok(())
     }
 }
 
@@ -186,7 +159,9 @@ mod tests {
 
         let res = command.exec();
 
-        asserting("executing command successfully").that(&res).is_ok();
+        asserting("executing command successfully")
+            .that(&res)
+            .is_success_contains("");
     }
 
     #[test]
@@ -202,7 +177,6 @@ mod tests {
 
         asserting("executing command successfully")
             .that(&res)
-            .is_ok()
             .is_failed();
     }
 
@@ -216,7 +190,6 @@ mod tests {
 
         asserting("executing command successfully")
             .that(&res)
-            .is_ok()
             .is_timeout();
     }
 
@@ -230,7 +203,6 @@ mod tests {
 
         asserting("executing command errors")
             .that(&res)
-            .is_ok()
             .is_error_contains("No such file or directory")
     }
 }
