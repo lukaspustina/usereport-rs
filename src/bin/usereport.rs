@@ -1,35 +1,48 @@
 use exitfailure::ExitFailure;
 use failure::ResultExt;
 use indicatif::{ProgressBar, ProgressStyle};
-use prettytable::{Table, Row, Cell, format, row, cell};
-use std::path::PathBuf;
-use std::str::FromStr;
-use std::sync::mpsc::{self, Receiver, Sender};
-use structopt::{StructOpt, clap};
-use usereport::{Command, CommandResult, command, report, report::OutputType, runner, Config, Renderer, Report, Runner};
-use std::io::Write;
+use prettytable::{cell, format, row, Cell, Row, Table};
+use std::{
+    io::Write,
+    path::PathBuf,
+    str::FromStr,
+    sync::mpsc::{self, Receiver, Sender},
+};
+use structopt::{clap, StructOpt};
+use usereport::{
+    command,
+    report,
+    report::OutputType,
+    runner,
+    Command,
+    CommandResult,
+    Config,
+    Renderer,
+    Report,
+    Runner,
+};
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "usereport", author, about, setting = clap::AppSettings::ColoredHelp)]
 struct Opt {
     /// Configuration from file, or default if not present
     #[structopt(short, long, parse(from_os_str))]
-    config: Option<PathBuf>,
+    config:        Option<PathBuf>,
     /// Show active config
     #[structopt(long)]
-    show_config: bool,
+    show_config:   bool,
     /// Output format
     #[structopt(short, long, possible_values = &["json", "markdown"], default_value = "markdown")]
-    output_type: OutputType,
+    output_type:   OutputType,
     /// Show progress bar while waiting for all commands to finish
-    #[structopt(short="P", long)]
-    progress: bool,
+    #[structopt(short = "P", long)]
+    progress:      bool,
     /// Activate debug mode
     #[structopt(short, long)]
-    debug: bool,
+    debug:         bool,
     /// Set profile to use
-    #[structopt(short="p", long)]
-    profile: Option<String>,
+    #[structopt(short = "p", long)]
+    profile:       Option<String>,
     /// Show available profiles
     #[structopt(long)]
     show_profiles: bool,
@@ -43,7 +56,9 @@ fn main() -> Result<(), ExitFailure> {
     env_logger::init();
 
     let opt = Opt::from_args();
-    let config = opt.config.as_ref()
+    let config = opt
+        .config
+        .as_ref()
         .map(Config::from_file)
         .unwrap_or(Config::from_str(defaults::CONFIG))
         .with_context(|_| "could not load configuration file")?;
@@ -58,27 +73,25 @@ fn main() -> Result<(), ExitFailure> {
 
     if opt.show_config {
         show_config(&config);
-        return Ok(())
+        return Ok(());
     }
     if opt.show_profiles {
         show_profiles(&config);
-        return Ok(())
+        return Ok(());
     }
     if opt.show_commands {
         show_commands(&config);
-        return Ok(())
+        return Ok(());
     }
 
     generate_report(&opt, &config, profile_name)
 }
 
 fn show_config(config: &Config) {
-    let toml = toml::to_string_pretty(config)
-        .expect("failed to serialize active config in TOML");
+    let toml = toml::to_string_pretty(config).expect("failed to serialize active config in TOML");
     let stdout = std::io::stdout();
     let mut handle = stdout.lock();
-    handle.write_all(toml.as_bytes())
-        .expect("failed write TOML to stdout");
+    handle.write_all(toml.as_bytes()).expect("failed write TOML to stdout");
 }
 
 fn show_profiles(config: &Config) {
@@ -117,14 +130,14 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> Result<(),
         None
     };
 
-    let commands = config.profile(profile_name).and_then(|p| Ok(config.commands_for_profile(p)))?;
+    let commands = config
+        .profile(profile_name)
+        .and_then(|p| Ok(config.commands_for_profile(p)))?;
     let command_results = run_commands(opt, commands)?;
-    let mut report = Report::new(&command_results)
-        .with_context(|_| "failed to create report")?;
+    let mut report = Report::new(&command_results).with_context(|_| "failed to create report")?;
     hostinfo_results.as_ref().map(|x| report.set_hostinfo_results(x));
 
-    render(&report, &opt.output_type)
-        .with_context(|_| "failed to render report")?;
+    render(&report, &opt.output_type).with_context(|_| "failed to render report")?;
 
     Ok(())
 }
@@ -143,7 +156,7 @@ fn run_commands(opt: &Opt, commands: Vec<&Command>) -> Result<Vec<CommandResult>
 fn create_runner<'a>(opt: &Opt, commands: Vec<&'a Command>) -> runner::ThreadRunner<'a> {
     if opt.progress {
         let tx = create_progress_bar(commands.len());
-         runner::ThreadRunner::with_progress(commands, tx)
+        runner::ThreadRunner::with_progress(commands, tx)
     } else {
         runner::ThreadRunner::new(commands)
     }
@@ -152,19 +165,15 @@ fn create_runner<'a>(opt: &Opt, commands: Vec<&'a Command>) -> runner::ThreadRun
 fn create_progress_bar(expected: usize) -> Sender<usize> {
     let (tx, rx): (Sender<usize>, Receiver<usize>) = mpsc::channel();
     let pb = ProgressBar::new(expected as u64)
-        .with_style(ProgressStyle::default_bar()
-            .template("Running commands {bar:40.cyan/blue} {pos}/{len}")
-        );
+        .with_style(ProgressStyle::default_bar().template("Running commands {bar:40.cyan/blue} {pos}/{len}"));
 
-    let _ = std::thread::Builder::new()
-        .name("Progress".to_string())
-        .spawn(move || {
-            for _ in 0..expected {
-                let _ = rx.recv().expect("Thread failed to receive progress via channel");
-                pb.inc(1);
-            }
-            pb.finish_and_clear();
-        });
+    let _ = std::thread::Builder::new().name("Progress".to_string()).spawn(move || {
+        for _ in 0..expected {
+            let _ = rx.recv().expect("Thread failed to receive progress via channel");
+            pb.inc(1);
+        }
+        pb.finish_and_clear();
+    });
 
     tx
 }
@@ -189,4 +198,3 @@ mod defaults {
     pub(crate) static CONFIG: &str = include_str!("../../contrib/linux.conf");
     pub(crate) static MD_TEMPLATE: &str = include_str!("../../contrib/markdown.hbs");
 }
-

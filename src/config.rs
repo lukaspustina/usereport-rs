@@ -3,13 +3,13 @@ use crate::command::Command;
 use serde::{Deserialize, Serialize};
 use snafu::{ResultExt, Snafu};
 use std::{
+    collections::HashSet,
     fs::File,
     io::Read,
+    iter::FromIterator,
     path::{Path, PathBuf},
     str::FromStr,
 };
-use std::collections::HashSet;
-use std::iter::FromIterator;
 
 /// Error type
 #[derive(Debug, Snafu)]
@@ -61,13 +61,18 @@ impl Config {
     }
 
     pub fn profile(&self, profile_name: &str) -> Result<&Profile> {
-        self.profiles.iter().find(|x| &x.name == profile_name)
-            .ok_or_else(|| Error::InvalidConfig { reason: "no such profile" })
+        self.profiles.iter().find(|x| &x.name == profile_name).ok_or_else(|| {
+            Error::InvalidConfig {
+                reason: "no such profile",
+            }
+        })
     }
 
     pub fn commands_for_hostinfo(&self) -> Option<Vec<&Command>> {
         if let Some(hostinfo) = &self.hostinfo {
-            let commands = self.commands.iter()
+            let commands = self
+                .commands
+                .iter()
                 .filter(|c| hostinfo.commands.contains(&c.name))
                 .collect();
             Some(commands)
@@ -77,7 +82,8 @@ impl Config {
     }
 
     pub fn commands_for_profile(&self, profile: &Profile) -> Vec<&Command> {
-        self.commands.iter()
+        self.commands
+            .iter()
             .filter(|c| profile.commands.contains(&c.name))
             .collect()
     }
@@ -95,8 +101,11 @@ impl Config {
 
         if let Some(ref hostinfo) = self.hostinfo {
             for c in &hostinfo.commands {
-                command_names.get(c)
-                    .ok_or_else(|| Error::InvalidConfig { reason: "hostinfo command not found" })?;
+                command_names.get(c).ok_or_else(|| {
+                    Error::InvalidConfig {
+                        reason: "hostinfo command not found",
+                    }
+                })?;
             }
         }
 
@@ -105,8 +114,7 @@ impl Config {
 
     fn validate_default_profile(&self) -> Result<()> {
         let p_name = self.defaults.profile.as_ref();
-        self.profile(p_name)
-            .map(|_| ())
+        self.profile(p_name).map(|_| ())
     }
 
     fn validate_profiles_commands(&self) -> Result<()> {
@@ -114,8 +122,11 @@ impl Config {
 
         for p in &self.profiles {
             for c in &p.commands {
-                command_names.get(c)
-                    .ok_or_else(|| Error::InvalidConfig { reason: "profile command not found" })?;
+                command_names.get(c).ok_or_else(|| {
+                    Error::InvalidConfig {
+                        reason: "profile command not found",
+                    }
+                })?;
             }
         }
 
@@ -126,11 +137,11 @@ impl Config {
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
 pub struct Defaults {
     #[serde(default = "default_profile")]
-    pub profile: String,
+    pub profile:               String,
     #[serde(default = "default_timeout")]
-    pub timeout: u64,
+    pub timeout:               u64,
     #[serde(default = "default_repetitions")]
-    pub repetitions: u64,
+    pub repetitions:           u64,
     #[serde(default = "default_max_parallel_commands")]
     pub max_parallel_commands: u64,
 }
@@ -138,9 +149,9 @@ pub struct Defaults {
 impl Default for Defaults {
     fn default() -> Self {
         Defaults {
-            profile: "default".to_string(),
-            timeout: 5,
-            repetitions: 1,
+            profile:               "default".to_string(),
+            timeout:               5,
+            repetitions:           1,
             max_parallel_commands: 64,
         }
     }
@@ -161,8 +172,8 @@ pub struct Hostinfo {
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
 pub struct Profile {
-    pub name: String,
-    pub commands: Vec<String>,
+    pub name:        String,
+    pub commands:    Vec<String>,
     pub description: Option<String>,
 }
 
@@ -208,18 +219,24 @@ command = "/usr/bin/uname -a"
 timeout = 1
 
 "#;
-        let defaults = Defaults { timeout: 5, ..Defaults::default() };
+        let defaults = Defaults {
+            timeout: 5,
+            ..Defaults::default()
+        };
         let mut profiles = Vec::new();
-        profiles.push(
-            Profile::new("default", &["uname"])
-        );
+        profiles.push(Profile::new("default", &["uname"]));
         let mut commands = Vec::new();
         commands.push(
             Command::new("uname", "/usr/bin/uname -a", 1)
                 .set_title("Host OS")
-                .set_description("Basic host OS information")
+                .set_description("Basic host OS information"),
         );
-        let expected = Config { defaults, hostinfo: None, profiles, commands };
+        let expected = Config {
+            defaults,
+            hostinfo: None,
+            profiles,
+            commands,
+        };
 
         let config = Config::from_str(config_txt);
 
@@ -232,9 +249,9 @@ timeout = 1
     #[test]
     fn config_read_from_file_ok() {
         #[cfg(target_os = "macos")]
-            let path = "contrib/osx.conf";
+        let path = "contrib/osx.conf";
         #[cfg(target_os = "linux")]
-            let path = "contrib/linux.conf";
+        let path = "contrib/linux.conf";
 
         let config = Config::from_file(path);
 
@@ -266,9 +283,7 @@ timeout = 1
         let config = Config::from_str(config_txt).expect("syntax ok");
         let validation = config.validate();
 
-        asserting("validating config")
-            .that(&validation)
-            .is_err();
+        asserting("validating config").that(&validation).is_err();
     }
 
     #[test]
@@ -292,9 +307,7 @@ timeout = 1
         let config = Config::from_str(config_txt).expect("syntax ok");
         let validation = config.validate();
 
-        asserting("validating config")
-            .that(&validation)
-            .is_err();
+        asserting("validating config").that(&validation).is_err();
     }
 
     #[test]
@@ -321,8 +334,6 @@ timeout = 1
         let config = Config::from_str(config_txt).expect("syntax ok");
         let validation = config.validate();
 
-        asserting("validating config")
-            .that(&validation)
-            .is_err();
+        asserting("validating config").that(&validation).is_err();
     }
 }

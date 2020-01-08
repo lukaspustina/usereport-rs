@@ -28,8 +28,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// # Example
 /// ```
 /// # use usereport::command::{Command, CommandResult};
-/// let command = Command::new("uname", r#"/usr/bin/uname -a"#, 5)
-///     .set_title("Host OS");
+/// let command = Command::new("uname", r#"/usr/bin/uname -a"#, 5).set_title("Host OS");
 /// match command.exec() {
 ///     Ok(CommandResult::Success {
 ///         command: _,
@@ -77,8 +76,8 @@ where
 }
 
 pub fn ser_args<S>(args: &Vec<String>, serializer: S) -> ::std::result::Result<S::Ok, S::Error>
-    where
-        S: Serializer,
+where
+    S: Serializer,
 {
     let command: String = args.as_slice().join(" ");
     serializer.serialize_str(&command)

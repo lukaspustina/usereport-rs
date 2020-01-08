@@ -1,14 +1,14 @@
 use crate::command::{self, Command, CommandResult};
 
-use std::sync::mpsc::Sender;
 use snafu::{ResultExt, Snafu};
+use std::sync::mpsc::Sender;
 
 /// Runner Interface
 pub trait Runner<'a> {
     /// Create Runner with commands
-    fn new<I: IntoIterator<Item=&'a Command>>(commands: I) -> Self;
+    fn new<I: IntoIterator<Item = &'a Command>>(commands: I) -> Self;
     /// Create Runner with commands with progress indication channel
-    fn with_progress<I: IntoIterator<Item=&'a Command>>(commands: I, progress_tx: Sender<usize>) -> Self;
+    fn with_progress<I: IntoIterator<Item = &'a Command>>(commands: I, progress_tx: Sender<usize>) -> Self;
     /// Execute all commands and wait until all commands return
     fn run(self) -> Result<Vec<command::Result<CommandResult>>>;
 }
@@ -38,19 +38,25 @@ pub mod thread {
     };
 
     pub struct ThreadRunner<'a> {
-        commands: Vec<&'a Command>,
+        commands:    Vec<&'a Command>,
         progress_tx: Option<Sender<usize>>,
     }
 
     impl<'a> super::Runner<'a> for ThreadRunner<'a> {
-        fn new<I: IntoIterator<Item=&'a Command>>(commands: I) -> Self {
+        fn new<I: IntoIterator<Item = &'a Command>>(commands: I) -> Self {
             let commands = commands.into_iter().collect();
-            ThreadRunner { commands, progress_tx: None }
+            ThreadRunner {
+                commands,
+                progress_tx: None,
+            }
         }
 
-        fn with_progress<I: IntoIterator<Item=&'a Command>>(commands: I, progress_tx: Sender<usize>) -> Self {
+        fn with_progress<I: IntoIterator<Item = &'a Command>>(commands: I, progress_tx: Sender<usize>) -> Self {
             let commands = commands.into_iter().collect();
-            ThreadRunner { commands, progress_tx: Some(progress_tx) }
+            ThreadRunner {
+                commands,
+                progress_tx: Some(progress_tx),
+            }
         }
 
         fn run(self) -> Result<Vec<command::Result<CommandResult>>> {
@@ -84,7 +90,11 @@ pub mod thread {
             Ok((children, rx))
         }
 
-        fn create_child(command: &Command, tx: Sender<command::Result<CommandResult>>, progress_tx: Option<Sender<usize>>) -> Result<JoinHandle<()>> {
+        fn create_child(
+            command: &Command,
+            tx: Sender<command::Result<CommandResult>>,
+            progress_tx: Option<Sender<usize>>,
+        ) -> Result<JoinHandle<()>> {
             let command = command.clone();
             let name = command.name.clone();
             thread::Builder::new()
@@ -130,7 +140,7 @@ pub mod thread {
         use super::*;
         use crate::runner::Runner;
 
-        use crate::tests::{CommandResultSuccess, *};
+        use crate::tests::CommandResultSuccess;
         use spectral::prelude::*;
 
         #[test]

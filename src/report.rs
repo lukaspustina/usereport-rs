@@ -16,16 +16,16 @@ pub enum Error {
     OutputTypeParseError,
     /// Failed to create a new report
     #[snafu(display("failed to create a new report: {}", source))]
-    CreateFailed{ source: std::io::Error },
+    CreateFailed { source: std::io::Error },
     /// Rendering of report to Json failed
     #[snafu(display("failed to render report to Json: {}", source))]
     JsonRenderingFailed { source: serde_json::Error },
     /// Handlebars template for Markdown is invalid
     #[snafu(display("Handlebars template for Markdown is invalid: {}", source))]
-    MdTemplateFailed { source: handlebars::TemplateError},
+    MdTemplateFailed { source: handlebars::TemplateError },
     /// Rendering of report to Markdown failed
     #[snafu(display("failed to render report to Markdown: {}", source))]
-    MdRenderingFailed { source: handlebars::RenderError},
+    MdRenderingFailed { source: handlebars::RenderError },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -52,10 +52,10 @@ impl FromStr for OutputType {
 #[derive(Debug, Serialize)]
 pub struct Report<'a> {
     hostinfo_results: Option<&'a [CommandResult]>,
-    command_results: &'a [CommandResult],
-    hostname: String,
-    uname: String,
-    date_time: DateTime<Local>,
+    command_results:  &'a [CommandResult],
+    hostname:         String,
+    uname:            String,
+    date_time:        DateTime<Local>,
 }
 
 impl<'a> Report<'a> {
@@ -63,7 +63,8 @@ impl<'a> Report<'a> {
         let uname = uname::uname().context(CreateFailed {})?;
         let hostname = uname.nodename.to_string();
         let uname = format!(
-            "{} {} {} {} {}", uname.sysname, uname.nodename, uname.release, uname.version, uname.machine
+            "{} {} {} {} {}",
+            uname.sysname, uname.nodename, uname.release, uname.version, uname.machine
         );
         let date_time = Local::now();
 
@@ -88,7 +89,6 @@ pub trait Renderer {
 pub use json::JsonRenderer;
 pub use markdown::MdRenderer;
 use std::str::FromStr;
-use crate::config::Hostinfo;
 
 pub mod json {
     use super::*;
@@ -123,9 +123,11 @@ pub mod markdown {
             let mut handlebars = Handlebars::new();
             handlebars.register_helper("rfc2822", Box::new(handlebars_helper::date_time_2822));
             handlebars.register_helper("rfc3339", Box::new(handlebars_helper::date_time_3339));
-            handlebars.register_template_string("markdown", self.template)
+            handlebars
+                .register_template_string("markdown", self.template)
                 .context(MdTemplateFailed {})?;
-            handlebars.render_to_write("markdown", report, w)
+            handlebars
+                .render_to_write("markdown", report, w)
                 .context(MdRenderingFailed {})
         }
     }
@@ -135,18 +137,31 @@ mod handlebars_helper {
     use chrono::{DateTime, Local};
     use handlebars::{Context, Handlebars, Helper, HelperResult, Output, RenderContext, RenderError};
 
-    pub(crate) fn date_time_2822(h: &Helper, _: &Handlebars, _: &Context, _: &mut RenderContext, out: &mut dyn Output) -> HelperResult {
+    pub(crate) fn date_time_2822(
+        h: &Helper,
+        _: &Handlebars,
+        _: &Context,
+        _: &mut RenderContext,
+        out: &mut dyn Output,
+    ) -> HelperResult {
         let dt = date_param(h)?;
         out.write(&dt.to_rfc2822()).map_err(RenderError::with)
     }
 
-    pub(crate) fn date_time_3339(h: &Helper, _: &Handlebars, _: &Context, _: &mut RenderContext, out: &mut dyn Output) -> HelperResult {
+    pub(crate) fn date_time_3339(
+        h: &Helper,
+        _: &Handlebars,
+        _: &Context,
+        _: &mut RenderContext,
+        out: &mut dyn Output,
+    ) -> HelperResult {
         let dt = date_param(h)?;
         out.write(&dt.to_rfc3339()).map_err(RenderError::with)
     }
 
     fn date_param(h: &Helper) -> ::std::result::Result<DateTime<Local>, RenderError> {
-        let dt_str = h.param(0)
+        let dt_str = h
+            .param(0)
             .ok_or_else(|| RenderError::new("no such parameter"))?
             .value()
             .as_str()
