@@ -28,7 +28,10 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// # Example
 /// ```
 /// # use usereport::command::{Command, CommandResult};
+/// #[cfg(target_os = "macos")]
 /// let command = Command::new("uname", r#"/usr/bin/uname -a"#, 5).set_title("Host OS");
+/// #[cfg(target_os = "linux")]
+/// let command = Command::new("true", r#"/bin/true"#, 5).set_title("Just a successful command");
 /// match command.exec() {
 ///     Ok(CommandResult::Success {
 ///         command: _,
