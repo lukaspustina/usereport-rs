@@ -9,6 +9,7 @@ pub(crate) trait CommandResultSuccess {
     fn is_success_contains(&mut self, expected: &str);
     fn is_failed(&mut self);
     fn is_timeout(&mut self);
+    fn is_error_contains(&mut self, expected: &str);
 }
 
 impl<'s> CommandResultSuccess for Spec<'s, CommandResult> {
@@ -45,6 +46,19 @@ impl<'s> CommandResultSuccess for Spec<'s, CommandResult> {
             _ => {
                 AssertionFailure::from_spec(self)
                     .with_expected("command result is failed".to_string())
+                    .with_actual(format!("'{:?}'", subject))
+                    .fail()
+            }
+        }
+    }
+
+    fn is_error_contains(&mut self, expected: &str) {
+        let subject = self.subject;
+        match subject {
+            CommandResult::Error{ reason: x, .. } if x.contains(expected) => {}
+            _ => {
+                AssertionFailure::from_spec(self)
+                    .with_expected("command result is error".to_string())
                     .with_actual(format!("'{:?}'", subject))
                     .fail()
             }

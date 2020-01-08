@@ -8,9 +8,6 @@ use subprocess::{Popen, PopenConfig, PopenError, Redirection};
 #[derive(Debug, Snafu)]
 #[allow(missing_docs)]
 pub enum Error {
-    /// Process creation or execution failed
-    #[snafu(display("failed to run command {}: {}", name, source))]
-    ProcessFailed { name: String, source: PopenError },
     /// Process could not be killed
     #[snafu(display("failed to kill command {}: {}", name, source))]
     KillFailed { name: String, source: std::io::Error },
@@ -47,10 +44,10 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// ```
 #[derive(Debug, Deserialize, PartialEq, Serialize, Clone)]
 pub struct Command {
-    pub(crate) name:        String,
-    pub(crate) title:       Option<String>,
+    pub(crate) name: String,
+    pub(crate) title: Option<String>,
     pub(crate) description: Option<String>,
-    pub(crate) command:     String,
+    pub(crate) command: String,
     #[serde(rename = "timeout")]
     /// Timeout for command execution, defaults to 1 sec if not set
     pub(crate) timeout_sec: Option<u64>,
@@ -60,10 +57,10 @@ impl Command {
     /// Create new command with default values
     pub fn new<T: Into<String>>(name: T, command: T) -> Command {
         Command {
-            name:        name.into(),
-            title:       None,
+            name: name.into(),
+            title: None,
             description: None,
-            command:     command.into(),
+            command: command.into(),
             timeout_sec: None,
         }
     }
@@ -107,16 +104,17 @@ impl Command {
     /// Execute this command
     pub fn exec(self) -> Result<CommandResult> {
         let args: Vec<_> = self.command.split(' ').collect();
-        let mut p = Popen::create(
+        let popen = Popen::create(
             &args,
             PopenConfig {
                 stdout: Redirection::Pipe,
                 ..Default::default()
             },
-        )
-        .context(ProcessFailed {
-            name: self.name.clone(),
-        })?;
+        );
+        let mut p = match popen {
+            Ok(p) => p,
+            Err(err) => return Ok(CommandResult::Error { command: self, reason: err.to_string() })
+        };
         debug!("Running '{:?}' as '{:?}'", args, p);
 
         match p.wait_timeout(Duration::new(self.timeout_sec.unwrap_or(1), 0)) {
@@ -137,10 +135,10 @@ impl Command {
                 self.terminate(&mut p)?;
                 Ok(CommandResult::Timeout { command: self })
             }
-            err => {
+            Err(err) => {
                 trace!("process failed '{:?}'", err);
                 self.terminate(&mut p)?;
-                Ok(CommandResult::Error { command: self })
+                Ok(CommandResult::Error { command: self, reason: err.to_string() })
             }
         }
     }
@@ -167,7 +165,7 @@ pub enum CommandResult {
     /// `Command` execution exceeded specified timeout
     Timeout { command: Command },
     /// `Command` could not be executed
-    Error { command: Command },
+    Error { command: Command, reason: String },
 }
 
 #[cfg(test)]
@@ -182,9 +180,9 @@ mod tests {
         init();
 
         #[cfg(target_os = "macos")]
-        let command = Command::new("true", r#"/usr/bin/true"#);
+            let command = Command::new("true", r#"/usr/bin/true"#);
         #[cfg(target_os = "linux")]
-        let command = Command::new("true", r#"/bin/true"#);
+            let command = Command::new("true", r#"/bin/true"#);
 
         let res = command.exec();
 
@@ -196,9 +194,9 @@ mod tests {
         init();
 
         #[cfg(target_os = "macos")]
-        let command = Command::new("false", r#"/usr/bin/false"#);
+            let command = Command::new("false", r#"/usr/bin/false"#);
         #[cfg(target_os = "linux")]
-        let command = Command::new("false", r#"/bin/false"#);
+            let command = Command::new("false", r#"/bin/false"#);
 
         let res = command.exec();
 
@@ -230,6 +228,9 @@ mod tests {
 
         let res = command.exec();
 
-        asserting("executing command errors").that(&res).is_err();
+        asserting("executing command errors")
+            .that(&res)
+            .is_ok()
+            .is_error_contains("No such file or directory")
     }
 }
