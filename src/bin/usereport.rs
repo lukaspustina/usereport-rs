@@ -60,9 +60,9 @@ fn main() -> Result<(), ExitFailure> {
         .config
         .as_ref()
         .map(Config::from_file)
-        .unwrap_or(Config::from_str(defaults::CONFIG))
+        .unwrap_or_else(|| Config::from_str(defaults::CONFIG))
         .with_context(|_| "could not load configuration file")?;
-    let _ = config.validate()?;
+    config.validate()?;
     let profile_name = opt.profile.as_ref().unwrap_or(&config.defaults.profile);
 
     if opt.debug {
@@ -135,7 +135,7 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> Result<(),
         .and_then(|p| Ok(config.commands_for_profile(p)))?;
     let command_results = run_commands(opt, commands)?;
     let mut report = Report::new(&command_results).with_context(|_| "failed to create report")?;
-    hostinfo_results.as_ref().map(|x| report.set_hostinfo_results(x));
+    if let Some(x) = hostinfo_results.as_ref() { report.set_hostinfo_results(x) }
 
     render(&report, &opt.output_type).with_context(|_| "failed to render report")?;
 

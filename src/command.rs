@@ -75,11 +75,11 @@ where
     deserializer.deserialize_string(ArgsVisitor)
 }
 
-pub fn ser_args<S>(args: &Vec<String>, serializer: S) -> ::std::result::Result<S::Ok, S::Error>
+pub fn ser_args<S>(args: &[String], serializer: S) -> ::std::result::Result<S::Ok, S::Error>
 where
     S: Serializer,
 {
-    let command: String = args.as_slice().join(" ");
+    let command: String = args.join(" ");
     serializer.serialize_str(&command)
 }
 

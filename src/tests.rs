@@ -31,7 +31,7 @@ impl<'s> CommandResultSuccess for Spec<'s, CommandResult> {
             CommandResult::Failed { .. } => {}
             _ => {
                 AssertionFailure::from_spec(self)
-                    .with_expected(format!("command result is failed"))
+                    .with_expected("command result is failed".to_string())
                     .with_actual(format!("'{:?}'", subject))
                     .fail()
             }
@@ -44,7 +44,7 @@ impl<'s> CommandResultSuccess for Spec<'s, CommandResult> {
             CommandResult::Timeout { .. } => {}
             _ => {
                 AssertionFailure::from_spec(self)
-                    .with_expected(format!("command result is failed"))
+                    .with_expected("command result is failed".to_string())
                     .with_actual(format!("'{:?}'", subject))
                     .fail()
             }

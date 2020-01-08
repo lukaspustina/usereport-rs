@@ -61,7 +61,7 @@ impl Config {
     }
 
     pub fn profile(&self, profile_name: &str) -> Result<&Profile> {
-        self.profiles.iter().find(|x| &x.name == profile_name).ok_or_else(|| {
+        self.profiles.iter().find(|x| x.name == profile_name).ok_or_else(|| {
             Error::InvalidConfig {
                 reason: "no such profile",
             }
