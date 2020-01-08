@@ -28,9 +28,13 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// ```
 /// # use usereport::command::{Command, CommandResult};
 /// #[cfg(target_os = "macos")]
-/// let command = Command::new("uname", r#"/usr/bin/uname -a"#, 5).set_title("Host OS");
+/// let command = Command::new("uname", r#"/usr/bin/uname -a"#)
+///     .set_title("Host OS")
+///     .set_timeout(5);
 /// #[cfg(target_os = "linux")]
-/// let command = Command::new("true", r#"/bin/true"#, 5).set_title("Just a successful command");
+/// let command = Command::new("true", r#"/bin/true"#)
+///     .set_title("Just a successful command")
+///     .set_timeout(5);
 /// match command.exec() {
 ///     Ok(CommandResult::Success {
 ///         command: _,
@@ -48,18 +52,19 @@ pub struct Command {
     pub(crate) description: Option<String>,
     pub(crate) command:     String,
     #[serde(rename = "timeout")]
-    pub(crate) timeout_sec: u64,
+    /// Timeout for command execution, defaults to 1 sec if not set
+    pub(crate) timeout_sec: Option<u64>,
 }
 
 impl Command {
     /// Create new command with default values
-    pub fn new<T: Into<String>>(name: T, command: T, timeout_sec: u64) -> Command {
+    pub fn new<T: Into<String>>(name: T, command: T) -> Command {
         Command {
             name: name.into(),
             title: None,
             description: None,
             command: command.into(),
-            timeout_sec,
+            timeout_sec: None,
         }
     }
 
@@ -79,6 +84,14 @@ impl Command {
     pub fn set_title<T: Into<String>>(self, title: T) -> Command {
         Command {
             title: Some(title.into()),
+            ..self
+        }
+    }
+
+    /// Set title of command
+    pub fn set_timeout(self, timeout_sec: u64) -> Command {
+        Command {
+            timeout_sec: Some(timeout_sec),
             ..self
         }
     }
@@ -106,7 +119,7 @@ impl Command {
         })?;
         debug!("Running '{:?}' as '{:?}'", args, p);
 
-        match p.wait_timeout(Duration::new(self.timeout_sec, 0)) {
+        match p.wait_timeout(Duration::new(self.timeout_sec.unwrap_or(1), 0)) {
             Ok(Some(status)) if status.success() => {
                 trace!("process successfully finished as {:?}", status);
                 let mut stdout = String::new();
@@ -169,9 +182,9 @@ mod tests {
         init();
 
         #[cfg(target_os = "macos")]
-        let command = Command::new("true", r#"/usr/bin/true"#, 5);
+        let command = Command::new("true", r#"/usr/bin/true"#);
         #[cfg(target_os = "linux")]
-        let command = Command::new("true", r#"/bin/true"#, 5);
+        let command = Command::new("true", r#"/bin/true"#);
 
         let res = command.exec();
 
@@ -183,9 +196,9 @@ mod tests {
         init();
 
         #[cfg(target_os = "macos")]
-        let command = Command::new("false", r#"/usr/bin/false"#, 1);
+        let command = Command::new("false", r#"/usr/bin/false"#);
         #[cfg(target_os = "linux")]
-        let command = Command::new("false", r#"/bin/false"#, 1);
+        let command = Command::new("false", r#"/bin/false"#);
 
         let res = command.exec();
 
@@ -199,7 +212,7 @@ mod tests {
     fn execution_timeout() {
         init();
 
-        let command = Command::new("sleep", r#"/bin/sleep 5"#, 1);
+        let command = Command::new("sleep", r#"/bin/sleep 5"#).set_timeout(1);
 
         let res = command.exec();
 
@@ -213,7 +226,7 @@ mod tests {
     fn execution_error() {
         init();
 
-        let command = Command::new("no_such_command", r#"/no_such_command"#, 1);
+        let command = Command::new("no_such_command", r#"/no_such_command"#);
 
         let res = command.exec();
 
