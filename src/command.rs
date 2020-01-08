@@ -203,20 +203,15 @@ mod tests {
         init();
 
         #[cfg(target_os = "macos")]
-        let command = Command::new("uname", r#"/usr/bin/uname -a"#, 5);
-        #[cfg(target_os = "macos")]
-        let expected = "Darwin";
+        let command = Command::new("true", r#"/usr/bin/true"#, 5);
         #[cfg(target_os = "linux")]
-        let command = Command::new("uname", r#"/bin/uname -a"#, 5);
-        #[cfg(target_os = "linux")]
-        let expected = "Linux";
+        let command = Command::new("true", r#"/bin/true"#, 5);
 
         let res = command.exec();
 
         asserting("executing command successfully")
             .that(&res)
-            .is_ok()
-            .is_success_contains(expected)
+            .is_ok();
     }
 
     #[test]
