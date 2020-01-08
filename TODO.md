@@ -12,6 +12,7 @@
 * [X] Hostinfo
 * [X] Config: Use defaults
 * [ ] Repetitions
+* [ ] Refactore rendering using type class
 * [ ] Max Parallel
 * [ ] Commands should allow for arbitary links for further information or actions
 * [ ] Command result should store command execution time

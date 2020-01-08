@@ -14,6 +14,7 @@ use usereport::{
     report,
     report::OutputType,
     runner,
+    Analysis,
     Command,
     CommandResult,
     Config,
@@ -32,7 +33,7 @@ struct Opt {
     #[structopt(long)]
     show_config:   bool,
     /// Output format
-    #[structopt(short, long, possible_values = &["json", "markdown"], default_value = "markdown")]
+    #[structopt(short, long, possible_values = & ["json", "markdown"], default_value = "markdown")]
     output_type:   OutputType,
     /// Show progress bar while waiting for all commands to finish
     #[structopt(short = "P", long)]
@@ -123,36 +124,18 @@ fn show_commands(config: &Config) {
 }
 
 fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> Result<(), ExitFailure> {
-    let hostinfo_results = if let Some(cmds) = config.commands_for_hostinfo() {
-        let res = run_commands(opt, cmds)?;
-        Some(res)
-    } else {
-        None
-    };
-
-    let commands = config
-        .profile(profile_name)
+    let hostinfo = config.commands_for_hostinfo();
+    let commands = config.profile(profile_name)
         .and_then(|p| Ok(config.commands_for_profile(p)))?;
-    let command_results = run_commands(opt, commands)?;
-    let mut report = Report::new(&command_results).with_context(|_| "failed to create report")?;
-    if let Some(x) = hostinfo_results.as_ref() {
-        report.set_hostinfo_results(x)
-    }
 
+    let runner = create_runner(&opt, commands.len());
+    let analysis = Analysis::new(Box::new(runner), &hostinfo, &commands);
+    let analysis_result = analysis.run().with_context(|_| "failed to run analysis")?;
+
+    let report = Report::new(&analysis_result);
     render(&report, &opt.output_type).with_context(|_| "failed to render report")?;
 
     Ok(())
-}
-
-fn run_commands(opt: &Opt, commands: Vec<&Command>) -> Result<Vec<CommandResult>, ExitFailure> {
-    let res = create_runner(&opt, commands.len())
-        .run(commands)
-        .with_context(|_| "failed to execute commands")?
-        .into_iter()
-        .collect::<command::Result<Vec<CommandResult>>>()
-        .with_context(|_| "failed to execute some commands")?;
-
-    Ok(res)
 }
 
 fn create_runner(opt: &Opt, commands_len: usize) -> runner::ThreadRunner {

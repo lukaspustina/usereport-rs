@@ -6,7 +6,8 @@ Host OS: {{uname}}
 
 ## Run Configuration
 
-Repetitions: {{
+Repetitions: {{repetitions}}
+Parallelism: {{max_parallel_commands}}
 
 ## Host Information
 {{#each hostinfo_results as |result|}}
@@ -30,8 +31,9 @@ Command: `{{this.command}}`
 
 {{~/each}}
 
-## Commands
-{{#each command_results as |result|}}
+{{#each command_results as |run|}}
+## Command Results - Run {{inc @index}}
+{{#each run as |result|}}
 {{~#if result.Success}}
 {{~#with result.Success}}
 ### {{#if this.command.title}}{{this.command.title}}{{else}}{{this.command.name}}{{/if}}
@@ -49,6 +51,7 @@ Command: `{{this.command}}`
 {{/with}}
 {{~/if}}
 
+{{~/each}}
 {{~/each}}
 
 ---

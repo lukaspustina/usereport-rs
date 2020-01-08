@@ -1,16 +1,15 @@
 use crate::command::{self, Command, CommandResult};
 
 use snafu::{ResultExt, Snafu};
-use std::sync::mpsc::Sender;
 
 /// Runner Interface
-pub trait Runner {
-    /// Create Runner with commands
-    fn new() -> Self;
-    /// Create Runner with commands with progress indication channel
-    fn with_progress(progress_tx: Sender<usize>) -> Self;
+pub trait Runner<'a, I: IntoIterator<Item = &'a Command>> {
+    // Create Runner with commands
+    // fn new() -> Self;
+    // Create Runner with commands with progress indication channel
+    // fn with_progress(progress_tx: Sender<usize>) -> Self;
     /// Execute all commands and wait until all commands return
-    fn run<'a, I: IntoIterator<Item = &'a Command>>(&self, commands: I) -> Result<Vec<command::Result<CommandResult>>>;
+    fn run(&self, commands: I) -> Result<Vec<command::Result<CommandResult>>>;
 }
 
 /// Error type
@@ -41,19 +40,8 @@ pub mod thread {
         progress_tx: Option<Sender<usize>>,
     }
 
-    impl super::Runner for ThreadRunner {
-        fn new() -> Self { ThreadRunner { progress_tx: None } }
-
-        fn with_progress(progress_tx: Sender<usize>) -> Self {
-            ThreadRunner {
-                progress_tx: Some(progress_tx),
-            }
-        }
-
-        fn run<'a, I: IntoIterator<Item = &'a Command>>(
-            &self,
-            commands: I,
-        ) -> Result<Vec<command::Result<CommandResult>>> {
+    impl<'a, I: IntoIterator<Item = &'a Command>> super::Runner<'a, I> for ThreadRunner {
+        fn run(&self, commands: I) -> Result<Vec<command::Result<CommandResult>>> {
             // Create child threads and run commands
             let (children, rx) = ThreadRunner::create_children(commands, &self.progress_tx)?;
             // Wait for results
@@ -66,6 +54,14 @@ pub mod thread {
     type ChildrenSupervision = (Vec<JoinHandle<()>>, Receiver<command::Result<CommandResult>>);
 
     impl ThreadRunner {
+        pub fn new() -> Self { ThreadRunner { progress_tx: None } }
+
+        pub fn with_progress(progress_tx: Sender<usize>) -> Self {
+            ThreadRunner {
+                progress_tx: Some(progress_tx),
+            }
+        }
+
         fn create_children<'a, I: IntoIterator<Item = &'a Command>>(
             commands: I,
             progress_tx: &Option<Sender<usize>>,

@@ -1,11 +1,6 @@
-use crate::command::CommandResult;
-
-use chrono::{DateTime, Local};
 use handlebars::Handlebars;
-use serde::Serialize;
 use snafu::{ResultExt, Snafu};
 use std::io::Write;
-use uname;
 
 /// Error type
 #[derive(Debug, Snafu)]
@@ -14,9 +9,6 @@ pub enum Error {
     /// Failed to parse output type
     #[snafu(display("failed to parse output type"))]
     OutputTypeParseError,
-    /// Failed to create a new report
-    #[snafu(display("failed to create a new report: {}", source))]
-    CreateFailed { source: std::io::Error },
     /// Rendering of report to Json failed
     #[snafu(display("failed to render report to Json: {}", source))]
     JsonRenderingFailed { source: serde_json::Error },
@@ -49,43 +41,20 @@ impl FromStr for OutputType {
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug)]
 pub struct Report<'a> {
-    hostinfo_results: Option<&'a [CommandResult]>,
-    command_results:  &'a [CommandResult],
-    hostname:         String,
-    uname:            String,
-    date_time:        DateTime<Local>,
+    analysis_result: &'a AnalysisResult,
 }
 
 impl<'a> Report<'a> {
-    pub fn new(command_results: &'a [CommandResult]) -> Result<Self> {
-        let uname = uname::uname().context(CreateFailed {})?;
-        let hostname = uname.nodename.to_string();
-        let uname = format!(
-            "{} {} {} {} {}",
-            uname.sysname, uname.nodename, uname.release, uname.version, uname.machine
-        );
-        let date_time = Local::now();
-
-        Ok(Report {
-            hostinfo_results: None,
-            command_results,
-            hostname,
-            uname,
-            date_time,
-        })
-    }
-
-    pub fn set_hostinfo_results(&mut self, command_results: &'a [CommandResult]) {
-        self.hostinfo_results = Some(command_results);
-    }
+    pub fn new(analysis_result: &'a AnalysisResult) -> Self { Report { analysis_result } }
 }
 
 pub trait Renderer {
     fn render<'a, W: Write>(&self, report: &Report<'a>, w: W) -> Result<()>;
 }
 
+use crate::analysis::AnalysisResult;
 pub use json::JsonRenderer;
 pub use markdown::MdRenderer;
 use std::str::FromStr;
@@ -102,7 +71,7 @@ pub mod json {
 
     impl Renderer for JsonRenderer {
         fn render<'a, W: Write>(&self, report: &Report<'a>, w: W) -> Result<()> {
-            serde_json::to_writer(w, report).context(JsonRenderingFailed {})
+            serde_json::to_writer(w, report.analysis_result).context(JsonRenderingFailed {})
         }
     }
 }
@@ -121,13 +90,14 @@ pub mod markdown {
     impl<'a> Renderer for MdRenderer<'a> {
         fn render<'r, W: Write>(&self, report: &Report<'r>, w: W) -> Result<()> {
             let mut handlebars = Handlebars::new();
+            handlebars.register_helper("inc", Box::new(handlebars_helper::inc));
             handlebars.register_helper("rfc2822", Box::new(handlebars_helper::date_time_2822));
             handlebars.register_helper("rfc3339", Box::new(handlebars_helper::date_time_3339));
             handlebars
                 .register_template_string("markdown", self.template)
                 .context(MdTemplateFailed {})?;
             handlebars
-                .render_to_write("markdown", report, w)
+                .render_to_write("markdown", report.analysis_result, w)
                 .context(MdRenderingFailed {})
         }
     }
@@ -136,6 +106,23 @@ pub mod markdown {
 mod handlebars_helper {
     use chrono::{DateTime, Local};
     use handlebars::{Context, Handlebars, Helper, HelperResult, Output, RenderContext, RenderError};
+
+    pub(crate) fn inc(
+        h: &Helper,
+        _: &Handlebars,
+        _: &Context,
+        _: &mut RenderContext,
+        out: &mut dyn Output,
+    ) -> HelperResult {
+        let value = h
+            .param(0)
+            .ok_or_else(|| RenderError::new("no such parameter"))?
+            .value()
+            .as_i64()
+            .ok_or_else(|| RenderError::new("parameter is not a number"))?;
+        let inc = format!("{}", value + 1);
+        out.write(&inc).map_err(RenderError::with)
+    }
 
     pub(crate) fn date_time_2822(
         h: &Helper,
@@ -158,6 +145,7 @@ mod handlebars_helper {
         let dt = date_param(h)?;
         out.write(&dt.to_rfc3339()).map_err(RenderError::with)
     }
+
 
     fn date_param(h: &Helper) -> ::std::result::Result<DateTime<Local>, RenderError> {
         let dt_str = h
