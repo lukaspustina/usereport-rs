@@ -4,13 +4,13 @@ use snafu::{ResultExt, Snafu};
 use std::sync::mpsc::Sender;
 
 /// Runner Interface
-pub trait Runner<'a> {
+pub trait Runner {
     /// Create Runner with commands
-    fn new<I: IntoIterator<Item = &'a Command>>(commands: I) -> Self;
+    fn new() -> Self;
     /// Create Runner with commands with progress indication channel
-    fn with_progress<I: IntoIterator<Item = &'a Command>>(commands: I, progress_tx: Sender<usize>) -> Self;
+    fn with_progress(progress_tx: Sender<usize>) -> Self;
     /// Execute all commands and wait until all commands return
-    fn run(self) -> Result<Vec<command::Result<CommandResult>>>;
+    fn run<'a, I: IntoIterator<Item = &'a Command>>(&self, commands: I) -> Result<Vec<command::Result<CommandResult>>>;
 }
 
 /// Error type
@@ -37,31 +37,25 @@ pub mod thread {
         thread::JoinHandle,
     };
 
-    pub struct ThreadRunner<'a> {
-        commands:    Vec<&'a Command>,
+    pub struct ThreadRunner {
         progress_tx: Option<Sender<usize>>,
     }
 
-    impl<'a> super::Runner<'a> for ThreadRunner<'a> {
-        fn new<I: IntoIterator<Item = &'a Command>>(commands: I) -> Self {
-            let commands = commands.into_iter().collect();
-            ThreadRunner {
-                commands,
-                progress_tx: None,
-            }
-        }
+    impl super::Runner for ThreadRunner {
+        fn new() -> Self { ThreadRunner { progress_tx: None } }
 
-        fn with_progress<I: IntoIterator<Item = &'a Command>>(commands: I, progress_tx: Sender<usize>) -> Self {
-            let commands = commands.into_iter().collect();
+        fn with_progress(progress_tx: Sender<usize>) -> Self {
             ThreadRunner {
-                commands,
                 progress_tx: Some(progress_tx),
             }
         }
 
-        fn run(self) -> Result<Vec<command::Result<CommandResult>>> {
+        fn run<'a, I: IntoIterator<Item = &'a Command>>(
+            &self,
+            commands: I,
+        ) -> Result<Vec<command::Result<CommandResult>>> {
             // Create child threads and run commands
-            let (children, rx) = ThreadRunner::create_children(self.commands.as_slice(), self.progress_tx)?;
+            let (children, rx) = ThreadRunner::create_children(commands, &self.progress_tx)?;
             // Wait for results
             let results = ThreadRunner::wait_for_results(children, rx);
 
@@ -71,10 +65,10 @@ pub mod thread {
 
     type ChildrenSupervision = (Vec<JoinHandle<()>>, Receiver<command::Result<CommandResult>>);
 
-    impl<'a> ThreadRunner<'a> {
-        fn create_children(
-            commands: &'a [&Command],
-            progress_tx: Option<Sender<usize>>,
+    impl ThreadRunner {
+        fn create_children<'a, I: IntoIterator<Item = &'a Command>>(
+            commands: I,
+            progress_tx: &Option<Sender<usize>>,
         ) -> Result<ChildrenSupervision> {
             let (tx, rx): (
                 Sender<command::Result<CommandResult>>,
@@ -159,8 +153,8 @@ pub mod thread {
             #[cfg(target_os = "linux")]
             let expected = "Linux";
 
-            let r = ThreadRunner::new(&commands);
-            let results = r.run();
+            let r = ThreadRunner::new();
+            let results = r.run(&commands);
 
             asserting("Command run").that(&results).is_ok().has_length(2);
 

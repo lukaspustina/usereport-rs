@@ -145,8 +145,8 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> Result<(),
 }
 
 fn run_commands(opt: &Opt, commands: Vec<&Command>) -> Result<Vec<CommandResult>, ExitFailure> {
-    let res = create_runner(&opt, commands)
-        .run()
+    let res = create_runner(&opt, commands.len())
+        .run(commands)
         .with_context(|_| "failed to execute commands")?
         .into_iter()
         .collect::<command::Result<Vec<CommandResult>>>()
@@ -155,12 +155,12 @@ fn run_commands(opt: &Opt, commands: Vec<&Command>) -> Result<Vec<CommandResult>
     Ok(res)
 }
 
-fn create_runner<'a>(opt: &Opt, commands: Vec<&'a Command>) -> runner::ThreadRunner<'a> {
+fn create_runner(opt: &Opt, commands_len: usize) -> runner::ThreadRunner {
     if opt.progress {
-        let tx = create_progress_bar(commands.len());
-        runner::ThreadRunner::with_progress(commands, tx)
+        let tx = create_progress_bar(commands_len);
+        runner::ThreadRunner::with_progress(tx)
     } else {
-        runner::ThreadRunner::new(commands)
+        runner::ThreadRunner::new()
     }
 }
 

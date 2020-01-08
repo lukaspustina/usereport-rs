@@ -8,9 +8,9 @@ fn main() {
 
     let template = include_str!("../contrib/markdown.hbs");
 
-    let runner = runner::ThreadRunner::new(&config.commands);
+    let runner = runner::ThreadRunner::new();
     let results = runner
-        .run()
+        .run(&config.commands)
         .expect("Failed to run commands")
         .into_iter()
         .collect::<command::Result<Vec<CommandResult>>>()

@@ -6,9 +6,9 @@ fn main() {
     #[cfg(target_os = "linux")]
     let config = Config::from_file("contrib/linux.conf").expect("Failed to load config file");
 
-    let runner = runner::ThreadRunner::new(&config.commands);
+    let runner = runner::ThreadRunner::new();
     let results = runner
-        .run()
+        .run(&config.commands)
         .expect("Failed to run commands")
         .into_iter()
         .collect::<command::Result<Vec<CommandResult>>>()
