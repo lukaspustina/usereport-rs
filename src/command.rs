@@ -212,9 +212,7 @@ mod tests {
 
         let res = command.exec();
 
-        asserting("executing command successfully")
-            .that(&res)
-            .is_ok();
+        asserting("executing command successfully").that(&res).is_ok();
     }
 
     #[test]
