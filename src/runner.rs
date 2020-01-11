@@ -17,7 +17,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// Runner Interface
 pub trait Runner<'a, I: IntoIterator<Item = &'a Command>> {
     /// Execute all commands and wait until all commands return
-    fn run(&self, commands: I) -> Result<Vec<CommandResult>>;
+    fn run(&self, commands: I, max_parallel_commands: usize) -> Result<Vec<CommandResult>>;
 }
 
 pub use thread::ThreadRunner;
@@ -37,11 +37,20 @@ pub mod thread {
     }
 
     impl<'a, I: IntoIterator<Item = &'a Command>> super::Runner<'a, I> for ThreadRunner {
-        fn run(&self, commands: I) -> Result<Vec<CommandResult>> {
-            // Create child threads and run commands
-            let (children, rx) = ThreadRunner::create_children(commands, &self.progress_tx)?;
-            // Wait for results
-            let results = ThreadRunner::wait_for_results(children, rx);
+        fn run(&self, commands: I, max_parallel_commands: usize) -> Result<Vec<CommandResult>> {
+            let mut results = Vec::new();
+
+            let commands: Vec<&Command> = commands.into_iter().collect();
+            for chunk in commands
+                .chunks(max_parallel_commands)
+                .map(|x| x.to_vec())
+            {
+                // Create child threads and run commands
+                let (children, rx) = ThreadRunner::create_children(chunk, &self.progress_tx)?;
+                // Wait for results
+                let mut chunk_results = ThreadRunner::wait_for_results(children, rx);
+                results.append(&mut chunk_results);
+            }
 
             Ok(results)
         }
@@ -50,11 +59,12 @@ pub mod thread {
     type ChildrenSupervision = (Vec<JoinHandle<()>>, Receiver<CommandResult>);
 
     impl ThreadRunner {
-        pub fn new() -> Self { ThreadRunner { progress_tx: None } }
+        pub fn new() -> Self { ThreadRunner::default() }
 
-        pub fn with_progress(progress_tx: Sender<usize>) -> Self {
+        pub fn with_progress(self, progress_tx: Sender<usize>) -> Self {
             ThreadRunner {
                 progress_tx: Some(progress_tx),
+                ..self
             }
         }
 
@@ -65,8 +75,9 @@ pub mod thread {
             let (tx, rx): (Sender<CommandResult>, Receiver<CommandResult>) = mpsc::channel();
             let mut children = Vec::new();
 
-            for c in commands {
-                let child = ThreadRunner::create_child(c, tx.clone(), progress_tx.clone())?;
+            for command in commands {
+                let command = command.clone();
+                let child = ThreadRunner::create_child(command, tx.clone(), progress_tx.clone())?;
                 children.push(child);
             }
 
@@ -74,11 +85,10 @@ pub mod thread {
         }
 
         fn create_child(
-            command: &Command,
+            command: Command,
             tx: Sender<CommandResult>,
             progress_tx: Option<Sender<usize>>,
         ) -> Result<JoinHandle<()>> {
-            let command = command.clone();
             let name = command.name.clone();
             thread::Builder::new()
                 .name(command.name.clone())
@@ -115,6 +125,14 @@ pub mod thread {
         }
     }
 
+    impl Default for ThreadRunner {
+        fn default() -> Self {
+            ThreadRunner {
+                progress_tx: None,
+            }
+        }
+    }
+
     #[cfg(test)]
     mod tests {
         use super::*;
@@ -139,7 +157,7 @@ pub mod thread {
             let expected = "Linux";
 
             let r = ThreadRunner::new();
-            let results = r.run(&commands);
+            let results = r.run(&commands, 64);
 
             asserting("Command run").that(&results).is_ok().has_length(2);
 

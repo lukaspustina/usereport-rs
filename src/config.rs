@@ -173,9 +173,9 @@ pub struct Defaults {
     #[serde(default = "default_timeout")]
     pub timeout:               u64,
     #[serde(default = "default_repetitions")]
-    pub repetitions:           u64,
+    pub repetitions:           usize,
     #[serde(default = "default_max_parallel_commands")]
-    pub max_parallel_commands: u64,
+    pub max_parallel_commands: usize,
 }
 
 impl Default for Defaults {
@@ -193,9 +193,9 @@ fn default_profile() -> String { Defaults::default().profile }
 
 fn default_timeout() -> u64 { Defaults::default().timeout }
 
-fn default_repetitions() -> u64 { Defaults::default().repetitions }
+fn default_repetitions() -> usize { Defaults::default().repetitions }
 
-fn default_max_parallel_commands() -> u64 { Defaults::default().max_parallel_commands }
+fn default_max_parallel_commands() -> usize { Defaults::default().max_parallel_commands }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
 pub struct Hostinfo {

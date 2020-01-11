@@ -9,7 +9,8 @@ use std::{
     sync::mpsc::{self, Receiver, Sender},
 };
 use structopt::{clap, StructOpt};
-use usereport::{report, report::OutputType, runner, Analysis, Config, Renderer, Report};
+use usereport::{report, report::OutputType, Analysis, Config, Renderer, Report};
+use usereport::runner::ThreadRunner;
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "usereport", author, about, setting = clap::AppSettings::ColoredHelp)]
@@ -17,12 +18,15 @@ struct Opt {
     /// Configuration from file, or default if not present
     #[structopt(short, long, parse(from_os_str))]
     config:        Option<PathBuf>,
-    /// Show active config
-    #[structopt(long)]
-    show_config:   bool,
     /// Output format
     #[structopt(short, long, possible_values = & ["json", "markdown"], default_value = "markdown")]
     output_type:   OutputType,
+    /// Set number of commands to run in parallel; overrides setting from config file
+    #[structopt(long)]
+    parallel: Option<usize>,
+    /// Set number of how many times to run commands in row; overrides setting from config file
+    #[structopt(long)]
+    repetitions: Option<usize>,
     /// Show progress bar while waiting for all commands to finish
     #[structopt(short = "P", long)]
     progress:      bool,
@@ -32,6 +36,9 @@ struct Opt {
     /// Set profile to use
     #[structopt(short = "p", long)]
     profile:       Option<String>,
+    /// Show active config
+    #[structopt(long)]
+    show_config:   bool,
     /// Show available profiles
     #[structopt(long)]
     show_profiles: bool,
@@ -117,8 +124,14 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> Result<(),
         .profile(profile_name)
         .and_then(|p| Ok(config.commands_for_profile(p)))?;
 
-    let runner = create_runner(&opt, hostinfo.len() + commands.len());
-    let analysis = Analysis::new(Box::new(runner), &hostinfo, &commands);
+    let parallel = opt.parallel.unwrap_or(config.defaults.max_parallel_commands);
+    let repetitions = opt.repetitions.unwrap_or(config.defaults.repetitions);
+
+    let number_of_commands = hostinfo.len() + repetitions * commands.len();
+    let runner = create_runner(opt.progress, number_of_commands);
+    let analysis = Analysis::new(Box::new(runner), &hostinfo, &commands)
+        .with_max_parallel_commands(parallel)
+        .with_repetitions(repetitions);
     let analysis_result = analysis.run().with_context(|_| "failed to run analysis")?;
 
     let report = Report::new(&analysis_result);
@@ -127,13 +140,14 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> Result<(),
     Ok(())
 }
 
-fn create_runner(opt: &Opt, commands_len: usize) -> runner::ThreadRunner {
-    if opt.progress {
-        let tx = create_progress_bar(commands_len);
-        runner::ThreadRunner::with_progress(tx)
-    } else {
-        runner::ThreadRunner::new()
+fn create_runner(progress: bool, number_of_commands: usize) -> ThreadRunner {
+    let mut runner = ThreadRunner::new();
+    if progress {
+        let tx = create_progress_bar(number_of_commands);
+        runner = runner.with_progress(tx);
     }
+
+    runner
 }
 
 fn create_progress_bar(expected: usize) -> Sender<usize> {

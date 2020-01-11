@@ -25,8 +25,8 @@ pub struct Analysis<'a, I: IntoIterator<Item = &'a Command> + Copy> {
     runner:                Box<dyn Runner<'a, I>>,
     hostinfos:             I,
     commands:              I,
-    repetitions:           u64,
-    max_parallel_commands: u64,
+    repetitions:           usize,
+    max_parallel_commands: usize,
 }
 
 impl<'a, I: IntoIterator<Item = &'a Command> + Copy> Analysis<'a, I> {
@@ -40,9 +40,9 @@ impl<'a, I: IntoIterator<Item = &'a Command> + Copy> Analysis<'a, I> {
         }
     }
 
-    pub fn set_repetitions(self, repetitions: u64) -> Self { Analysis { repetitions, ..self } }
+    pub fn with_repetitions(self, repetitions: usize) -> Self { Analysis { repetitions, ..self } }
 
-    pub fn set_max_parallel_commands(self, max_parallel_commands: u64) -> Self {
+    pub fn with_max_parallel_commands(self, max_parallel_commands: usize) -> Self {
         Analysis {
             max_parallel_commands,
             ..self
@@ -72,7 +72,7 @@ impl<'a, I: IntoIterator<Item = &'a Command> + Copy> Analysis<'a, I> {
         })
     }
 
-    fn run_commands_rep(&self, commands: I, repetitions: u64) -> Result<Vec<Vec<CommandResult>>> {
+    fn run_commands_rep(&self, commands: I, repetitions: usize) -> Result<Vec<Vec<CommandResult>>> {
         let mut results = Vec::new();
         for _ in 0..repetitions {
             let run_results = self.run_commands(commands)?;
@@ -83,7 +83,8 @@ impl<'a, I: IntoIterator<Item = &'a Command> + Copy> Analysis<'a, I> {
     }
 
     fn run_commands(&self, commands: I) -> Result<Vec<CommandResult>> {
-        let results = self.runner.run(commands).context(AnalysisFailed {})?;
+        let results = self.runner.run(commands, self.max_parallel_commands)
+            .context(AnalysisFailed {})?;
 
         Ok(results)
     }
@@ -96,8 +97,8 @@ pub struct AnalysisResult {
     pub date_time:             DateTime<Local>,
     pub hostinfo_results:      Vec<CommandResult>,
     pub command_results:       Vec<Vec<CommandResult>>,
-    pub repetitions:           u64,
-    pub max_parallel_commands: u64,
+    pub repetitions:           usize,
+    pub max_parallel_commands: usize,
 }
 
 #[cfg(test)]
@@ -113,8 +114,8 @@ mod tests {
         let tr = runner::ThreadRunner::new();
         let runner = Box::new(tr);
         let analysis = Analysis::new(runner, &hostinfos, &commands)
-            .set_repetitions(1)
-            .set_max_parallel_commands(64);
+            .with_repetitions(1)
+            .with_max_parallel_commands(64);
 
         let res = analysis.run();
         asserting("Analysis run").that(&res).is_ok();
@@ -125,15 +126,15 @@ mod tests {
         struct MyRunner {};
 
         impl<'a, I: IntoIterator<Item = &'a Command>> Runner<'a, I> for MyRunner {
-            fn run(&self, _commands: I) -> runner::Result<Vec<CommandResult>> { Ok(Vec::new()) }
+            fn run(&self, _commands: I, _max_parallel_commands: usize) -> runner::Result<Vec<CommandResult>> { Ok(Vec::new()) }
         }
 
         let hostinfos: Vec<Command> = Vec::new();
         let commands: Vec<Command> = Vec::new();
         let runner = Box::new(MyRunner {});
         let analysis = Analysis::new(runner, hostinfos.as_slice(), commands.as_slice())
-            .set_repetitions(1)
-            .set_max_parallel_commands(64);
+            .with_repetitions(1)
+            .with_max_parallel_commands(64);
 
         let res = analysis.run();
         asserting("Analysis run").that(&res).is_ok();
