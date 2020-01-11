@@ -1,6 +1,10 @@
+use crate::analysis::AnalysisReport;
+
 use handlebars::Handlebars;
 use snafu::{ResultExt, Snafu};
 use std::io::Write;
+use std::str::FromStr;
+
 
 /// Error type
 #[derive(Debug, Snafu)]
@@ -41,23 +45,12 @@ impl FromStr for OutputType {
     }
 }
 
-#[derive(Debug)]
-pub struct Report<'a> {
-    analysis_result: &'a AnalysisResult,
-}
-
-impl<'a> Report<'a> {
-    pub fn new(analysis_result: &'a AnalysisResult) -> Self { Report { analysis_result } }
-}
-
 pub trait Renderer<W: Write> {
-    fn render(&self, report: &Report, w: W) -> Result<()>;
+    fn render(&self, report: &AnalysisReport, w: W) -> Result<()>;
 }
 
-use crate::analysis::AnalysisResult;
 pub use json::JsonRenderer;
 pub use markdown::MdRenderer;
-use std::str::FromStr;
 
 pub mod json {
     use super::*;
@@ -70,8 +63,8 @@ pub mod json {
     }
 
     impl<W: Write> Renderer<W> for JsonRenderer {
-        fn render(&self, report: &Report, w: W) -> Result<()> {
-            serde_json::to_writer(w, report.analysis_result).context(JsonRenderingFailed {})
+        fn render(&self, report: &AnalysisReport, w: W) -> Result<()> {
+            serde_json::to_writer(w, report).context(JsonRenderingFailed {})
         }
     }
 }
@@ -88,7 +81,7 @@ pub mod markdown {
     }
 
     impl<'a, W: Write> Renderer<W> for MdRenderer<'a> {
-        fn render(&self, report: &Report, w: W) -> Result<()> {
+        fn render(&self, report: &AnalysisReport, w: W) -> Result<()> {
             let mut handlebars = Handlebars::new();
             handlebars.register_helper("inc", Box::new(handlebars_helper::inc));
             handlebars.register_helper("rfc2822", Box::new(handlebars_helper::date_time_2822));
@@ -97,7 +90,7 @@ pub mod markdown {
                 .register_template_string("markdown", self.template)
                 .context(MdTemplateFailed {})?;
             handlebars
-                .render_to_write("markdown", report.analysis_result, w)
+                .render_to_write("markdown", report, w)
                 .context(MdRenderingFailed {})
         }
     }

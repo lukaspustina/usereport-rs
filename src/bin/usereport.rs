@@ -9,7 +9,7 @@ use std::{
     sync::mpsc::{self, Receiver, Sender},
 };
 use structopt::{clap, StructOpt};
-use usereport::{report, report::OutputType, runner::ThreadRunner, Analysis, Config, Renderer, Report};
+use usereport::{renderer, renderer::OutputType, runner::ThreadRunner, Analysis, AnalysisReport, Config, Renderer};
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "usereport", author, about, setting = clap::AppSettings::ColoredHelp)]
@@ -131,10 +131,9 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> Result<(),
     let analysis = Analysis::new(Box::new(runner), &hostinfo, &commands)
         .with_max_parallel_commands(parallel)
         .with_repetitions(repetitions);
-    let analysis_result = analysis.run().with_context(|_| "failed to run analysis")?;
+    let report = analysis.run().with_context(|_| "failed to run analysis")?;
 
-    let report = Report::new(&analysis_result);
-    render(&report, &opt.output_type).with_context(|_| "failed to render report")?;
+    render_to_stdout(&report, &opt.output_type).with_context(|_| "failed to render report")?;
 
     Ok(())
 }
@@ -165,7 +164,7 @@ fn create_progress_bar(expected: usize) -> Sender<usize> {
     tx
 }
 
-fn render(report: &Report, output_type: &OutputType) -> report::Result<()> {
+fn render_to_stdout(report: &AnalysisReport, output_type: &OutputType) -> renderer::Result<()> {
     let stdout = std::io::stdout();
     let handle = stdout.lock();
     let r = renderer(output_type);
@@ -174,8 +173,8 @@ fn render(report: &Report, output_type: &OutputType) -> report::Result<()> {
 
 fn renderer<W: Write>(output_type: &OutputType) -> Box<dyn Renderer<W>> {
     match output_type {
-        OutputType::Markdown => Box::new(report::MdRenderer::new(defaults::MD_TEMPLATE)),
-        OutputType::JSON => Box::new(report::JsonRenderer::new()),
+        OutputType::Markdown => Box::new(renderer::MdRenderer::new(defaults::MD_TEMPLATE)),
+        OutputType::JSON => Box::new(renderer::JsonRenderer::new()),
     }
 }
 

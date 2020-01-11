@@ -49,7 +49,7 @@ impl<'a, I: IntoIterator<Item = &'a Command> + Copy> Analysis<'a, I> {
         }
     }
 
-    pub fn run(&self) -> Result<AnalysisResult> {
+    pub fn run(&self) -> Result<AnalysisReport> {
         let uname = uname::uname().context(InitFailed {})?;
         let hostname = uname.nodename.to_string();
         let uname = format!(
@@ -61,7 +61,7 @@ impl<'a, I: IntoIterator<Item = &'a Command> + Copy> Analysis<'a, I> {
         let hostinfo_results = self.run_commands(self.hostinfos)?;
         let command_results = self.run_commands_rep(self.commands, self.repetitions)?;
 
-        Ok(AnalysisResult {
+        Ok(AnalysisReport {
             hostname,
             uname,
             date_time,
@@ -93,7 +93,7 @@ impl<'a, I: IntoIterator<Item = &'a Command> + Copy> Analysis<'a, I> {
 }
 
 #[derive(Debug, Serialize)]
-pub struct AnalysisResult {
+pub struct AnalysisReport {
     pub hostname:              String,
     pub uname:                 String,
     pub date_time:             DateTime<Local>,

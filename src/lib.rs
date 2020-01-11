@@ -12,15 +12,15 @@ pub mod command;
 pub mod config;
 
 /// Reports in HTML, JSON, and Markdown format
-pub mod report;
+pub mod renderer;
 
 /// Trait and default implementation to run commands and collect their output
 pub mod runner;
 
-pub use analysis::Analysis;
+pub use analysis::{Analysis, AnalysisReport};
 pub use command::{Command, CommandResult};
 pub use config::Config;
-pub use report::{Renderer, Report};
+pub use renderer::Renderer;
 pub use runner::Runner;
 
 /// Test helper
