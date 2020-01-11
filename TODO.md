@@ -33,4 +33,5 @@
     * [ ] https://github.com/rust-lang/api-guidelines
     * [ ] https://deterministic.space/elegant-apis-in-rust.html
 * [ ] Activate deny missing docs and add docs
+    * [ ] https://rust-lang.github.io/api-guidelines/documentation.html
 

@@ -211,12 +211,12 @@ pub struct Profile {
 
 impl Profile {
     pub fn new<T: Into<String> + Clone>(name: T, commands: &[T]) -> Profile {
-        Self::with_description(name, commands, None)
+        Self::new_with_description(name, commands, None)
     }
 
-    pub fn with_description<T: Into<String> + Clone>(name: T, commands: &[T], description: Option<T>) -> Profile {
+    pub fn new_with_description<T: Into<String> + Clone>(name: T, commands: &[T], description: Option<T>) -> Profile {
         let name = name.into();
-        let commands = commands.iter().map(|x| x.clone().into()).collect();
+        let commands = commands.clone().to_vec().into_iter().map(Into::into).collect();
         let description = description.map(Into::into);
 
         Profile {
