@@ -9,8 +9,7 @@ use std::{
     sync::mpsc::{self, Receiver, Sender},
 };
 use structopt::{clap, StructOpt};
-use usereport::{report, report::OutputType, Analysis, Config, Renderer, Report};
-use usereport::runner::ThreadRunner;
+use usereport::{report, report::OutputType, runner::ThreadRunner, Analysis, Config, Renderer, Report};
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "usereport", author, about, setting = clap::AppSettings::ColoredHelp)]
@@ -23,10 +22,10 @@ struct Opt {
     output_type:   OutputType,
     /// Set number of commands to run in parallel; overrides setting from config file
     #[structopt(long)]
-    parallel: Option<usize>,
+    parallel:      Option<usize>,
     /// Set number of how many times to run commands in row; overrides setting from config file
     #[structopt(long)]
-    repetitions: Option<usize>,
+    repetitions:   Option<usize>,
     /// Show progress bar while waiting for all commands to finish
     #[structopt(short = "P", long)]
     progress:      bool,

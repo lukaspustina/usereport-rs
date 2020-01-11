@@ -83,7 +83,9 @@ impl<'a, I: IntoIterator<Item = &'a Command> + Copy> Analysis<'a, I> {
     }
 
     fn run_commands(&self, commands: I) -> Result<Vec<CommandResult>> {
-        let results = self.runner.run(commands, self.max_parallel_commands)
+        let results = self
+            .runner
+            .run(commands, self.max_parallel_commands)
             .context(AnalysisFailed {})?;
 
         Ok(results)
@@ -126,7 +128,9 @@ mod tests {
         struct MyRunner {};
 
         impl<'a, I: IntoIterator<Item = &'a Command>> Runner<'a, I> for MyRunner {
-            fn run(&self, _commands: I, _max_parallel_commands: usize) -> runner::Result<Vec<CommandResult>> { Ok(Vec::new()) }
+            fn run(&self, _commands: I, _max_parallel_commands: usize) -> runner::Result<Vec<CommandResult>> {
+                Ok(Vec::new())
+            }
         }
 
         let hostinfos: Vec<Command> = Vec::new();

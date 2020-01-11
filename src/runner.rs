@@ -41,10 +41,7 @@ pub mod thread {
             let mut results = Vec::new();
 
             let commands: Vec<&Command> = commands.into_iter().collect();
-            for chunk in commands
-                .chunks(max_parallel_commands)
-                .map(|x| x.to_vec())
-            {
+            for chunk in commands.chunks(max_parallel_commands).map(|x| x.to_vec()) {
                 // Create child threads and run commands
                 let (children, rx) = ThreadRunner::create_children(chunk, &self.progress_tx)?;
                 // Wait for results
@@ -64,7 +61,6 @@ pub mod thread {
         pub fn with_progress(self, progress_tx: Sender<usize>) -> Self {
             ThreadRunner {
                 progress_tx: Some(progress_tx),
-                ..self
             }
         }
 
@@ -126,11 +122,7 @@ pub mod thread {
     }
 
     impl Default for ThreadRunner {
-        fn default() -> Self {
-            ThreadRunner {
-                progress_tx: None,
-            }
-        }
+        fn default() -> Self { ThreadRunner { progress_tx: None } }
     }
 
     #[cfg(test)]
