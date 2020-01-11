@@ -29,5 +29,8 @@
     * Linux
         * https://www.cyberciti.biz/tips/top-linux-monitoring-tools.html
         * http://www.brendangregg.com/USEmethod/use-linux.html
+* [ ] Re-work API
+    * [ ] https://github.com/rust-lang/api-guidelines
+    * [ ] https://deterministic.space/elegant-apis-in-rust.html
 * [ ] Activate deny missing docs and add docs
 

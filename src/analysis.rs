@@ -11,10 +11,10 @@ use uname;
 pub enum Error {
     /// Analysis initialization failed
     #[snafu(display("analysis initialization failed because {}", source))]
-    InitFailed { source: std::io::Error },
+    InitAnalysisFailed { source: std::io::Error },
     /// Analysis run failed
     #[snafu(display("analysis failed because {}", source))]
-    AnalysisFailed { source: runner::Error },
+    RunAnalysisFailed { source: runner::Error },
 }
 
 /// Result type
@@ -50,7 +50,7 @@ impl<'a, I: IntoIterator<Item = &'a Command> + Copy> Analysis<'a, I> {
     }
 
     pub fn run(&self) -> Result<AnalysisReport> {
-        let uname = uname::uname().context(InitFailed {})?;
+        let uname = uname::uname().context(InitAnalysisFailed {})?;
         let hostname = uname.nodename.to_string();
         let uname = format!(
             "{} {} {} {} {}",
@@ -86,7 +86,7 @@ impl<'a, I: IntoIterator<Item = &'a Command> + Copy> Analysis<'a, I> {
         let results = self
             .runner
             .run(commands, self.max_parallel_commands)
-            .context(AnalysisFailed {})?;
+            .context(RunAnalysisFailed {})?;
 
         Ok(results)
     }

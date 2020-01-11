@@ -17,10 +17,10 @@ use std::{
 pub enum Error {
     /// Failed to parse Config
     #[snafu(display("failed to parse config: {}", source))]
-    ParsingFailed { source: toml::de::Error },
+    ParseConfigFailed { source: toml::de::Error },
     /// Failed to read file
     #[snafu(display("failed to read file config '{}': {}", path.display(), source))]
-    ReadFileFailed { path: PathBuf, source: std::io::Error },
+    ReadConfigFileFailed { path: PathBuf, source: std::io::Error },
     /// Configuration is invalid
     #[snafu(display("configuration is invalid because {}", reason))]
     InvalidConfig { reason: &'static str },
@@ -43,7 +43,7 @@ impl FromStr for Config {
     type Err = Error;
 
     fn from_str(toml: &str) -> Result<Config> {
-        let config: Config = toml::from_str(toml).context(ParsingFailed {})?;
+        let config: Config = toml::from_str(toml).context(ParseConfigFailed {})?;
         let config = config.populate_defaults();
         Ok(config)
     }
@@ -51,11 +51,11 @@ impl FromStr for Config {
 
 impl Config {
     pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Config> {
-        let mut file = File::open(path.as_ref()).context(ReadFileFailed {
+        let mut file = File::open(path.as_ref()).context(ReadConfigFileFailed {
             path: path.as_ref().to_path_buf(),
         })?;
         let mut toml = String::new();
-        file.read_to_string(&mut toml).context(ReadFileFailed {
+        file.read_to_string(&mut toml).context(ReadConfigFileFailed {
             path: path.as_ref().to_path_buf(),
         })?;
         Config::from_str(&toml)

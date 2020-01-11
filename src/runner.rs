@@ -8,7 +8,7 @@ use snafu::{ResultExt, Snafu};
 pub enum Error {
     /// Command execution failed
     #[snafu(display("failed to run command {}: {}", name, source))]
-    CommandFailed { name: String, source: std::io::Error },
+    ExecuteCommandFailed { name: String, source: std::io::Error },
 }
 
 /// Result type
@@ -97,7 +97,7 @@ pub mod thread {
                         progress_tx.send(1).expect("Thread failed to send progress via channel");
                     }
                 })
-                .context(CommandFailed { name })
+                .context(ExecuteCommandFailed { name })
         }
 
         fn wait_for_results(children: Vec<JoinHandle<()>>, rx: Receiver<CommandResult>) -> Vec<CommandResult> {

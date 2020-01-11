@@ -21,7 +21,7 @@ pub use analysis::{Analysis, AnalysisReport};
 pub use command::{Command, CommandResult};
 pub use config::Config;
 pub use renderer::Renderer;
-pub use runner::Runner;
+pub use runner::{Runner, ThreadRunner};
 
 /// Test helper
 #[cfg(test)]

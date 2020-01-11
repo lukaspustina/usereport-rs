@@ -7,21 +7,18 @@ use std::{io::Write, path::PathBuf};
 #[derive(Debug, Snafu)]
 #[allow(missing_docs)]
 pub enum Error {
-    /// Failed to parse output type
-    #[snafu(display("failed to parse output type"))]
-    OutputTypeParseError,
     /// Rendering of report to Json failed
     #[snafu(display("failed to render report to Json: {}", source))]
-    JsonRenderingFailed { source: serde_json::Error },
+    RenderJsonFailed { source: serde_json::Error },
     /// Failed to read handlebars template from file
     #[snafu(display("failed to read handlebars template from file '{}': {}", path.display(), source))]
-    HbsTemplateFileFailed { path: PathBuf, source: std::io::Error },
+    ReadHbsTemplateFileFailed { path: PathBuf, source: std::io::Error },
     /// Handlebars template for Markdown is invalid
     #[snafu(display("Handlebars template is invalid: {}", source))]
-    HbsTemplateFailed { source: ::handlebars::TemplateError },
+    InvalidHbsTemplate { source: ::handlebars::TemplateError },
     /// Rendering of report to Markdown failed
     #[snafu(display("failed to render handlebars template: {}", source))]
-    HbsRenderingFailed { source: ::handlebars::RenderError },
+    RenderHbsTemplateFailed { source: ::handlebars::RenderError },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -45,7 +42,7 @@ pub mod json {
 
     impl<W: Write> Renderer<W> for JsonRenderer {
         fn render(&self, report: &AnalysisReport, w: W) -> Result<()> {
-            serde_json::to_writer(w, report).context(JsonRenderingFailed {})
+            serde_json::to_writer(w, report).context(RenderJsonFailed {})
         }
     }
 }
@@ -68,11 +65,11 @@ pub mod handlebars {
         }
 
         pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self> {
-            let mut file = File::open(path.as_ref()).context(HbsTemplateFileFailed {
+            let mut file = File::open(path.as_ref()).context(ReadHbsTemplateFileFailed {
                 path: path.as_ref().to_path_buf(),
             })?;
             let mut template = String::new();
-            file.read_to_string(&mut template).context(HbsTemplateFileFailed {
+            file.read_to_string(&mut template).context(ReadHbsTemplateFileFailed {
                 path: path.as_ref().to_path_buf(),
             })?;
 
@@ -88,10 +85,10 @@ pub mod handlebars {
             handlebars.register_helper("rfc3339", Box::new(helpers::date_time_3339));
             handlebars
                 .register_template_string("markdown", &self.template)
-                .context(HbsTemplateFailed {})?;
+                .context(InvalidHbsTemplate {})?;
             handlebars
                 .render_to_write("markdown", report, w)
-                .context(HbsRenderingFailed {})
+                .context(RenderHbsTemplateFailed {})
         }
     }
 
