@@ -1,6 +1,6 @@
 # TODOs
 
-## Before 1.0
+## Before 0.1.0
 
 * [x] Markdown Report
 * [x] CLI with progressbar indication
