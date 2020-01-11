@@ -19,7 +19,7 @@
 * [X] Commands should allow for arbitrary links for further information or actions
 * [X] Command result should store command execution time
 * [ ] Rendering should allow for HTML
-    * [ ] Include failures in report
+    * [X] Include failures in report
     * [X] Allow for generic handlebar based rendering via CLI
 * [ ] Create linux and macos configuration
     * macOS

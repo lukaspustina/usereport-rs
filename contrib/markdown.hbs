@@ -53,6 +53,28 @@ Command: `{{this.command}}` [{{../run_time_ms}} ms]
 {{/with}}
 {{~/if}}
 
+{{~#if result.Failed}}
+{{~#with result.Failed}}
+### {{#if this.command.title}}{{this.command.title}}{{else}}{{this.command.name}}{{/if}}: Failed
+Command: `{{this.command.command}}` [{{this.run_time_ms}} ms]
+{{/with}}
+{{~/if}}
+
+{{~#if result.Timeout}}
+{{~#with result.Timeout}}
+### {{#if this.command.title}}{{this.command.title}}{{else}}{{this.command.name}}{{/if}}: Timed out
+Command: `{{this.command.command}}` [{{this.run_time_ms}} ms]
+{{/with}}
+{{~/if}}
+
+{{~#if result.Error}}
+{{~#with result.Error}}
+### {{#if this.command.title}}{{this.command.title}}{{else}}{{this.command.name}}{{/if}}: Error
+Reason: {{this.reason}}
+Command: `{{this.command.command}}`
+{{/with}}
+{{~/if}}
+
 {{~/each}}
 {{~/each}}
 
