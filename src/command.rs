@@ -1,8 +1,8 @@
+use chrono::Local;
 use log::{debug, trace};
 use serde::{Deserialize, Serialize};
 use std::{io::Read, time::Duration};
 use subprocess::{Popen, PopenConfig, Redirection};
-use chrono::Local;
 
 /// Run a CLI command and store its stdout.
 ///
@@ -39,26 +39,26 @@ use chrono::Local;
 /// ```
 #[derive(Debug, Deserialize, PartialEq, Serialize, Clone)]
 pub struct Command {
-    pub(crate) name: String,
-    pub(crate) title: Option<String>,
+    pub(crate) name:        String,
+    pub(crate) title:       Option<String>,
     pub(crate) description: Option<String>,
-    pub(crate) command: String,
+    pub(crate) command:     String,
     #[serde(rename = "timeout")]
     /// Timeout for command execution, defaults to 1 sec if not set
     pub(crate) timeout_sec: Option<u64>,
-    pub(crate) links: Option<Vec<Link>>,
+    pub(crate) links:       Option<Vec<Link>>,
 }
 
 impl Command {
     /// Create new command with default values
     pub fn new<T: Into<String>>(name: T, command: T) -> Command {
         Command {
-            name: name.into(),
-            title: None,
+            name:        name.into(),
+            title:       None,
             description: None,
-            command: command.into(),
+            command:     command.into(),
             timeout_sec: None,
-            links: None,
+            links:       None,
         }
     }
 
@@ -121,7 +121,7 @@ impl Command {
             Err(err) => {
                 return CommandResult::Error {
                     command: self,
-                    reason: err.to_string(),
+                    reason:  err.to_string(),
                 };
             }
         };
@@ -137,23 +137,33 @@ impl Command {
                 let _ = p.stdout.as_ref().unwrap().read_to_string(&mut stdout); // TODO: unwrap is unsafe
                 debug!("stdout '{}'", stdout);
 
-                CommandResult::Success { command: self, run_time_ms, stdout }
+                CommandResult::Success {
+                    command: self,
+                    run_time_ms,
+                    stdout,
+                }
             }
             Ok(Some(status)) => {
                 trace!("process successfully finished as {:?}", status);
-                CommandResult::Failed { command: self, run_time_ms }
+                CommandResult::Failed {
+                    command: self,
+                    run_time_ms,
+                }
             }
             Ok(None) => {
                 trace!("process timed out and will be killed");
                 self.terminate(&mut p);
-                CommandResult::Timeout { command: self, run_time_ms }
+                CommandResult::Timeout {
+                    command: self,
+                    run_time_ms,
+                }
             }
             Err(err) => {
                 trace!("process failed '{:?}'", err);
                 self.terminate(&mut p);
                 CommandResult::Error {
                     command: self,
-                    reason: err.to_string(),
+                    reason:  err.to_string(),
                 }
             }
         }
@@ -170,31 +180,31 @@ impl Command {
 #[derive(Debug, Deserialize, PartialEq, Serialize, Clone)]
 pub struct Link {
     pub(crate) name: String,
-    pub(crate) url: String,
+    pub(crate) url:  String,
 }
 
 impl Link {
     pub fn new<T: Into<String>>(name: T, url: T) -> Link {
         Link {
             name: name.into(),
-            url: url.into(),
+            url:  url.into(),
         }
     }
 
-    pub fn name(&self) -> &str {
-        &self.name
-    }
+    pub fn name(&self) -> &str { &self.name }
 
-    pub fn url(&self) -> &str {
-        &self.url
-    }
+    pub fn url(&self) -> &str { &self.url }
 }
 
 /// Encapsulates a command execution result
 #[derive(Debug, PartialEq, Serialize)]
 pub enum CommandResult {
     /// `Command` has been executed successfully and `String` contains stdout.
-    Success { command: Command, run_time_ms: u64, stdout: String },
+    Success {
+        command:     Command,
+        run_time_ms: u64,
+        stdout:      String,
+    },
     /// `Command` failed to execute
     Failed { command: Command, run_time_ms: u64 },
     /// `Command` execution exceeded specified timeout
@@ -215,9 +225,9 @@ mod tests {
         init();
 
         #[cfg(target_os = "macos")]
-            let command = Command::new("true", r#"/usr/bin/true"#);
+        let command = Command::new("true", r#"/usr/bin/true"#);
         #[cfg(target_os = "linux")]
-            let command = Command::new("true", r#"/bin/true"#);
+        let command = Command::new("true", r#"/bin/true"#);
 
         let res = command.exec();
 
@@ -231,9 +241,9 @@ mod tests {
         init();
 
         #[cfg(target_os = "macos")]
-            let command = Command::new("false", r#"/usr/bin/false"#);
+        let command = Command::new("false", r#"/usr/bin/false"#);
         #[cfg(target_os = "linux")]
-            let command = Command::new("false", r#"/bin/false"#);
+        let command = Command::new("false", r#"/bin/false"#);
 
         let res = command.exec();
 

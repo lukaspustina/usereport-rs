@@ -1,5 +1,5 @@
 use exitfailure::ExitFailure;
-use failure::ResultExt;
+use failure::{ResultExt, format_err};
 use indicatif::{ProgressBar, ProgressStyle};
 use prettytable::{cell, format, row, Cell, Row, Table};
 use std::{
@@ -9,7 +9,7 @@ use std::{
     sync::mpsc::{self, Receiver, Sender},
 };
 use structopt::{clap, StructOpt};
-use usereport::{renderer, renderer::OutputType, runner::ThreadRunner, Analysis, AnalysisReport, Config, Renderer};
+use usereport::{renderer, runner::ThreadRunner, Analysis, AnalysisReport, Config, Renderer};
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "usereport", author, about, setting = clap::AppSettings::ColoredHelp)]
@@ -44,6 +44,25 @@ struct Opt {
     /// Show available commands
     #[structopt(long)]
     show_commands: bool,
+}
+
+#[derive(Debug)]
+pub enum OutputType {
+    JSON,
+    Markdown,
+}
+
+impl FromStr for OutputType {
+    type Err = failure::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_ref() {
+            "json" => Ok(OutputType::JSON),
+            "markdown" => Ok(OutputType::Markdown),
+            "md" => Ok(OutputType::Markdown),
+            _ => Err(format_err!("failed to parse {} as output type", s)),
+        }
+    }
 }
 
 fn main() -> Result<(), ExitFailure> {
@@ -173,7 +192,7 @@ fn render_to_stdout(report: &AnalysisReport, output_type: &OutputType) -> render
 
 fn renderer<W: Write>(output_type: &OutputType) -> Box<dyn Renderer<W>> {
     match output_type {
-        OutputType::Markdown => Box::new(renderer::MdRenderer::new(defaults::MD_TEMPLATE)),
+        OutputType::Markdown => Box::new(renderer::HbsRenderer::new(defaults::MD_TEMPLATE)),
         OutputType::JSON => Box::new(renderer::JsonRenderer::new()),
     }
 }

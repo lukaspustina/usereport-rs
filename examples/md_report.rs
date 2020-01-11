@@ -13,7 +13,7 @@ fn main() {
     let analysis = Analysis::new(Box::new(runner), &hostinfos, &config.commands);
     let report = analysis.run().expect("failed to run analysis");
 
-    let renderer = renderer::MdRenderer::new(template);
+    let renderer = renderer::HbsRenderer::new(template);
     let stdout = std::io::stdout();
     let handle = stdout.lock();
     renderer.render(&report, handle).expect("Failed to render to stdout");
