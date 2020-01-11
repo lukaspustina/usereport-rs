@@ -10,12 +10,12 @@ use subprocess::{Popen, PopenConfig, Redirection};
 /// # use usereport::command::{Command, CommandResult};
 /// #[cfg(target_os = "macos")]
 /// let command = Command::new("uname", r#"/usr/bin/uname -a"#)
-///     .set_title("Host OS")
-///     .set_timeout(5);
+///     .with_title("Host OS")
+///     .with_timeout(5);
 /// #[cfg(target_os = "linux")]
 /// let command = Command::new("true", r#"/bin/true"#)
-///     .set_title("Just a successful command")
-///     .set_timeout(5);
+///     .with_title("Just a successful command")
+///     .with_timeout(5);
 /// match command.exec() {
 ///     CommandResult::Success {
 ///         command: _,
@@ -31,24 +31,26 @@ use subprocess::{Popen, PopenConfig, Redirection};
 /// ```
 #[derive(Debug, Deserialize, PartialEq, Serialize, Clone)]
 pub struct Command {
-    pub(crate) name:        String,
-    pub(crate) title:       Option<String>,
+    pub(crate) name: String,
+    pub(crate) title: Option<String>,
     pub(crate) description: Option<String>,
-    pub(crate) command:     String,
+    pub(crate) command: String,
     #[serde(rename = "timeout")]
     /// Timeout for command execution, defaults to 1 sec if not set
     pub(crate) timeout_sec: Option<u64>,
+    pub(crate) links: Option<Vec<Link>>,
 }
 
 impl Command {
     /// Create new command with default values
     pub fn new<T: Into<String>>(name: T, command: T) -> Command {
         Command {
-            name:        name.into(),
-            title:       None,
+            name: name.into(),
+            title: None,
             description: None,
-            command:     command.into(),
+            command: command.into(),
             timeout_sec: None,
+            links: None,
         }
     }
 
@@ -65,7 +67,7 @@ impl Command {
     pub fn description(&self) -> Option<&str> { self.description.as_ref().map(|x| x.as_str()) }
 
     /// Set title of command
-    pub fn set_title<T: Into<String>>(self, title: T) -> Command {
+    pub fn with_title<T: Into<String>>(self, title: T) -> Command {
         Command {
             title: Some(title.into()),
             ..self
@@ -73,7 +75,7 @@ impl Command {
     }
 
     /// Set title of command
-    pub fn set_timeout(self, timeout_sec: u64) -> Command {
+    pub fn with_timeout(self, timeout_sec: u64) -> Command {
         Command {
             timeout_sec: Some(timeout_sec),
             ..self
@@ -81,9 +83,17 @@ impl Command {
     }
 
     /// Set description of command
-    pub fn set_description<T: Into<String>>(self, description: T) -> Command {
+    pub fn with_description<T: Into<String>>(self, description: T) -> Command {
         Command {
             description: Some(description.into()),
+            ..self
+        }
+    }
+
+    /// Set Links of command
+    pub fn with_links(self, links: Vec<Link>) -> Command {
+        Command {
+            links: Some(links),
             ..self
         }
     }
@@ -102,8 +112,8 @@ impl Command {
             Err(err) => {
                 return CommandResult::Error {
                     command: self,
-                    reason:  err.to_string(),
-                }
+                    reason: err.to_string(),
+                };
             }
         };
         debug!("Running '{:?}' as '{:?}'", args, p);
@@ -131,7 +141,7 @@ impl Command {
                 self.terminate(&mut p);
                 CommandResult::Error {
                     command: self,
-                    reason:  err.to_string(),
+                    reason: err.to_string(),
                 }
             }
         }
@@ -142,6 +152,29 @@ impl Command {
         p.kill().expect("failed to kill command");
         p.wait().expect("failed to wait for command to finish");
         trace!("process killed");
+    }
+}
+
+#[derive(Debug, Deserialize, PartialEq, Serialize, Clone)]
+pub struct Link {
+    pub(crate) name: String,
+    pub(crate) url: String,
+}
+
+impl Link {
+    pub fn new<T: Into<String>>(name: T, url: T) -> Link {
+        Link {
+            name: name.into(),
+            url: url.into(),
+        }
+    }
+
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn url(&self) -> &str {
+        &self.url
     }
 }
 
@@ -170,9 +203,9 @@ mod tests {
         init();
 
         #[cfg(target_os = "macos")]
-        let command = Command::new("true", r#"/usr/bin/true"#);
+            let command = Command::new("true", r#"/usr/bin/true"#);
         #[cfg(target_os = "linux")]
-        let command = Command::new("true", r#"/bin/true"#);
+            let command = Command::new("true", r#"/bin/true"#);
 
         let res = command.exec();
 
@@ -186,9 +219,9 @@ mod tests {
         init();
 
         #[cfg(target_os = "macos")]
-        let command = Command::new("false", r#"/usr/bin/false"#);
+            let command = Command::new("false", r#"/usr/bin/false"#);
         #[cfg(target_os = "linux")]
-        let command = Command::new("false", r#"/bin/false"#);
+            let command = Command::new("false", r#"/bin/false"#);
 
         let res = command.exec();
 
@@ -199,7 +232,7 @@ mod tests {
     fn execution_timeout() {
         init();
 
-        let command = Command::new("sleep", r#"/bin/sleep 5"#).set_timeout(1);
+        let command = Command::new("sleep", r#"/bin/sleep 5"#).with_timeout(1);
 
         let res = command.exec();
 

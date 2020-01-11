@@ -150,7 +150,7 @@ impl Config {
             .into_iter()
             .map(|x| {
                 if x.timeout_sec.is_none() {
-                    x.set_timeout(timeout)
+                    x.with_timeout(timeout)
                 } else {
                     x
                 }
@@ -260,9 +260,9 @@ timeout = 1
         let mut commands = Vec::new();
         commands.push(
             Command::new("uname", "/usr/bin/uname -a")
-                .set_title("Host OS")
-                .set_description("Basic host OS information")
-                .set_timeout(1),
+                .with_title("Host OS")
+                .with_description("Basic host OS information")
+                .with_timeout(1),
         );
         let expected = Config {
             defaults,

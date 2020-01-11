@@ -23,6 +23,7 @@ Parallelism: {{max_parallel_commands}}
 {{~#with this.command}}
 Command: `{{this.command}}`
 {{this.description}}
+{{#each this.links as |link|}}[[{{link.name}}]({{link.url}})] {{/each}}
 {{~/with}}
 </small>
 
@@ -46,6 +47,7 @@ Command: `{{this.command}}`
 {{~#with this.command}}
 Command: `{{this.command}}`
 {{this.description}}
+{{#each this.links as |link|}}[[{{link.name}}]({{link.url}})] {{/each}}
 {{~/with}}
 </small>
 {{/with}}

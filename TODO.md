@@ -16,7 +16,7 @@
 * [X] Refactor rendering using type class
 * [X] File not found should not panic
 * [X] Deprecate Report->AnalysisResult in favor of using Renderer directly
-* [ ] Commands should allow for arbitrary links for further information or actions
+* [X] Commands should allow for arbitrary links for further information or actions
 * [ ] Command result should store command execution time
 * [ ] Rendering should allow for HTML
     * [ ] Allow for generic handlebar based rendering via CLI
