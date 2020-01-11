@@ -1,7 +1,7 @@
 use crate::analysis::AnalysisReport;
 
 use snafu::{ResultExt, Snafu};
-use std::io::Write;
+use std::{io::Write, path::PathBuf};
 
 /// Error type
 #[derive(Debug, Snafu)]
@@ -13,6 +13,9 @@ pub enum Error {
     /// Rendering of report to Json failed
     #[snafu(display("failed to render report to Json: {}", source))]
     JsonRenderingFailed { source: serde_json::Error },
+    /// Failed to read handlebars template from file
+    #[snafu(display("failed to read handlebars template from file '{}': {}", path.display(), source))]
+    HbsTemplateFileFailed { path: PathBuf, source: std::io::Error },
     /// Handlebars template for Markdown is invalid
     #[snafu(display("Handlebars template is invalid: {}", source))]
     HbsTemplateFailed { source: ::handlebars::TemplateError },
@@ -23,13 +26,12 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-
 pub trait Renderer<W: Write> {
     fn render(&self, report: &AnalysisReport, w: W) -> Result<()>;
 }
 
-pub use json::JsonRenderer;
 pub use crate::renderer::handlebars::HbsRenderer;
+pub use json::JsonRenderer;
 
 pub mod json {
     use super::*;
@@ -52,23 +54,40 @@ pub mod handlebars {
     use super::*;
 
     use ::handlebars::Handlebars;
+    use std::{fs::File, io::Read, path::Path};
 
-    pub struct HbsRenderer<'a> {
-        template: &'a str,
+    pub struct HbsRenderer {
+        template: String,
     }
 
-    impl<'a> HbsRenderer<'a> {
-        pub fn new(template: &'a str) -> Self { HbsRenderer { template } }
+    impl HbsRenderer {
+        pub fn new<T: Into<String>>(template: T) -> Self {
+            HbsRenderer {
+                template: template.into(),
+            }
+        }
+
+        pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self> {
+            let mut file = File::open(path.as_ref()).context(HbsTemplateFileFailed {
+                path: path.as_ref().to_path_buf(),
+            })?;
+            let mut template = String::new();
+            file.read_to_string(&mut template).context(HbsTemplateFileFailed {
+                path: path.as_ref().to_path_buf(),
+            })?;
+
+            Ok(HbsRenderer { template })
+        }
     }
 
-    impl<'a, W: Write> Renderer<W> for HbsRenderer<'a> {
+    impl<W: Write> Renderer<W> for HbsRenderer {
         fn render(&self, report: &AnalysisReport, w: W) -> Result<()> {
             let mut handlebars = Handlebars::new();
             handlebars.register_helper("inc", Box::new(helpers::inc));
             handlebars.register_helper("rfc2822", Box::new(helpers::date_time_2822));
             handlebars.register_helper("rfc3339", Box::new(helpers::date_time_3339));
             handlebars
-                .register_template_string("markdown", self.template)
+                .register_template_string("markdown", &self.template)
                 .context(HbsTemplateFailed {})?;
             handlebars
                 .render_to_write("markdown", report, w)

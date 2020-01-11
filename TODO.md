@@ -19,7 +19,8 @@
 * [X] Commands should allow for arbitrary links for further information or actions
 * [X] Command result should store command execution time
 * [ ] Rendering should allow for HTML
-    * [ ] Allow for generic handlebar based rendering via CLI
+    * [ ] Include failures in report
+    * [X] Allow for generic handlebar based rendering via CLI
 * [ ] Create linux and macos configuration
     * macOS
         * sw_vers
@@ -28,6 +29,5 @@
     * Linux
         * https://www.cyberciti.biz/tips/top-linux-monitoring-tools.html
         * http://www.brendangregg.com/USEmethod/use-linux.html
-* [ ] Include failures in report
 * [ ] Activate deny missing docs and add docs
 
