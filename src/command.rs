@@ -37,7 +37,7 @@ use subprocess::{Popen, PopenConfig, Redirection};
 ///     } => println!("Command errored because {}", reason),
 /// };
 /// ```
-#[derive(Debug, Deserialize, PartialEq, Serialize, Clone)]
+#[derive(Debug, Deserialize, PartialEq, Eq, Serialize, Clone)]
 pub struct Command {
     pub(crate) name:        String,
     pub(crate) title:       Option<String>,
@@ -177,7 +177,7 @@ impl Command {
     }
 }
 
-#[derive(Debug, Deserialize, PartialEq, Serialize, Clone)]
+#[derive(Debug, PartialEq, Eq, Deserialize, Serialize, Clone)]
 pub struct Link {
     pub(crate) name: String,
     pub(crate) url:  String,
@@ -197,7 +197,7 @@ impl Link {
 }
 
 /// Encapsulates a command execution result
-#[derive(Debug, PartialEq, Serialize)]
+#[derive(Debug, PartialEq, Eq, Deserialize, Serialize, Clone)]
 pub enum CommandResult {
     /// `Command` has been executed successfully and `String` contains stdout.
     Success {

@@ -32,6 +32,7 @@ pub mod thread {
         thread::JoinHandle,
     };
 
+    #[derive(Default, Debug, Clone)]
     pub struct ThreadRunner {
         progress_tx: Option<Sender<usize>>,
     }
@@ -119,10 +120,6 @@ pub mod thread {
 
             results
         }
-    }
-
-    impl Default for ThreadRunner {
-        fn default() -> Self { ThreadRunner { progress_tx: None } }
     }
 
     #[cfg(test)]

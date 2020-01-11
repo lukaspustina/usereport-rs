@@ -29,7 +29,7 @@ pub enum Error {
 /// Result type
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-#[derive(Debug, Deserialize, Serialize, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Eq, Clone)]
 pub struct Config {
     pub defaults: Defaults,
     pub hostinfo: Option<Hostinfo>,
@@ -166,7 +166,7 @@ impl Config {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Eq, Clone)]
 pub struct Defaults {
     #[serde(default = "default_profile")]
     pub profile:               String,
@@ -197,12 +197,12 @@ fn default_repetitions() -> usize { Defaults::default().repetitions }
 
 fn default_max_parallel_commands() -> usize { Defaults::default().max_parallel_commands }
 
-#[derive(Debug, Deserialize, Serialize, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Eq, Clone)]
 pub struct Hostinfo {
     pub commands: Vec<String>,
 }
 
-#[derive(Debug, Deserialize, Serialize, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Eq, Clone)]
 pub struct Profile {
     pub name:        String,
     pub commands:    Vec<String>,

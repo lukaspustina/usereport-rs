@@ -33,7 +33,7 @@ pub use json::JsonRenderer;
 pub mod json {
     use super::*;
 
-    #[derive(Default)]
+    #[derive(Default, Debug, Eq, PartialEq, Clone)]
     pub struct JsonRenderer {}
 
     impl JsonRenderer {
@@ -53,6 +53,7 @@ pub mod handlebars {
     use ::handlebars::Handlebars;
     use std::{fs::File, io::Read, path::Path};
 
+    #[derive(Default, Debug, Eq, PartialEq, Clone)]
     pub struct HbsRenderer {
         template: String,
     }
