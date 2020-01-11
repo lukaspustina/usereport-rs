@@ -117,7 +117,7 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> Result<(),
         .profile(profile_name)
         .and_then(|p| Ok(config.commands_for_profile(p)))?;
 
-    let runner = create_runner(&opt, commands.len());
+    let runner = create_runner(&opt, hostinfo.len() + commands.len());
     let analysis = Analysis::new(Box::new(runner), &hostinfo, &commands);
     let analysis_result = analysis.run().with_context(|_| "failed to run analysis")?;
 
