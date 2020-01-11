@@ -2,6 +2,7 @@ use log::{debug, trace};
 use serde::{Deserialize, Serialize};
 use std::{io::Read, time::Duration};
 use subprocess::{Popen, PopenConfig, Redirection};
+use chrono::Local;
 
 /// Run a CLI command and store its stdout.
 ///
@@ -19,10 +20,17 @@ use subprocess::{Popen, PopenConfig, Redirection};
 /// match command.exec() {
 ///     CommandResult::Success {
 ///         command: _,
+///         run_time_ms: _,
 ///         stdout: stdout,
 ///     } => println!("Command output '{}'", stdout),
-///     CommandResult::Failed { command: _ } => println!("Command failed"),
-///     CommandResult::Timeout { command: _ } => println!("Command timed out"),
+///     CommandResult::Failed {
+///         command: _,
+///         run_time_ms: _,
+///     } => println!("Command failed"),
+///     CommandResult::Timeout {
+///         command: _,
+///         run_time_ms: _,
+///     } => println!("Command timed out"),
 ///     CommandResult::Error {
 ///         command: _,
 ///         reason: reason,
@@ -105,6 +113,7 @@ impl Command {
             stdout: Redirection::Pipe,
             ..Default::default()
         };
+        let start_time = Local::now();
         let popen = Popen::create(&args, popen_config);
 
         let mut p = match popen {
@@ -118,23 +127,26 @@ impl Command {
         };
         debug!("Running '{:?}' as '{:?}'", args, p);
 
-        match p.wait_timeout(Duration::new(self.timeout_sec.unwrap_or(1), 0)) {
+        let wait = p.wait_timeout(Duration::new(self.timeout_sec.unwrap_or(1), 0));
+        let run_time_ms = (Local::now() - start_time).num_milliseconds() as u64;
+
+        match wait {
             Ok(Some(status)) if status.success() => {
                 trace!("process successfully finished as {:?}", status);
                 let mut stdout = String::new();
                 let _ = p.stdout.as_ref().unwrap().read_to_string(&mut stdout); // TODO: unwrap is unsafe
                 debug!("stdout '{}'", stdout);
 
-                CommandResult::Success { command: self, stdout }
+                CommandResult::Success { command: self, run_time_ms, stdout }
             }
             Ok(Some(status)) => {
                 trace!("process successfully finished as {:?}", status);
-                CommandResult::Failed { command: self }
+                CommandResult::Failed { command: self, run_time_ms }
             }
             Ok(None) => {
                 trace!("process timed out and will be killed");
                 self.terminate(&mut p);
-                CommandResult::Timeout { command: self }
+                CommandResult::Timeout { command: self, run_time_ms }
             }
             Err(err) => {
                 trace!("process failed '{:?}'", err);
@@ -182,11 +194,11 @@ impl Link {
 #[derive(Debug, PartialEq, Serialize)]
 pub enum CommandResult {
     /// `Command` has been executed successfully and `String` contains stdout.
-    Success { command: Command, stdout: String },
+    Success { command: Command, run_time_ms: u64, stdout: String },
     /// `Command` failed to execute
-    Failed { command: Command },
+    Failed { command: Command, run_time_ms: u64 },
     /// `Command` execution exceeded specified timeout
-    Timeout { command: Command },
+    Timeout { command: Command, run_time_ms: u64 },
     /// `Command` could not be executed
     Error { command: Command, reason: String },
 }

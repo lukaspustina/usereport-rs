@@ -21,7 +21,7 @@ Parallelism: {{max_parallel_commands}}
 
 <small>
 {{~#with this.command}}
-Command: `{{this.command}}`
+Command: `{{this.command}}` [{{../run_time_ms}} ms]
 {{this.description}}
 {{#each this.links as |link|}}[[{{link.name}}]({{link.url}})] {{/each}}
 {{~/with}}
@@ -45,7 +45,7 @@ Command: `{{this.command}}`
 
 <small>
 {{~#with this.command}}
-Command: `{{this.command}}`
+Command: `{{this.command}}` [{{../run_time_ms}} ms]
 {{this.description}}
 {{#each this.links as |link|}}[[{{link.name}}]({{link.url}})] {{/each}}
 {{~/with}}
