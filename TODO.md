@@ -6,7 +6,7 @@
 * [x] CLI with progressbar indication
 * [x] Error handling in binary
 * [x] Find a nice logger 
-* Profiles
+* [x] Profiles
     * [X] Config
     * [X] CLI opts: --show-profiles, --show-commands, --profile
 * [X] Hostinfo
