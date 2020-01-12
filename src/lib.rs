@@ -8,8 +8,9 @@ pub mod analysis;
 /// External CLI commands used to collect USE report information.
 pub mod command;
 
-/// Configuration
-pub mod config;
+/// CLI
+#[cfg(feature = "bin")]
+pub mod cli;
 
 /// Reports in HTML, JSON, and Markdown format
 pub mod renderer;
@@ -19,7 +20,8 @@ pub mod runner;
 
 pub use analysis::{Analysis, AnalysisReport};
 pub use command::{Command, CommandResult};
-pub use config::Config;
+#[cfg(feature = "bin")]
+pub use cli::config::Config;
 pub use renderer::{Renderer, JsonRenderer, HbsRenderer};
 pub use runner::{Runner, ThreadRunner};
 
