@@ -23,15 +23,15 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 // Copy: This allows to reuse the into_iter object; safe for &Vec or &[]
 #[derive(Debug)]
-pub struct Analysis<'a, I: IntoIterator<Item = &'a Command> + Copy> {
-    runner:                Box<dyn Runner<'a, I>>,
-    hostinfos:             I,
-    commands:              I,
-    repetitions:           usize,
+pub struct Analysis<'a, I: IntoIterator<Item=&'a Command> + Copy> {
+    runner: Box<dyn Runner<'a, I>>,
+    hostinfos: I,
+    commands: I,
+    repetitions: usize,
     max_parallel_commands: usize,
 }
 
-impl<'a, I: IntoIterator<Item = &'a Command> + Copy> Analysis<'a, I> {
+impl<'a, I: IntoIterator<Item=&'a Command> + Copy> Analysis<'a, I> {
     pub fn new(runner: Box<dyn Runner<'a, I>>, hostinfos: I, commands: I) -> Self {
         Analysis {
             hostinfos,
@@ -96,13 +96,63 @@ impl<'a, I: IntoIterator<Item = &'a Command> + Copy> Analysis<'a, I> {
 
 #[derive(Debug, Serialize)]
 pub struct AnalysisReport {
-    pub hostname:              String,
-    pub uname:                 String,
-    pub date_time:             DateTime<Local>,
-    pub hostinfo_results:      Vec<CommandResult>,
-    pub command_results:       Vec<Vec<CommandResult>>,
-    pub repetitions:           usize,
-    pub max_parallel_commands: usize,
+    pub(crate) hostname: String,
+    pub(crate) uname: String,
+    pub(crate) date_time: DateTime<Local>,
+    pub(crate) hostinfo_results: Vec<CommandResult>,
+    pub(crate) command_results: Vec<Vec<CommandResult>>,
+    pub(crate) repetitions: usize,
+    pub(crate) max_parallel_commands: usize,
+}
+
+impl AnalysisReport {
+    pub fn new<T: Into<String>>(
+        hostname: T,
+        uname: T,
+        date_time: DateTime<Local>,
+        hostinfo_results: Vec<CommandResult>,
+        command_results: Vec<Vec<CommandResult>>,
+        repetitions: usize,
+        max_parallel_commands: usize,
+    ) -> AnalysisReport{
+        AnalysisReport {
+            hostname: hostname.into(),
+            uname: uname.into(),
+            date_time,
+            hostinfo_results,
+            command_results,
+            repetitions,
+            max_parallel_commands
+        }
+    }
+
+    pub fn hostname(&self) -> &str {
+        &self.hostname
+    }
+
+    pub fn uname(&self) -> &str {
+        &self.uname
+    }
+
+    pub fn date_time(&self) -> &DateTime<Local> {
+        &self.date_time
+    }
+
+    pub fn hostinfo_results(&self) -> &[CommandResult] {
+        &self.hostinfo_results
+    }
+
+    pub fn command_results(&self) -> &[Vec<CommandResult>] {
+        &self.command_results
+    }
+
+    pub fn repetitions(&self) -> usize {
+        self.repetitions
+    }
+
+    pub fn max_parallel_commands(&self) -> usize {
+        self.max_parallel_commands
+    }
 }
 
 #[cfg(test)]
@@ -130,7 +180,7 @@ mod tests {
         #[derive(Debug)]
         struct MyRunner {};
 
-        impl<'a, I: IntoIterator<Item = &'a Command>> Runner<'a, I> for MyRunner {
+        impl<'a, I: IntoIterator<Item=&'a Command>> Runner<'a, I> for MyRunner {
             fn run(&self, _commands: I, _max_parallel_commands: usize) -> runner::Result<Vec<CommandResult>> {
                 Ok(Vec::new())
             }
