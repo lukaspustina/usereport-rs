@@ -29,9 +29,9 @@
     * Linux
         * https://www.cyberciti.biz/tips/top-linux-monitoring-tools.html
         * http://www.brendangregg.com/USEmethod/use-linux.html
-* [ ] Re-work API
+* [X] Re-work API
     * [X] https://github.com/rust-lang/api-guidelines
-    * [ ] https://rust-lang.github.io/api-guidelines/flexibility.html#functions-minimize-assumptions-about-parameters-by-using-generics-c-generic
+    * [X] https://rust-lang.github.io/api-guidelines/flexibility.html#functions-minimize-assumptions-about-parameters-by-using-generics-c-generic
     * [X] https://deterministic.space/elegant-apis-in-rust.html
 * [ ] Activate deny missing docs and add docs
     * [ ] https://rust-lang.github.io/api-guidelines/documentation.html
