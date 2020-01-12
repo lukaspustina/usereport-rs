@@ -3,9 +3,8 @@ use crate::{runner, Command, CommandResult, Runner};
 use chrono::{DateTime, Local};
 use serde::Serialize;
 use snafu::{ResultExt, Snafu};
-use std::fmt::Debug;
+use std::{collections::HashMap, fmt::Debug};
 use uname;
-use std::collections::HashMap;
 
 /// Error type
 #[derive(Debug, Snafu)]
@@ -24,15 +23,15 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 // Copy: This allows to reuse the into_iter object; safe for &Vec or &[]
 #[derive(Debug)]
-pub struct Analysis<'a, I: IntoIterator<Item=&'a Command> + Copy> {
-    runner: Box<dyn Runner<'a, I>>,
-    hostinfos: I,
-    commands: I,
-    repetitions: usize,
+pub struct Analysis<'a, I: IntoIterator<Item = &'a Command> + Copy> {
+    runner:                Box<dyn Runner<'a, I>>,
+    hostinfos:             I,
+    commands:              I,
+    repetitions:           usize,
     max_parallel_commands: usize,
 }
 
-impl<'a, I: IntoIterator<Item=&'a Command> + Copy> Analysis<'a, I> {
+impl<'a, I: IntoIterator<Item = &'a Command> + Copy> Analysis<'a, I> {
     pub fn new(runner: Box<dyn Runner<'a, I>>, hostinfos: I, commands: I) -> Self {
         Analysis {
             hostinfos,
@@ -87,10 +86,10 @@ impl<'a, I: IntoIterator<Item=&'a Command> + Copy> Analysis<'a, I> {
 
 #[derive(Debug, Serialize)]
 pub struct AnalysisReport {
-    pub(crate) context: Context,
-    pub(crate) hostinfo_results: Vec<CommandResult>,
-    pub(crate) command_results: Vec<Vec<CommandResult>>,
-    pub(crate) repetitions: usize,
+    pub(crate) context:               Context,
+    pub(crate) hostinfo_results:      Vec<CommandResult>,
+    pub(crate) command_results:       Vec<Vec<CommandResult>>,
+    pub(crate) repetitions:           usize,
     pub(crate) max_parallel_commands: usize,
 }
 
@@ -124,10 +123,10 @@ impl AnalysisReport {
 
 #[derive(Debug, Serialize)]
 pub struct Context {
-    pub(crate) hostname: String,
-    pub(crate) uname: String,
+    pub(crate) hostname:  String,
+    pub(crate) uname:     String,
     pub(crate) date_time: DateTime<Local>,
-    pub(crate) more: HashMap<String, String>,
+    pub(crate) more:      HashMap<String, String>,
 }
 
 impl Context {
@@ -186,7 +185,7 @@ mod tests {
         #[derive(Debug)]
         struct MyRunner {};
 
-        impl<'a, I: IntoIterator<Item=&'a Command>> Runner<'a, I> for MyRunner {
+        impl<'a, I: IntoIterator<Item = &'a Command>> Runner<'a, I> for MyRunner {
             fn run(&self, _commands: I, _max_parallel_commands: usize) -> runner::Result<Vec<CommandResult>> {
                 Ok(Vec::new())
             }

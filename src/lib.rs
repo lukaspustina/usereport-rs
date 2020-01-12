@@ -19,10 +19,10 @@ pub mod renderer;
 pub mod runner;
 
 pub use analysis::{Analysis, AnalysisReport, Context};
-pub use command::{Command, CommandResult};
 #[cfg(feature = "bin")]
 pub use cli::config::Config;
-pub use renderer::{Renderer, JsonRenderer, HbsRenderer};
+pub use command::{Command, CommandResult};
+pub use renderer::{HbsRenderer, JsonRenderer, Renderer};
 pub use runner::{Runner, ThreadRunner};
 
 /// Test helper

@@ -1,4 +1,4 @@
-use usereport::{Analysis, Config, Renderer, ThreadRunner, JsonRenderer, Context};
+use usereport::{Analysis, Config, Context, JsonRenderer, Renderer, ThreadRunner};
 
 fn main() {
     #[cfg(target_os = "macos")]

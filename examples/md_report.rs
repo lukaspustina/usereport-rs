@@ -1,4 +1,4 @@
-use usereport::{HbsRenderer, Analysis, Config, Renderer, ThreadRunner, Context};
+use usereport::{Analysis, Config, Context, HbsRenderer, Renderer, ThreadRunner};
 
 fn main() {
     #[cfg(target_os = "macos")]
