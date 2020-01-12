@@ -1,6 +1,6 @@
 use exitfailure::ExitFailure;
 use failure::{format_err, ResultExt};
-use indicatif::{ProgressBar, ProgressStyle};
+use indicatif::{ProgressBar, ProgressStyle, ProgressDrawTarget};
 use prettytable::{cell, format, row, Cell, Row, Table};
 use std::{
     io::Write,
@@ -206,7 +206,8 @@ fn create_runner(progress: bool, number_of_commands: usize) -> ThreadRunner {
 
 fn create_progress_bar(expected: usize) -> Sender<usize> {
     let (tx, rx): (Sender<usize>, Receiver<usize>) = mpsc::channel();
-    let pb = ProgressBar::new(expected as u64)
+    let dt = ProgressDrawTarget::stderr_nohz();
+    let pb = ProgressBar::with_draw_target(expected as u64, dt)
         .with_style(ProgressStyle::default_bar().template("Running commands {bar:40.cyan/blue} {pos}/{len}"));
 
     let _ = std::thread::Builder::new().name("Progress".to_string()).spawn(move || {
