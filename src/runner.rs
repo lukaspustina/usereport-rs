@@ -1,6 +1,7 @@
 use crate::command::{Command, CommandResult};
 
 use snafu::{ResultExt, Snafu};
+use std::fmt::Debug;
 
 /// Error type
 #[derive(Debug, Snafu)]
@@ -15,7 +16,7 @@ pub enum Error {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Runner Interface
-pub trait Runner<'a, I: IntoIterator<Item = &'a Command>> {
+pub trait Runner<'a, I: IntoIterator<Item = &'a Command>>: Debug {
     /// Execute all commands and wait until all commands return
     fn run(&self, commands: I, max_parallel_commands: usize) -> Result<Vec<CommandResult>>;
 }

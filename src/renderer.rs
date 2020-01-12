@@ -1,6 +1,7 @@
 use crate::analysis::AnalysisReport;
 
 use snafu::{ResultExt, Snafu};
+use std::fmt::Debug;
 use std::{io::Write, path::PathBuf};
 
 /// Error type
@@ -23,7 +24,7 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-pub trait Renderer<W: Write> {
+pub trait Renderer<W: Write>: Debug {
     fn render(&self, report: &AnalysisReport, w: W) -> Result<()>;
 }
 

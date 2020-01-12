@@ -4,6 +4,7 @@ use chrono::{DateTime, Local};
 use serde::Serialize;
 use snafu::{ResultExt, Snafu};
 use uname;
+use std::fmt::Debug;
 
 /// Error type
 #[derive(Debug, Snafu)]
@@ -21,6 +22,7 @@ pub enum Error {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 // Copy: This allows to reuse the into_iter object; safe for &Vec or &[]
+#[derive(Debug)]
 pub struct Analysis<'a, I: IntoIterator<Item = &'a Command> + Copy> {
     runner:                Box<dyn Runner<'a, I>>,
     hostinfos:             I,
@@ -125,6 +127,7 @@ mod tests {
 
     #[test]
     fn second_runner() {
+        #[derive(Debug)]
         struct MyRunner {};
 
         impl<'a, I: IntoIterator<Item = &'a Command>> Runner<'a, I> for MyRunner {
