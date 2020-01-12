@@ -10,7 +10,8 @@ use std::{
     sync::mpsc::{self, Receiver, Sender},
 };
 use structopt::{clap, StructOpt};
-use crate::{renderer, ThreadRunner, Analysis, Config, Renderer, Context};
+use crate::{renderer, ThreadRunner, Analysis, Config, Renderer, Context, Command};
+use std::collections::HashSet;
 
 pub mod config;
 
@@ -19,40 +20,43 @@ pub mod config;
 struct Opt {
     /// Configuration from file, or default if not present
     #[structopt(short, long, parse(from_os_str))]
-    config:          Option<PathBuf>,
+    config: Option<PathBuf>,
     /// Output format
     #[structopt(short, long, possible_values = & ["hbs", "html", "json", "markdown"], default_value = "markdown")]
-    output_type:     OutputType,
+    output_type: OutputType,
     /// Set output template if output-type is set to "hbs"
     #[structopt(long)]
     output_template: Option<String>,
     /// Set number of commands to run in parallel; overrides setting from config file
     #[structopt(long)]
-    parallel:        Option<usize>,
+    parallel: Option<usize>,
     /// Set number of how many times to run commands in row; overrides setting from config file
     #[structopt(long)]
-    repetitions:     Option<usize>,
+    repetitions: Option<usize>,
     /// Force to show progress bar while waiting for all commands to finish
     #[structopt(long, conflicts_with = "no_progress")]
-    progress:        bool,
+    progress: bool,
     /// Force to hide progress bar while waiting for all commands to finish
     #[structopt(long, conflicts_with = "progress")]
-    no_progress:      bool,
+    no_progress: bool,
     /// Activate debug mode
     #[structopt(short, long)]
-    debug:           bool,
+    debug: bool,
     /// Set profile to use
     #[structopt(short = "p", long)]
-    profile:         Option<String>,
+    profile: Option<String>,
     /// Show active config
     #[structopt(long)]
-    show_config:     bool,
+    show_config: bool,
     /// Show available profiles
     #[structopt(long)]
-    show_profiles:   bool,
+    show_profiles: bool,
     /// Show available commands
     #[structopt(long)]
-    show_commands:   bool,
+    show_commands: bool,
+    /// Add or remove commands from selected profile by prefixing the command's name with '+' or '-', respectively, e.g., +uname -dmesg; you may need to use '--' to signify the end of the options
+    #[structopt(name = "+|-command")]
+    filter_commands: Vec<String>,
 }
 
 impl Opt {
@@ -168,9 +172,7 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> Result<(),
     let renderer = create_renderer(&opt.output_type, opt.output_template.as_ref())?;
 
     let hostinfo = config.commands_for_hostinfo();
-    let commands = config
-        .profile(profile_name)
-        .and_then(|p| Ok(config.commands_for_profile(p)))?;
+    let commands = create_commands(opt, config, profile_name)?;
     let number_of_commands = hostinfo.len() + repetitions * commands.len();
 
     let runner = create_runner(progress, number_of_commands);
@@ -199,6 +201,37 @@ fn is_show_progress(opt: &Opt) -> bool {
         return true;
     }
     return false;
+}
+
+fn create_commands(opt: &Opt, config: &Config, profile_name: &str) -> Result<Vec<Command>, ExitFailure> {
+    let (add_commands, remove_commands) = create_command_filter(&opt.filter_commands);
+    let mut commands: Vec<Command> = config
+        .profile(profile_name)
+        .and_then(|p| Ok(config.commands_for_profile(p)))?
+        .into_iter()
+        .filter(|x| !remove_commands.contains(x.name()))
+        .collect();
+    let mut additional_commands: Vec<Command> = config.commands.clone().into_iter()
+        .filter(|x| add_commands.contains(x.name()))
+        .collect();
+    commands.append(&mut additional_commands);
+
+    Ok(commands)
+}
+
+fn create_command_filter(command_spec: &[String]) -> (HashSet<&str>, HashSet<&str>) {
+    let mut add = HashSet::new();
+    let mut remove = HashSet::new();
+
+    for cs in command_spec {
+        match cs.chars().next() {
+            Some('+') => { add.insert(&cs[1..]); }
+            Some('-') => { remove.insert(&cs[1..]); }
+            _ => {}
+        }
+    }
+
+    (add, remove)
 }
 
 fn create_renderer<W: Write>(
