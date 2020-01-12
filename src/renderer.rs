@@ -1,8 +1,7 @@
 use crate::analysis::AnalysisReport;
 
 use snafu::{ResultExt, Snafu};
-use std::fmt::Debug;
-use std::{io::Write, path::PathBuf};
+use std::{fmt::Debug, io::Write, path::PathBuf};
 
 /// Error type
 #[derive(Debug, Snafu)]

@@ -1,6 +1,6 @@
 use exitfailure::ExitFailure;
 use failure::{format_err, ResultExt};
-use indicatif::{ProgressBar, ProgressStyle, ProgressDrawTarget};
+use indicatif::{ProgressBar, ProgressDrawTarget, ProgressStyle};
 use prettytable::{cell, format, row, Cell, Row, Table};
 use std::{
     io::Write,
