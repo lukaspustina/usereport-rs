@@ -21,48 +21,48 @@ pub mod config;
 struct Opt {
     /// Configuration from file, or default if not present
     #[structopt(short, long, parse(from_os_str))]
-    config:          Option<PathBuf>,
+    config:               Option<PathBuf>,
     /// Output format
     #[structopt(short, long, possible_values = & ["hbs", "html", "json", "markdown"], default_value = "markdown")]
-    output:     OutputType,
+    output:               OutputType,
     /// Set output template if output is set to "hbs"
     #[structopt(long)]
-    output_template: Option<String>,
+    output_template:      Option<String>,
     /// Set number of commands to run in parallel; overrides setting from config file
     #[structopt(long)]
-    parallel:        Option<usize>,
+    parallel:             Option<usize>,
     /// Set number of how many times to run commands in row; overrides setting from config file
     #[structopt(long)]
-    repetitions:     Option<usize>,
+    repetitions:          Option<usize>,
     /// Force to show progress bar while waiting for all commands to finish
     #[structopt(long, conflicts_with = "no_progress")]
-    progress:        bool,
+    progress:             bool,
     /// Force to hide progress bar while waiting for all commands to finish
     #[structopt(long, conflicts_with = "progress")]
-    no_progress:     bool,
+    no_progress:          bool,
     /// Activate debug mode
     #[structopt(short, long)]
-    debug:           bool,
+    debug:                bool,
     /// Set profile to use
     #[structopt(short = "p", long)]
-    profile:         Option<String>,
+    profile:              Option<String>,
     /// Show active config
     #[structopt(long)]
-    show_config:     bool,
+    show_config:          bool,
     /// Show active template
     #[structopt(long)]
-    show_output_template:     bool,
+    show_output_template: bool,
     /// Show available profiles
     #[structopt(long)]
-    show_profiles:   bool,
+    show_profiles:        bool,
     /// Show available commands
     #[structopt(long)]
-    show_commands:   bool,
+    show_commands:        bool,
     /// Add or remove commands from selected profile by prefixing the command's name with '+' or
     /// '-', respectively, e.g., +uname -dmesg; you may need to use '--' to signify the end of the
     /// options
     #[structopt(name = "+|-command")]
-    filter_commands: Vec<String>,
+    filter_commands:      Vec<String>,
 }
 
 impl Opt {
@@ -123,7 +123,7 @@ pub fn main() -> Result<(), ExitFailure> {
     }
     if opt.show_output_template {
         show_output_template(&opt);
-        return Ok(())
+        return Ok(());
     }
     if opt.show_profiles {
         show_profiles(&config);
@@ -159,7 +159,10 @@ fn show_profiles(config: &Config) {
 fn show_output_template(opt: &Opt) {
     let template = match opt.output {
         OutputType::Hbs => {
-            let template_file = opt.output_template.as_ref().expect("output hbs requires output template");
+            let template_file = opt
+                .output_template
+                .as_ref()
+                .expect("output hbs requires output template");
             let mut txt = String::new();
             File::open(template_file)
                 .expect("failed to open template file")

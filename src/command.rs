@@ -212,7 +212,11 @@ pub enum CommandResult {
         stdout:      String,
     },
     /// `Command` failed to execute
-    Failed { command: Command, run_time_ms: u64, stdout: String },
+    Failed {
+        command:     Command,
+        run_time_ms: u64,
+        stdout:      String,
+    },
     /// `Command` execution exceeded specified timeout
     Timeout { command: Command, run_time_ms: u64 },
     /// `Command` could not be executed
