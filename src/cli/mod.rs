@@ -307,5 +307,6 @@ mod defaults {
 #[cfg(target_os = "linux")]
 mod defaults {
     pub(crate) static CONFIG: &str = include_str!("../../contrib/linux.conf");
+    pub(crate) static HTML_TEMPLATE: &str = include_str!("../../contrib/html.hbs");
     pub(crate) static MD_TEMPLATE: &str = include_str!("../../contrib/markdown.hbs");
 }
