@@ -28,7 +28,7 @@
         {{#each hostinfo_results as |result|}}
             {{~#if result.Success}}
                 {{~#with result.Success}}
-                    <h3 class="text-success">{{#if this.command.title}}{{this.command.title}}{{else}}{{this.command.name}}{{/if}}</h3>
+                    <h3>{{#if this.command.title}}{{this.command.title}}{{else}}{{this.command.name}}{{/if}}</h3>
                     <div class="border border-secondary rounded"><pre>{{this.stdout}}</pre></div>
                     <p>
                         <small>
@@ -46,6 +46,7 @@
                 {{~#with result.Failed}}
                     <h3 class="text-warning">{{#if this.command.title}}{{this.command.title}}{{else}}{{this.command.name}}{{/if}}:
                         Failed</h3>
+                    <div class="border border-secondary rounded"><pre>{{this.stdout}}</pre></div>
                     <p>
                         <small>
                             Command: <code>{{this.command.command}}</code> [{{this.run_time_ms}} ms]<br/>
@@ -56,7 +57,7 @@
 
             {{~#if result.Timeout}}
                 {{~#with result.Timeout}}
-                    <h3 class="text-warning">{{#if this.command.title}}{{this.command.title}}{{else}}{{this.command.name}}{{/if}}: Timed
+                    <h3 class="text-danger">{{#if this.command.title}}{{this.command.title}}{{else}}{{this.command.name}}{{/if}}: Timed
                         out</h3>
                     <p>
                         <small>
@@ -88,7 +89,7 @@
         {{#each run as |result|}}
             {{~#if result.Success}}
                 {{~#with result.Success}}
-                    <h3 class="text-success">{{#if this.command.title}}{{this.command.title}}{{else}}{{this.command.name}}{{/if}}</h3>
+                    <h3>{{#if this.command.title}}{{this.command.title}}{{else}}{{this.command.name}}{{/if}}</h3>
                     <div class="border border-secondary rounded"><pre>{{this.stdout}}</pre></div>
                     <p>
                         <small>
@@ -106,6 +107,7 @@
                 {{~#with result.Failed}}
                     <h3 class="text-warning">{{#if this.command.title}}{{this.command.title}}{{else}}{{this.command.name}}{{/if}}:
                         Failed</h3>
+                    <div class="border border-secondary rounded"><pre>{{this.stdout}}</pre></div>
                     <p>
                         <small>
                             Command: <code>{{this.command.command}}</code> [{{this.run_time_ms}} ms]<br/>
@@ -116,7 +118,7 @@
 
             {{~#if result.Timeout}}
                 {{~#with result.Timeout}}
-                    <h3 class="text-warning">{{#if this.command.title}}{{this.command.title}}{{else}}{{this.command.name}}{{/if}}: Timed
+                    <h3 class="text-danger">{{#if this.command.title}}{{this.command.title}}{{else}}{{this.command.name}}{{/if}}: Timed
                         out</h3>
                     <p>
                         <small>

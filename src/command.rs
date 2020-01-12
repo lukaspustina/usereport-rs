@@ -26,7 +26,8 @@ use subprocess::{Popen, PopenConfig, Redirection};
 ///     CommandResult::Failed {
 ///         command: _,
 ///         run_time_ms: _,
-///     } => println!("Command failed"),
+///         stdout: stdout,
+///     } => println!("Command failed with output '{}'", stdout),
 ///     CommandResult::Timeout {
 ///         command: _,
 ///         run_time_ms: _,
@@ -111,6 +112,7 @@ impl Command {
         let args: Vec<_> = self.command.split(' ').collect();
         let popen_config = PopenConfig {
             stdout: Redirection::Pipe,
+            stderr: Redirection::Merge,
             ..Default::default()
         };
         let start_time = Local::now();
@@ -145,9 +147,13 @@ impl Command {
             }
             Ok(Some(status)) => {
                 trace!("process successfully finished as {:?}", status);
+                let mut stdout = String::new();
+                let _ = p.stdout.as_ref().unwrap().read_to_string(&mut stdout); // TODO: unwrap is unsafe
+                debug!("stdout '{}'", stdout);
                 CommandResult::Failed {
                     command: self,
                     run_time_ms,
+                    stdout,
                 }
             }
             Ok(None) => {
@@ -206,7 +212,7 @@ pub enum CommandResult {
         stdout:      String,
     },
     /// `Command` failed to execute
-    Failed { command: Command, run_time_ms: u64 },
+    Failed { command: Command, run_time_ms: u64, stdout: String },
     /// `Command` execution exceeded specified timeout
     Timeout { command: Command, run_time_ms: u64 },
     /// `Command` could not be executed

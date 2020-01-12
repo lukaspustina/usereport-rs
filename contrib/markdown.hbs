@@ -59,7 +59,18 @@ Command: `{{this.command}}` [{{../run_time_ms}} ms]
 {{~#if result.Failed}}
 {{~#with result.Failed}}
 ### {{#if this.command.title}}{{this.command.title}}{{else}}{{this.command.name}}{{/if}}: Failed
-Command: `{{this.command.command}}` [{{this.run_time_ms}} ms]
+
+```sh
+{{#if this.stdout}}{{this.stdout}}{{else}}  {{/if}}
+```
+
+<small>
+{{~#with this.command}}
+Command: `{{this.command}}` [{{../run_time_ms}} ms]
+{{this.description}}
+{{#each this.links as |link|}}[[{{link.name}}]({{link.url}})] {{/each}}
+{{~/with}}
+</small>
 {{/with}}
 {{~/if}}
 
