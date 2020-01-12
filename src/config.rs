@@ -214,10 +214,10 @@ impl Profile {
         Self::new_with_description(name, commands, None)
     }
 
-    pub fn new_with_description<T: Into<String> + Clone>(name: T, commands: &[T], description: Option<T>) -> Profile {
+    pub fn new_with_description<T: Into<String> + Clone, S: Into<Option<T>>>(name: T, commands: &[T], description: S) -> Profile {
         let name = name.into();
         let commands = commands.clone().to_vec().into_iter().map(Into::into).collect();
-        let description = description.map(Into::into);
+        let description = description.into().map(Into::into);
 
         Profile {
             name,

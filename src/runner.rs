@@ -60,9 +60,9 @@ pub mod thread {
     impl ThreadRunner {
         pub fn new() -> Self { ThreadRunner::default() }
 
-        pub fn with_progress(self, progress_tx: Sender<usize>) -> Self {
+        pub fn with_progress<T: Into<Option<Sender<usize>>>>(self, progress_tx: T) -> Self {
             ThreadRunner {
-                progress_tx: Some(progress_tx),
+                progress_tx: progress_tx.into(),
             }
         }
 

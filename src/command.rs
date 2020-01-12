@@ -83,25 +83,25 @@ impl Command {
     }
 
     /// Set title of command
-    pub fn with_timeout(self, timeout_sec: u64) -> Command {
+    pub fn with_timeout<T: Into<Option<u64>>>(self, timeout_sec: T) -> Command {
         Command {
-            timeout_sec: Some(timeout_sec),
+            timeout_sec: timeout_sec.into(),
             ..self
         }
     }
 
     /// Set description of command
-    pub fn with_description<T: Into<String>>(self, description: T) -> Command {
+    pub fn with_description<T: Into<String>, S: Into<Option<T>>>(self, description: S) -> Command {
         Command {
-            description: Some(description.into()),
+            description: description.into().map(Into::into),
             ..self
         }
     }
 
     /// Set Links of command
-    pub fn with_links(self, links: Vec<Link>) -> Command {
+    pub fn with_links<T: Into<Option<Vec<Link>>>>(self, links: T) -> Command {
         Command {
-            links: Some(links),
+            links: links.into(),
             ..self
         }
     }
