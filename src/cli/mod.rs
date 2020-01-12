@@ -1,3 +1,4 @@
+use atty;
 use exitfailure::ExitFailure;
 use failure::{format_err, ResultExt};
 use indicatif::{ProgressBar, ProgressDrawTarget, ProgressStyle};
@@ -31,9 +32,12 @@ struct Opt {
     /// Set number of how many times to run commands in row; overrides setting from config file
     #[structopt(long)]
     repetitions:     Option<usize>,
-    /// Show progress bar while waiting for all commands to finish
-    #[structopt(short = "P", long)]
+    /// Force to show progress bar while waiting for all commands to finish
+    #[structopt(long, conflicts_with = "no_progress")]
     progress:        bool,
+    /// Force to hide progress bar while waiting for all commands to finish
+    #[structopt(long, conflicts_with = "progress")]
+    no_progress:      bool,
     /// Activate debug mode
     #[structopt(short, long)]
     debug:           bool,
@@ -157,6 +161,7 @@ fn show_commands(config: &Config) {
 fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> Result<(), ExitFailure> {
     let parallel = opt.parallel.unwrap_or(config.defaults.max_parallel_commands);
     let repetitions = opt.repetitions.unwrap_or(config.defaults.repetitions);
+    let progress = is_show_progress(&opt);
     // Create renderer early to detect misconfiguration early
     let stdout = std::io::stdout();
     let handle = stdout.lock();
@@ -168,7 +173,7 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> Result<(),
         .and_then(|p| Ok(config.commands_for_profile(p)))?;
     let number_of_commands = hostinfo.len() + repetitions * commands.len();
 
-    let runner = create_runner(opt.progress, number_of_commands);
+    let runner = create_runner(progress, number_of_commands);
     let analysis = Analysis::new(Box::new(runner), &hostinfo, &commands)
         .with_max_parallel_commands(parallel)
         .with_repetitions(repetitions);
@@ -181,6 +186,19 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> Result<(),
         .with_context(|_| "failed to render report")?;
 
     Ok(())
+}
+
+fn is_show_progress(opt: &Opt) -> bool {
+    if opt.progress {
+        return true;
+    }
+    if opt.no_progress {
+        return false;
+    }
+    if atty::is(atty::Stream::Stderr) {
+        return true;
+    }
+    return false;
 }
 
 fn create_renderer<W: Write>(

@@ -24,7 +24,7 @@
 * [X] Templates
     * [X] Add Profile name
     * [X] crate info: Version
-* [ ] Show progressbar by default if terminal
+* [X] Show progressbar by default if terminal
 * [ ] Create linux and macos configuration
     * macOS
         * sw_vers
