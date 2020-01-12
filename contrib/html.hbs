@@ -6,21 +6,21 @@
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css"
           integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh" crossorigin="anonymous">
 
-    <title>Use Report - {{hostname}} on {{rfc2822 date_time}}</title>
+    <title>Use Report - {{context.hostname}} on {{rfc2822 context.date_time}}</title>
 </head>
 <body>
 <div class="container-fluid">
-    <h1>Use Report - {{hostname}} on {{rfc2822 date_time}}</h1>
+    <h1>Use Report - {{context.hostname}} on {{rfc2822 context.date_time}}</h1>
     <p>
-        Date: <code>{{rfc2822 date_time}}</code><br/>
-        Hostname: <code>{{hostname}}</code><br/>
-        Host OS: <code>{{uname}}</code>
+        Date: <code>{{rfc2822 context.date_time}}</code><br/>
+        Hostname: <code>{{context.hostname}}</code><br/>
+        Host OS: <code>{{context.uname}}</code>
     </p>
     <h2>Run Configuration</h2>
     <p>
+        {{#each context.more}}{{@key}}: {{this}}<br/>{{/each}}
         Repetitions: {{repetitions}}<br/>
         Parallelism: {{max_parallel_commands}}<br/>
-        Profile: {{profile_name}}
     </p>
 
     <div>

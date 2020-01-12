@@ -21,9 +21,9 @@
 * [X] Rendering should allow for HTML
     * [X] Include failures in report
     * [X] Allow for generic handlebar based rendering via CLI
-* [ ] Templates
-    * [ ] Add Profile name
-    * [ ] crate info: Version
+* [X] Templates
+    * [X] Add Profile name
+    * [X] crate info: Version
 * [ ] Show progressbar by default if terminal
 * [ ] Create linux and macos configuration
     * macOS

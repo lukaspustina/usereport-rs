@@ -18,7 +18,7 @@ pub mod renderer;
 /// Trait and default implementation to run commands and collect their output
 pub mod runner;
 
-pub use analysis::{Analysis, AnalysisReport};
+pub use analysis::{Analysis, AnalysisReport, Context};
 pub use command::{Command, CommandResult};
 #[cfg(feature = "bin")]
 pub use cli::config::Config;

@@ -1,11 +1,14 @@
-# Use Report - {{hostname}}
+# Use Report - {{context.hostname}}
 
-Date: `{{rfc2822 date_time}}`
-Hostname: `{{hostname}}`
-Host OS: `{{uname}}`
+Date: `{{rfc2822 context.date_time}}`
+Hostname: `{{context.hostname}}`
+Host OS: `{{context.uname}}`
 
 ## Run Configuration
 
+{{~#each context.more}}
+{{@key}}: {{this}}
+{{~/each}}
 Repetitions: {{repetitions}}
 Parallelism: {{max_parallel_commands}}
 

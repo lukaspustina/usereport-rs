@@ -1,4 +1,4 @@
-use usereport::{Analysis, Config, Renderer, ThreadRunner, JsonRenderer};
+use usereport::{Analysis, Config, Renderer, ThreadRunner, JsonRenderer, Context};
 
 fn main() {
     #[cfg(target_os = "macos")]
@@ -9,7 +9,8 @@ fn main() {
     let runner = ThreadRunner::new();
     let hostinfos = config.commands_for_hostinfo();
     let analysis = Analysis::new(Box::new(runner), &hostinfos, &config.commands);
-    let report = analysis.run().expect("failed to run analysis");
+    let context = Context::new().expect("failed to create context");
+    let report = analysis.run(context).expect("failed to run analysis");
 
     let renderer = JsonRenderer::new();
     let stdout = std::io::stdout();
