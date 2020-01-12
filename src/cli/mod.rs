@@ -6,7 +6,8 @@ use indicatif::{ProgressBar, ProgressDrawTarget, ProgressStyle};
 use prettytable::{cell, format, row, Cell, Row, Table};
 use std::{
     collections::HashSet,
-    io::Write,
+    fs::File,
+    io::{Read, Write},
     path::PathBuf,
     str::FromStr,
     sync::mpsc::{self, Receiver, Sender},
@@ -23,8 +24,8 @@ struct Opt {
     config:          Option<PathBuf>,
     /// Output format
     #[structopt(short, long, possible_values = & ["hbs", "html", "json", "markdown"], default_value = "markdown")]
-    output_type:     OutputType,
-    /// Set output template if output-type is set to "hbs"
+    output:     OutputType,
+    /// Set output template if output is set to "hbs"
     #[structopt(long)]
     output_template: Option<String>,
     /// Set number of commands to run in parallel; overrides setting from config file
@@ -48,6 +49,9 @@ struct Opt {
     /// Show active config
     #[structopt(long)]
     show_config:     bool,
+    /// Show active template
+    #[structopt(long)]
+    show_output_template:     bool,
     /// Show available profiles
     #[structopt(long)]
     show_profiles:   bool,
@@ -63,8 +67,8 @@ struct Opt {
 
 impl Opt {
     pub fn validate(self) -> Result<Self, failure::Error> {
-        if self.output_type == OutputType::Hbs && self.output_template.is_none() {
-            return Err(format_err!("Output type hbs requires output template"));
+        if self.output == OutputType::Hbs && self.output_template.is_none() {
+            return Err(format_err!("Output hbs requires output template"));
         }
 
         Ok(self)
@@ -117,6 +121,10 @@ pub fn main() -> Result<(), ExitFailure> {
         show_config(&config);
         return Ok(());
     }
+    if opt.show_output_template {
+        show_output_template(&opt);
+        return Ok(())
+    }
     if opt.show_profiles {
         show_profiles(&config);
         return Ok(());
@@ -131,9 +139,7 @@ pub fn main() -> Result<(), ExitFailure> {
 
 fn show_config(config: &Config) {
     let toml = toml::to_string_pretty(config).expect("failed to serialize active config in TOML");
-    let stdout = std::io::stdout();
-    let mut handle = stdout.lock();
-    handle.write_all(toml.as_bytes()).expect("failed write TOML to stdout");
+    println!("{}", toml);
 }
 
 fn show_profiles(config: &Config) {
@@ -148,6 +154,25 @@ fn show_profiles(config: &Config) {
         ]));
     }
     table.printstd();
+}
+
+fn show_output_template(opt: &Opt) {
+    let template = match opt.output {
+        OutputType::Hbs => {
+            let template_file = opt.output_template.as_ref().expect("output hbs requires output template");
+            let mut txt = String::new();
+            File::open(template_file)
+                .expect("failed to open template file")
+                .read_to_string(&mut txt)
+                .expect("failed to read template file");
+            txt
+        }
+        OutputType::Html => defaults::HTML_TEMPLATE.to_string(),
+        OutputType::Json => "".to_string(),
+        OutputType::Markdown => defaults::MD_TEMPLATE.to_string(),
+    };
+
+    println!("{}", template);
 }
 
 fn show_commands(config: &Config) {
@@ -171,7 +196,7 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> Result<(),
     // Create renderer early to detect misconfiguration early
     let stdout = std::io::stdout();
     let handle = stdout.lock();
-    let renderer = create_renderer(&opt.output_type, opt.output_template.as_ref())?;
+    let renderer = create_renderer(&opt.output, opt.output_template.as_ref())?;
 
     let hostinfo = config.commands_for_hostinfo();
     let commands = create_commands(opt, config, profile_name)?;
@@ -250,7 +275,7 @@ fn create_renderer<W: Write>(
 ) -> Result<Box<dyn Renderer<W>>, ExitFailure> {
     let renderer: Box<dyn Renderer<W>> = match output_type {
         OutputType::Hbs => {
-            let template_file = output_template.expect("output type hbs requires output template");
+            let template_file = output_template.expect("output hbs requires output template");
             let renderer = renderer::HbsRenderer::from_file(template_file)?;
             Box::new(renderer)
         }
