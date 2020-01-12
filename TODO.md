@@ -18,9 +18,13 @@
 * [X] Deprecate Report->AnalysisResult in favor of using Renderer directly
 * [X] Commands should allow for arbitrary links for further information or actions
 * [X] Command result should store command execution time
-* [ ] Rendering should allow for HTML
+* [X] Rendering should allow for HTML
     * [X] Include failures in report
     * [X] Allow for generic handlebar based rendering via CLI
+* [ ] Templates
+    * [ ] Add Profile name
+    * [ ] crate info: Version
+* [ ] Show progressbar by default if terminal
 * [ ] Create linux and macos configuration
     * macOS
         * sw_vers

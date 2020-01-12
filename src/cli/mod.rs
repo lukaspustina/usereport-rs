@@ -20,7 +20,7 @@ struct Opt {
     #[structopt(short, long, parse(from_os_str))]
     config:          Option<PathBuf>,
     /// Output format
-    #[structopt(short, long, possible_values = & ["hbs", "json", "markdown"], default_value = "markdown")]
+    #[structopt(short, long, possible_values = & ["hbs", "html", "json", "markdown"], default_value = "markdown")]
     output_type:     OutputType,
     /// Set output template if output-type is set to "hbs"
     #[structopt(long)]
@@ -64,7 +64,8 @@ impl Opt {
 #[derive(Debug, PartialEq, Eq)]
 pub enum OutputType {
     Hbs,
-    JSON,
+    Html,
+    Json,
     Markdown,
 }
 
@@ -74,7 +75,8 @@ impl FromStr for OutputType {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_ref() {
             "hbs" => Ok(OutputType::Hbs),
-            "json" => Ok(OutputType::JSON),
+            "html" => Ok(OutputType::Html),
+            "json" => Ok(OutputType::Json),
             "markdown" => Ok(OutputType::Markdown),
             _ => Err(format_err!("failed to parse {} as output type", s)),
         }
@@ -189,8 +191,9 @@ fn create_renderer<W: Write>(
             let renderer = renderer::HbsRenderer::from_file(template_file)?;
             Box::new(renderer)
         }
+        OutputType::Html => Box::new(renderer::HbsRenderer::new(defaults::HTML_TEMPLATE)),
+        OutputType::Json => Box::new(renderer::JsonRenderer::new()),
         OutputType::Markdown => Box::new(renderer::HbsRenderer::new(defaults::MD_TEMPLATE)),
-        OutputType::JSON => Box::new(renderer::JsonRenderer::new()),
     };
 
     Ok(renderer)
@@ -226,6 +229,7 @@ fn create_progress_bar(expected: usize) -> Sender<usize> {
 #[cfg(target_os = "macos")]
 mod defaults {
     pub(crate) static CONFIG: &str = include_str!("../../contrib/osx.conf");
+    pub(crate) static HTML_TEMPLATE: &str = include_str!("../../contrib/html.hbs");
     pub(crate) static MD_TEMPLATE: &str = include_str!("../../contrib/markdown.hbs");
 }
 

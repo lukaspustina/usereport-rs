@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css"
+          integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh" crossorigin="anonymous">
+
+    <title>Use Report - {{hostname}} on {{rfc2822 date_time}}</title>
+</head>
+<body>
+<div class="container-fluid">
+    <h1>Use Report - {{hostname}} on {{rfc2822 date_time}}</h1>
+    <p>
+        Date: <code>{{rfc2822 date_time}}</code><br/>
+        Hostname: <code>{{hostname}}</code><br/>
+        Host OS: <code>{{uname}}</code>
+    </p>
+    <h2>Run Configuration</h2>
+    <p>
+        Repetitions: {{repetitions}}<br/>
+        Parallelism: {{max_parallel_commands}}<br/>
+        Profile: {{profile_name}}
+    </p>
+
+    <div>
+        <h2>Host Information</h2>
+        {{#each hostinfo_results as |result|}}
+            {{~#if result.Success}}
+                {{~#with result.Success}}
+                    <h3 class="text-success">{{#if this.command.title}}{{this.command.title}}{{else}}{{this.command.name}}{{/if}}</h3>
+                    <div class="border border-secondary rounded"><pre>{{this.stdout}}</pre></div>
+                    <p>
+                        <small>
+                    {{~#with this.command}}
+                        {{#if this.description}}<p>{{this.description}}</p>{{/if}}
+                        Command: <code>{{this.command}}</code> [{{../run_time_ms}} ms]<br/>
+                        {{#each this.links as |link|}}[<a href="{{link.url}}">{{link.name}}</a>] {{/each}}
+                    {{~/with}}
+                    </small>
+                    </p>
+                {{/with}}
+            {{~/if}}
+
+            {{~#if result.Failed}}
+                {{~#with result.Failed}}
+                    <h3 class="text-warning">{{#if this.command.title}}{{this.command.title}}{{else}}{{this.command.name}}{{/if}}:
+                        Failed</h3>
+                    <p>
+                        <small>
+                            Command: <code>{{this.command.command}}</code> [{{this.run_time_ms}} ms]<br/>
+                        </small>
+                    </p>
+                {{/with}}
+            {{~/if}}
+
+            {{~#if result.Timeout}}
+                {{~#with result.Timeout}}
+                    <h3 class="text-warning">{{#if this.command.title}}{{this.command.title}}{{else}}{{this.command.name}}{{/if}}: Timed
+                        out</h3>
+                    <p>
+                        <small>
+                            Command: <code>{{this.command.command}}</code> [{{this.run_time_ms}} ms]<br/>
+                        </small>
+                    </p>
+                {{/with}}
+            {{~/if}}
+
+            {{~#if result.Error}}
+                {{~#with result.Error}}
+                    <h3 class="text-danger">{{#if this.command.title}}{{this.command.title}}{{else}}{{this.command.name}}{{/if}}: Error</h3>
+                    <p>
+                        Reason: {{this.reason}}<br/>
+                        <small>
+                            Command: <code>{{this.command.command}}</code> [{{this.run_time_ms}} ms]<br/>
+                        </small>
+                    </p>
+                {{/with}}
+            {{~/if}}
+
+        {{~/each}}
+    </div>
+
+    <hr/>
+
+    {{#each command_results as |run|}}
+        <h2>Command Results - Run {{inc @index}}</h2>
+        {{#each run as |result|}}
+            {{~#if result.Success}}
+                {{~#with result.Success}}
+                    <h3 class="text-success">{{#if this.command.title}}{{this.command.title}}{{else}}{{this.command.name}}{{/if}}</h3>
+                    <div class="border border-secondary rounded"><pre>{{this.stdout}}</pre></div>
+                    <p>
+                        <small>
+                    {{~#with this.command}}
+                        {{#if this.description}}<p>{{this.description}}</p>{{/if}}
+                        Command: <code>{{this.command}}</code> [{{../run_time_ms}} ms]<br/>
+                        {{#each this.links as |link|}}[<a href="{{link.url}}">{{link.name}}</a>] {{/each}}
+                    {{~/with}}
+                    </small>
+                    </p>
+                {{/with}}
+            {{~/if}}
+
+            {{~#if result.Failed}}
+                {{~#with result.Failed}}
+                    <h3 class="text-warning">{{#if this.command.title}}{{this.command.title}}{{else}}{{this.command.name}}{{/if}}:
+                        Failed</h3>
+                    <p>
+                        <small>
+                            Command: <code>{{this.command.command}}</code> [{{this.run_time_ms}} ms]<br/>
+                        </small>
+                    </p>
+                {{/with}}
+            {{~/if}}
+
+            {{~#if result.Timeout}}
+                {{~#with result.Timeout}}
+                    <h3 class="text-warning">{{#if this.command.title}}{{this.command.title}}{{else}}{{this.command.name}}{{/if}}: Timed
+                        out</h3>
+                    <p>
+                        <small>
+                            Command: <code>{{this.command.command}}</code> [{{this.run_time_ms}} ms]<br/>
+                        </small>
+                    </p>
+                {{/with}}
+            {{~/if}}
+
+            {{~#if result.Error}}
+                {{~#with result.Error}}
+                    <h3 class="text-danger">{{#if this.command.title}}{{this.command.title}}{{else}}{{this.command.name}}{{/if}}: Error</h3>
+                    <p>
+                        Reason: {{this.reason}}<br/>
+                        <small>
+                            Command: <code>{{this.command.command}}</code> [{{this.run_time_ms}} ms]<br/>
+                        </small>
+                    </p>
+                {{/with}}
+            {{~/if}}
+
+        {{~/each}}
+
+    {{/each}}
+
+    <hr/>
+
+    <small>Please see <a href="https://medium.com/netflix-techblog/linux-performance-analysis-in-60-000-milliseconds-accc10403c55">Linux Performance Analysis in 60,000 Milliseconds</a> for details about the individual reports.</small>
+</div>
+</body>
+</html>
