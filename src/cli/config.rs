@@ -294,9 +294,7 @@ timeout = 1
 
         asserting("Reading config from file")
             .that(&config)
-            .is_ok()
-            .map(|x| &x.commands)
-            .has_length(5)
+            .is_ok();
     }
 
     #[test]
