@@ -25,7 +25,10 @@
     * [X] Add Profile name
     * [X] crate info: Version
 * [X] Show progressbar by default if terminal
+* [ ] Correctly parse command args in ", e.g. sh -c "one | two"
+* [ ] Add hbs helper which replaces \n with output format appropriate line break
 * [ ] Create linux and macos configuration
+* [ ] Preserve order of commands in output according to profile order
     * macOS
         * sw_vers
         * softwareupdate -l
