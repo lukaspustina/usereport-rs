@@ -292,9 +292,7 @@ timeout = 1
 
         let config = Config::from_file(path);
 
-        asserting("Reading config from file")
-            .that(&config)
-            .is_ok();
+        asserting("Reading config from file").that(&config).is_ok();
     }
 
     #[test]
