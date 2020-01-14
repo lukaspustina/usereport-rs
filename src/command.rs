@@ -109,7 +109,15 @@ impl Command {
 
     /// Execute this command; may panic
     pub fn exec(self) -> CommandResult {
-        let args: Vec<_> = self.command.split(' ').collect();
+        let args = match self.args() {
+            Ok(args) => args,
+            Err(_) => {
+                return CommandResult::Error {
+                    command: self,
+                    reason:  "failed to split command into arguments".to_string(),
+                }
+            }
+        };
         let popen_config = PopenConfig {
             stdout: Redirection::Pipe,
             stderr: Redirection::Merge,
@@ -174,6 +182,8 @@ impl Command {
             }
         }
     }
+
+    fn args(&self) -> Result<Vec<String>, shellwords::MismatchedQuotes> { shellwords::split(&self.command) }
 
     /// Panics
     fn terminate(&self, p: &mut Popen) {
@@ -282,5 +292,44 @@ mod tests {
         asserting("executing command errors")
             .that(&res)
             .is_error_contains("No such file or directory")
+    }
+
+    #[test]
+    fn command_split() {
+        init();
+
+        let command = Command::new("no_such_command", r#"/bin/sleep 5"#);
+        let args = command.args();
+
+        asserting("splitting command into args")
+            .that(&args)
+            .is_ok()
+            .has_length(2);
+    }
+
+    #[test]
+    fn command_split_single_quotes() {
+        init();
+
+        let command = Command::new("no_such_command", r#"sh -c 'dmesg -T | grep "failed"'"#);
+        let args = command.args();
+
+        asserting("splitting command into args")
+            .that(&args)
+            .is_ok()
+            .has_length(3);
+    }
+
+    #[test]
+    fn command_split_double_quotes() {
+        init();
+
+        let command = Command::new("no_such_command", r#"sh -c "dmesg -T | tail""#);
+        let args = command.args();
+
+        asserting("splitting command into args")
+            .that(&args)
+            .is_ok()
+            .has_length(3);
     }
 }
