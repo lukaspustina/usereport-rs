@@ -26,7 +26,7 @@
     * [X] crate info: Version
 * [X] Show progressbar by default if terminal
 * [X] Correctly parse command args in ", e.g. sh -c "one | two"
-* [ ] Add hbs helper which replaces \n with output format appropriate line break
+* [X] Add hbs helper which replaces \n with output format appropriate line break
 * [ ] Preserve order of commands in output according to profile order
 * [ ] Add serde feature allowing to serialize, deserialize relevant structs
 * [ ] Cleanup Errors

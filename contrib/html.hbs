@@ -43,7 +43,7 @@
                             <small>
                                 {{~#with this.command}}
                                     {{#if this.description}}
-                                        <p>{{this.description}}</p>
+                                        <p>{{escape "\n" "<br/>" this.description}}</p>
                                     {{/if}}
                                     Command: <code>{{this.command}}</code> [{{../run_time_ms}} ms]<br/>
                                     {{#each this.links as |link|}}[<a href="{{link.url}}">{{link.name}}</a>] {{/each}}
@@ -63,7 +63,7 @@
                             <small>
                                 {{~#with this.command}}
                                     {{#if this.description}}
-                                        <p>{{this.description}}</p>
+                                        <p>{{escape "\n" "<br/>" this.description}}</p>
                                     {{/if}}
                                     Command: <code>{{this.command}}</code> [{{../run_time_ms}} ms]<br/>
                                     {{#each this.links as |link|}}[<a href="{{link.url}}">{{link.name}}</a>] {{/each}}
@@ -119,7 +119,7 @@
                         <small>
                             {{~#with this.command}}
                                 {{#if this.description}}
-                                    <p>{{this.description}}</p>
+                                    <p>{{escape "\n" "<br/>" this.description}}</p>
                                 {{/if}}
                                 Command: <code>{{this.command}}</code> [{{../run_time_ms}} ms]<br/>
                                 {{#each this.links as |link|}}[<a href="{{link.url}}">{{link.name}}</a>] {{/each}}
@@ -139,7 +139,7 @@
                         <small>
                             {{~#with this.command}}
                                 {{#if this.description}}
-                                    <p>{{this.description}}</p>
+                                    <p>{{escape "\n" "<br/>" this.description}}</p>
                                 {{/if}}
                                 Command: <code>{{this.command}}</code> [{{../run_time_ms}} ms]<br/>
                                 {{#each this.links as |link|}}[<a href="{{link.url}}">{{link.name}}</a>] {{/each}}

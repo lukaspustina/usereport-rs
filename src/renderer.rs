@@ -84,11 +84,12 @@ pub mod handlebars {
             handlebars.register_helper("inc", Box::new(helpers::inc));
             handlebars.register_helper("rfc2822", Box::new(helpers::date_time_2822));
             handlebars.register_helper("rfc3339", Box::new(helpers::date_time_3339));
+            handlebars.register_helper("escape", Box::new(helpers::escape));
             handlebars
-                .register_template_string("markdown", &self.template)
+                .register_template_string("template", &self.template)
                 .context(InvalidHbsTemplate {})?;
             handlebars
-                .render_to_write("markdown", report, w)
+                .render_to_write("template", report, w)
                 .context(RenderHbsTemplateFailed {})
         }
     }
@@ -144,6 +145,38 @@ pub mod handlebars {
                 .as_str()
                 .ok_or_else(|| RenderError::new("parameter is not a string"))?;
             dt_str.parse::<DateTime<Local>>().map_err(RenderError::with)
+        }
+
+        pub(crate) fn escape(
+            h: &Helper,
+            _: &Handlebars,
+            _: &Context,
+            _: &mut RenderContext,
+            out: &mut dyn Output,
+        ) -> HelperResult {
+            let from = h
+                .param(0)
+                .ok_or_else(|| RenderError::new("no 'from' parameter"))?
+                .value()
+                .as_str()
+                .ok_or_else(|| RenderError::new("'from' parameter is not a string"))?;
+
+            let to = h
+                .param(1)
+                .ok_or_else(|| RenderError::new("no 'to' parameter"))?
+                .value()
+                .as_str()
+                .ok_or_else(|| RenderError::new("'to' parameter is not a string"))?;
+
+            let data = h
+                .param(2)
+                .ok_or_else(|| RenderError::new("no 'data' parameter"))?
+                .value()
+                .as_str()
+                .ok_or_else(|| RenderError::new("'data' parameter is not a string"))?;
+
+            let escaped = data.replace(from, to);
+            out.write(&escaped).map_err(RenderError::with)
         }
     }
 }
