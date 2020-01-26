@@ -28,7 +28,6 @@
 * [X] Correctly parse command args in ", e.g. sh -c "one | two"
 * [X] Add hbs helper which replaces \n with output format appropriate line break
 * [ ] Preserve order of commands in output according to profile order
-* [ ] Add serde feature allowing to serialize, deserialize relevant structs
 * [ ] Cleanup Errors
 * [ ] Create linux and macos configuration
     * macOS
