@@ -33,6 +33,7 @@ pub mod thread {
         thread::JoinHandle,
     };
 
+    /// Ensures that results are in same order as commands
     #[derive(Default, Debug, Clone)]
     pub struct ThreadRunner {
         progress_tx: Option<Sender<usize>>,
@@ -55,7 +56,8 @@ pub mod thread {
         }
     }
 
-    type ChildrenSupervision = (Vec<JoinHandle<()>>, Receiver<CommandResult>);
+    type ChildResult = (usize, CommandResult);
+    type ChildrenSupervision = (Vec<JoinHandle<()>>, Receiver<ChildResult>);
 
     impl ThreadRunner {
         pub fn new() -> Self { ThreadRunner::default() }
@@ -70,12 +72,12 @@ pub mod thread {
             commands: I,
             progress_tx: &Option<Sender<usize>>,
         ) -> Result<ChildrenSupervision> {
-            let (tx, rx): (Sender<CommandResult>, Receiver<CommandResult>) = mpsc::channel();
+            let (tx, rx): (Sender<ChildResult>, Receiver<ChildResult>) = mpsc::channel();
             let mut children = Vec::new();
 
-            for command in commands {
+            for (seq, command) in commands.into_iter().enumerate() {
                 let command = command.clone();
-                let child = ThreadRunner::create_child(command, tx.clone(), progress_tx.clone())?;
+                let child = ThreadRunner::create_child(seq, command, tx.clone(), progress_tx.clone())?;
                 children.push(child);
             }
 
@@ -83,8 +85,9 @@ pub mod thread {
         }
 
         fn create_child(
+            seq: usize,
             command: Command,
-            tx: Sender<CommandResult>,
+            tx: Sender<ChildResult>,
             progress_tx: Option<Sender<usize>>,
         ) -> Result<JoinHandle<()>> {
             let name = command.name.clone();
@@ -94,7 +97,7 @@ pub mod thread {
                     let res = command.exec();
                     // This should not happen as long as the parent is alive; if it happens, this is a valid reason to
                     // panic
-                    tx.send(res).expect("Thread failed to send result via channel");
+                    tx.send((seq, res)).expect("Thread failed to send result via channel");
                     if let Some(progress_tx) = progress_tx {
                         progress_tx.send(1).expect("Thread failed to send progress via channel");
                     }
@@ -102,14 +105,14 @@ pub mod thread {
                 .context(ExecuteCommandFailed { name })
         }
 
-        fn wait_for_results(children: Vec<JoinHandle<()>>, rx: Receiver<CommandResult>) -> Vec<CommandResult> {
+        fn wait_for_results(children: Vec<JoinHandle<()>>, rx: Receiver<ChildResult>) -> Vec<CommandResult> {
             let mut results = Vec::with_capacity(children.len());
             // Get results
             for _ in 0..children.len() {
                 // This should not happen as long as the child's tx is alive; if it happens, this is a valid reason
                 // to panic
-                let result = rx.recv().expect("Failed to receive from child");
-                results.push(result);
+                let (seq, result) = rx.recv().expect("Failed to receive from child");
+                results.push((seq, result));
             }
 
             // Ensure all child threads have completed execution
@@ -119,7 +122,8 @@ pub mod thread {
                 child.join().expect("Parent failed to wait for child");
             }
 
-            results
+            results.sort_by_key(|(seq, _)| *seq);
+            results.into_iter().map(|(_, result)| result).collect()
         }
     }
 
