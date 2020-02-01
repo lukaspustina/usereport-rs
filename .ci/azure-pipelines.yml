@@ -1,80 +1,172 @@
+name: $(Build.sourceBranchName)-$(Date:yyyyMMdd)$(Rev:.r)
+
+# Set global variables
+variables:
+  # TODO: gh_repository: 'lukaspustina/usereport-rs'
+  crate_name: 'usereport-rs'
+  crate_bin_name: 'usereport'
+  rust_minimum_version: 1.36.0
+  # cf. https://docs.microsoft.com/en-us/azure/devops/pipelines/agents/hosted?view=azure-devops
+  macos_image_name: 'macOS-latest'
+  linux_image_name: 'ubuntu-18.04'
+
 trigger:
   branches:
     include: ['*']
   tags:
     include: ['*']
 
-jobs:
-  - job: 'Clippy'
-    strategy:
-      matrix:
-        mac-stable:
-          imageName: 'macos-10.13'
-          rustup_toolchain: stable
-        linux-stable:
-          imageName: 'ubuntu-16.04'
-          rustup_toolchain: stable
-    pool:
-      vmImage: $(imageName)
-    steps:
-      - script: |
-          curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain $RUSTUP_TOOLCHAIN
-          echo "##vso[task.setvariable variable=PATH;]$PATH:$HOME/.cargo/bin"
-        displayName: Install rust
-      - script: rustup component add clippy
-        displayName: Install clippy
-      - script: cargo clippy --all --all-targets --all-features -- -D warnings $(source ".clippy.args")
-        displayName: Run Clippy
+schedules:
+  - cron: "0 0 * * *"
+    displayName: Daily midnight build
+    branches:
+      include:
+      - master
 
-  - job: 'Rustfmt'
-    pool:
-      vmImage: 'ubuntu-16.04'
-    container: 'rustlang/rust:nightly'
-    steps:
-      - script: rustup component add rustfmt
-        displayName: Install Rustfmt
-      - script: cargo fmt --all -- --check
-        displayName: Run fmt
+stages:
+  - stage: Check_n_Test
+    displayName: "Check'n'Test"
+    jobs:
+      - job: 'Clippy'
+        strategy:
+          matrix:
+            mac-stable:
+              imageName: ${{ variables.macos_image_name }}
+              rustup_toolchain: stable
+            linux-stable:
+              imageName: ${{ variables.linux_image_name }}
+              rustup_toolchain: stable
+        pool:
+          vmImage: $(imageName)
+        steps:
+          - script: |
+              curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain $RUSTUP_TOOLCHAIN
+              echo "##vso[task.setvariable variable=PATH;]$PATH:$HOME/.cargo/bin"
+            displayName: Install rust
+          - script: rustup component add clippy
+            displayName: Install clippy
+          - script: cargo clippy --all --all-targets --all-features -- -D warnings $(source ".clippy.args")
+            displayName: Run Clippy
 
-  - job: 'Audit'
-    pool:
-      vmImage: 'ubuntu-16.04'
-    container: 'rust:latest'
-    steps:
-      - script: cargo install cargo-audit
-        displayName: Install Cargo Audit
-      - script: cargo audit
-        displayName: Run Cargo Audit
+      - job: 'Rustfmt'
+        pool:
+          vmImage: $(linux_image_name)
+        container: 'rustlang/rust:nightly'
+        steps:
+          - script: rustup component add rustfmt
+            displayName: Install Rustfmt
+          - script: cargo fmt --all -- --check
+            displayName: Run fmt
 
-  - job: 'Test'
-    strategy:
-      matrix:
-        mac-minimum:
-          imageName: 'macos-10.13'
-          rustup_toolchain: 1.36.0
-        mac-stable:
-          imageName: 'macos-10.13'
-          rustup_toolchain: stable
-        linux-minimum:
-          imageName: 'ubuntu-16.04'
-          rustup_toolchain: 1.36.0
-        linux-stable:
-          imageName: 'ubuntu-16.04'
-          rustup_toolchain: stable
-        linux-beta:
-          imageName: 'ubuntu-16.04'
-          rustup_toolchain: beta
-    pool:
-      vmImage: $(imageName)
-    steps:
-      - script: |
-          curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain $RUSTUP_TOOLCHAIN
-          echo "##vso[task.setvariable variable=PATH;]$PATH:$HOME/.cargo/bin"
-        displayName: Install rust
-      - script: cargo check --all --tests --examples --benches
-        displayName: Cargo check
-      - script: cargo build --all --tests --examples --benches
-        displayName: Cargo build
-      - script: cargo test --all
-        displayName: Cargo test
+      - job: 'Audit'
+        pool:
+          vmImage: $(linux_image_name)
+        container: 'rust:latest'
+        steps:
+          - script: cargo install cargo-audit
+            displayName: Install Cargo Audit
+          - script: cargo audit
+            displayName: Run Cargo Audit
 
+      - job: 'Test'
+        strategy:
+          matrix:
+            mac-minimum:
+              imageName: ${{ variables.macos_image_name }}
+              rustup_toolchain: $(rust_minimum_version)
+            mac-stable:
+              imageName: ${{ variables.macos_image_name }}
+              rustup_toolchain: stable
+            linux-minimum:
+              imageName: ${{ variables.linux_image_name }}
+              rustup_toolchain: $(rust_minimum_version)
+            linux-stable:
+              imageName: ${{ variables.linux_image_name }}
+              rustup_toolchain: stable
+            linux-beta:
+              imageName: ${{ variables.linux_image_name }}
+              rustup_toolchain: beta
+        pool:
+          vmImage: $(imageName)
+        steps:
+          - script: |
+              curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain $RUSTUP_TOOLCHAIN
+              echo "##vso[task.setvariable variable=PATH;]$PATH:$HOME/.cargo/bin"
+            displayName: Install rust
+          - script: cargo check --all --tests --examples --benches
+            displayName: Cargo check
+          - script: cargo build --all --tests --examples --benches
+            displayName: Cargo build
+          - script: cargo test --all
+            displayName: Cargo test
+
+  - stage: Build_Release
+    dependsOn: Check_n_Test
+    displayName: "Build Release"
+    jobs:
+      - job: 'Build_Static_Binary'
+        displayName: "Build Static Binary"
+        pool:
+          # Other pools are currently (2019-10-14) not supported
+          vmImage: $(linux_image_name)
+        container:
+          image: lukaspustina/rust_musl:stable
+          # Required, because Azure is going to add a user which requires root privileges
+          options: --user 0:0
+        steps:
+          # The Docker Image already includes a rustup installation but for user 'rust'. Since Azure uses its own user (cf. above), we install it again.
+          # - template: templates/install_rust.yml
+          # - template: templates/version_information.yml
+            # - script: |
+            #   cd $BUILD_SOURCESDIRECTORY && \
+            #   cargo build --all-features --release && \
+            #   ls -al target/release/${CRATE_BIN_NAME} && \
+            #   echo "##vso[task.setvariable variable=release_binary]target/release/${CRATE_BIN_NAME}"
+          - script: |
+              cd $BUILD_SOURCESDIRECTORY && \
+              mkdir -p target/release && \
+              ls -al > target/release/${CRATE_BIN_NAME} && \
+              ls -al target/release/${CRATE_BIN_NAME} && \
+              echo "##vso[task.setvariable variable=release_binary]target/release/${CRATE_BIN_NAME}"
+            displayName: MUSL Cargo Build
+          - publish: $(Build.SourcesDirectory)/$(release_binary)
+            artifact: Release_Binary
+            displayName: Storing Release Binary
+
+  - stage: Publish_Release
+    displayName: "Publish Release"
+    dependsOn: Build_Release
+    jobs:
+      - job: 'Publish_To_GitHub'
+        displayName: "Publish to GitHub"
+        steps:
+          # Shortcut 'download' cannot be used as it does not restore into the original path; cf. https://docs.microsoft.com/en-us/azure/devops/pipelines/artifacts/pipeline-artifacts?view=azure-devops&tabs=yaml#downloading-artifacts
+          - task: DownloadPipelineArtifact@2
+            inputs:
+              buildType: 'current'
+              artifactName: 'Release_Binary'
+              targetPath: '$(Build.ArtifactStagingDirectory)' 
+          - script: |
+              ls -al $BUILD_ARTIFACTSTAGINGDIRECTORY && \
+              mv "$BUILD_ARTIFACTSTAGINGDIRECTORY/${CRATE_BIN_NAME}" "$BUILD_ARTIFACTSTAGINGDIRECTORY/${CRATE_BIN_NAME}-$AGENT_OSARCHITECTURE-musl-static" && \
+              ls -al $BUILD_ARTIFACTSTAGINGDIRECTORY
+            displayName: "Preparing assets for upload"
+          - task: GitHubRelease@0
+            env:
+              SYSTEM_DEBUG: true
+            displayName: "Creating GitHub Release"
+            inputs:
+              gitHubConnection: 'lukaspustina-releaseupload'
+              repositoryName: '$(Build.Repository.Name)' 
+              # TODO: repositoryName: '$(gh_repository)'
+              action: create
+              #              target: '$(Build.SourceVersion)'
+              #              tagSource: 'auto'
+              #              tagPattern: 'v*'
+              #              tag: $(tagName)
+              assets: $(Build.ArtifactStagingDirectory)/*
+              #              assetUploadMode: 'delete'
+              #              isDraft: false
+              #              isPreRelease: true
+              #              addChangeLog: true
+              #              compareWith: 'lastFullRelease'
