@@ -27,8 +27,7 @@
 * [X] Show progressbar by default if terminal
 * [X] Correctly parse command args in ", e.g. sh -c "one | two"
 * [X] Add hbs helper which replaces \n with output format appropriate line break
-* [ ] Preserve order of commands in output according to profile order
-* [ ] Cleanup Errors
+* [X] Preserve order of commands in output according to profile order
 * [ ] Create linux and macos configuration
     * macOS
         * sw_vers

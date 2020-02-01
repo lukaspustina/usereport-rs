@@ -3,7 +3,7 @@ use crate::command::Command;
 use serde::{Deserialize, Serialize};
 use snafu::{ResultExt, Snafu};
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     fs::File,
     io::Read,
     iter::FromIterator,
@@ -70,23 +70,25 @@ impl Config {
     }
 
     pub fn commands_for_hostinfo(&self) -> Vec<Command> {
-        if let Some(hostinfo) = &self.hostinfo {
-            self.commands
-                .clone()
-                .into_iter()
-                .filter(|c| hostinfo.commands.contains(&c.name))
-                .collect()
-        } else {
-            Vec::new()
-        }
+        self.hostinfo
+            .as_ref()
+            .map(|hostinfo| self.command_names_to_commands(&hostinfo.commands))
+            .unwrap_or_else(Vec::new)
     }
 
-    pub fn commands_for_profile(&self, profile: &Profile) -> Vec<Command> {
-        self.commands
-            .clone()
-            .into_iter()
-            .filter(|c| profile.commands.contains(&c.name))
+    fn command_names_to_commands(&self, names: &[String]) -> Vec<Command> {
+        let mut cm = self.commands_as_map();
+        names
+            .iter()
+            .flat_map(|name| cm.remove(name.as_str()))
+            .cloned()
             .collect()
+    }
+
+    fn commands_as_map(&self) -> HashMap<&str, &Command> { self.commands.iter().map(|x| (x.name(), x)).collect() }
+
+    pub fn commands_for_profile(&self, profile: &Profile) -> Vec<Command> {
+        self.command_names_to_commands(&profile.commands)
     }
 
     pub fn validate(&self) -> Result<()> {
@@ -394,5 +396,38 @@ command = "/usr/bin/uname -a"
             .map(|x| &x.timeout_sec)
             .is_some()
             .is_equal_to(5);
+    }
+
+    /// Make sure that commands remain in the same order as specified in hostinfo
+    #[test]
+    fn ensure_order_of_hostinfo_commands() {
+        let path = "contrib/linux.conf";
+        let config = Config::from_file(path).expect("config ok");
+        let expected = vec!["uptime".to_string(), "dmesg".to_string()];
+
+        let commands: Vec<String> = config.commands_for_hostinfo().into_iter().map(|x| x.name).collect();
+
+        asserting("Commands have expected order")
+            .that(&commands)
+            .is_equal_to(&expected);
+    }
+
+    /// Make sure that commands remain in the same order as specified in a profile
+    #[test]
+    fn ensure_order_of_profile_commands() {
+        let path = "contrib/linux.conf";
+        let config = Config::from_file(path).expect("config ok");
+        let profile = config.profile("default").expect("default profile exists");
+        let expected = profile.commands.clone();
+
+        let commands: Vec<String> = config
+            .commands_for_profile(profile)
+            .into_iter()
+            .map(|x| x.name)
+            .collect();
+
+        asserting("Commands have expected order")
+            .that(&commands)
+            .is_equal_to(&expected);
     }
 }
