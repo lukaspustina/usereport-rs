@@ -1,0 +1,8 @@
+steps:
+  - download: current
+    artifact: Cargo
+    displayName: Restoring .cargo directory
+  - publish: current
+    artifact: Target
+    displayName: Restoring target directory
+

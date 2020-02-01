@@ -1,0 +1,12 @@
+steps:
+  - script: |
+      rustup --version
+      rustup toolchain list
+      rustc --version
+      cargo --version
+      cargo --list
+      cargo clippy --version && echo "Clippy installed"
+      cargo fmt --version && echo "Rustfmt installed"
+      clang --version && echo "Clang installed"
+    displayName: Gather Build Environment Information
+

@@ -2,7 +2,6 @@ name: $(Build.sourceBranchName)-$(Date:yyyyMMdd)$(Rev:.r)
 
 # Set global variables
 variables:
-  # TODO: gh_repository: 'lukaspustina/usereport-rs'
   crate_name: 'usereport-rs'
   crate_bin_name: 'usereport'
   rust_minimum_version: 1.36.0
@@ -24,10 +23,45 @@ schedules:
       - master
 
 stages:
-  - stage: Check_n_Test
-    displayName: "Check'n'Test"
+  - stage: Check_Build_Test
+    displayName: "Check, Build, and Test"
     jobs:
-      - job: 'Clippy'
+      - job: Fmt
+        strategy:
+          matrix:
+            linux-nightly:
+              imageName: ${{ variables.linux_image_name }}
+              rustup_toolchain: nightly
+        pool:
+          vmImage: $(imageName)
+        steps:
+          - template: templates/install_rust.yml
+            parameters:
+              rustup_toolchain: $(rustup_toolchain)
+          - template: templates/version_information.yml
+          - script: cargo fmt -- --check
+            displayName: Run Fmt
+
+      - job: Audit
+        strategy:
+          matrix:
+            linux-stable:
+              imageName: ${{ variables.linux_image_name }}
+              rustup_toolchain: stable
+        pool:
+          vmImage: $(imageName)
+        steps:
+          - template: templates/install_rust.yml
+            parameters:
+              rustup_toolchain: $(rustup_toolchain)
+          - template: templates/install_dependencies.yml
+          - script: cargo install cargo-audit
+            displayName: Install Cargo Audit
+          - template: templates/version_information.yml
+          - script: cargo audit
+            displayName: Run Cargo Audit
+
+      - job: Clippy
         strategy:
           matrix:
             mac-stable:
@@ -39,47 +73,27 @@ stages:
         pool:
           vmImage: $(imageName)
         steps:
-          - script: |
-              curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain $RUSTUP_TOOLCHAIN
-              echo "##vso[task.setvariable variable=PATH;]$PATH:$HOME/.cargo/bin"
-            displayName: Install rust
-          - script: rustup component add clippy
-            displayName: Install clippy
-          - script: cargo clippy --all --all-targets --all-features -- -D warnings $(source ".clippy.args")
+          - template: templates/install_rust.yml
+            parameters:
+              rustup_toolchain: $(rustup_toolchain)
+          - template: templates/install_dependencies.yml
+          - template: templates/version_information.yml
+          - script: cargo clippy --all --all-features -- -D warnings $(source ".clippy.args")
             displayName: Run Clippy
 
-      - job: 'Rustfmt'
-        pool:
-          vmImage: $(linux_image_name)
-        container: 'rustlang/rust:nightly'
-        steps:
-          - script: rustup component add rustfmt
-            displayName: Install Rustfmt
-          - script: cargo fmt --all -- --check
-            displayName: Run fmt
-
-      - job: 'Audit'
-        pool:
-          vmImage: $(linux_image_name)
-        container: 'rust:latest'
-        steps:
-          - script: cargo install cargo-audit
-            displayName: Install Cargo Audit
-          - script: cargo audit
-            displayName: Run Cargo Audit
-
-      - job: 'Test'
+      - job: 'Build_n_Test'
+        displayName: "Build and Test"
         strategy:
           matrix:
-            mac-minimum:
+            mac-minimum-${{ variables.rust_minimum_version }}:
               imageName: ${{ variables.macos_image_name }}
-              rustup_toolchain: $(rust_minimum_version)
+              rustup_toolchain: ${{ variables.rust_minimum_version }}
             mac-stable:
-              imageName: ${{ variables.macos_image_name }}
-              rustup_toolchain: stable
-            linux-minimum:
+               imageName: ${{ variables.macos_image_name }}
+               rustup_toolchain: stable
+            linux-minimum-${{ variables.rust_minimum_version }}:
               imageName: ${{ variables.linux_image_name }}
-              rustup_toolchain: $(rust_minimum_version)
+              rustup_toolchain: ${{ variables.rust_minimum_version }}
             linux-stable:
               imageName: ${{ variables.linux_image_name }}
               rustup_toolchain: stable
@@ -89,49 +103,43 @@ stages:
         pool:
           vmImage: $(imageName)
         steps:
-          - script: |
-              curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain $RUSTUP_TOOLCHAIN
-              echo "##vso[task.setvariable variable=PATH;]$PATH:$HOME/.cargo/bin"
-            displayName: Install rust
-          - script: cargo check --all --tests --examples --benches
-            displayName: Cargo check
-          - script: cargo build --all --tests --examples --benches
+          - template: templates/install_rust.yml
+            parameters:
+              rustup_toolchain: $(rustup_toolchain)
+          - template: templates/install_dependencies.yml
+          - template: templates/version_information.yml
+          - script: cargo build --all --all-features --tests --examples --benches
             displayName: Cargo build
-          - script: cargo test --all
+          - script: cargo test --all --all-features --examples
             displayName: Cargo test
 
   - stage: Build_Release
-    dependsOn: Check_n_Test
+    dependsOn: Check_Build_Test
     displayName: "Build Release"
     jobs:
       - job: 'Build_Static_Binary'
         displayName: "Build Static Binary"
         pool:
-          # Other pools are currently (2019-10-14) not supported
-          vmImage: $(linux_image_name)
+          vmImage: ${{ variables.linux_image_name }}
         container:
           image: lukaspustina/rust_musl:stable
           # Required, because Azure is going to add a user which requires root privileges
           options: --user 0:0
         steps:
           # The Docker Image already includes a rustup installation but for user 'rust'. Since Azure uses its own user (cf. above), we install it again.
-          # - template: templates/install_rust.yml
-          # - template: templates/version_information.yml
-            # - script: |
-            #   cd $BUILD_SOURCESDIRECTORY && \
-            #   cargo build --all-features --release && \
-            #   ls -al target/release/${CRATE_BIN_NAME} && \
-            #   echo "##vso[task.setvariable variable=release_binary]target/release/${CRATE_BIN_NAME}"
+          - template: templates/install_rust.yml
+            parameters:
+              rustup_toolchain: stable
+          - template: templates/version_information.yml
           - script: |
               cd $BUILD_SOURCESDIRECTORY && \
-              mkdir -p target/release && \
-              ls -al > target/release/${CRATE_BIN_NAME} && \
+              cargo build --all --all-features --release && \
               ls -al target/release/${CRATE_BIN_NAME} && \
               echo "##vso[task.setvariable variable=release_binary]target/release/${CRATE_BIN_NAME}"
-            displayName: MUSL Cargo Build
+            displayName: Build MUSL Static Binary
           - publish: $(Build.SourcesDirectory)/$(release_binary)
             artifact: Release_Binary
-            displayName: Storing Release Binary
+            displayName: Store Release Binary
 
   - stage: Publish_Release
     displayName: "Publish Release"
@@ -146,19 +154,19 @@ stages:
               buildType: 'current'
               artifactName: 'Release_Binary'
               targetPath: '$(Build.ArtifactStagingDirectory)' 
+            displayName: "Download Release Binary"
           - script: |
               ls -al $BUILD_ARTIFACTSTAGINGDIRECTORY && \
               mv "$BUILD_ARTIFACTSTAGINGDIRECTORY/${CRATE_BIN_NAME}" "$BUILD_ARTIFACTSTAGINGDIRECTORY/${CRATE_BIN_NAME}-$AGENT_OSARCHITECTURE-musl-static" && \
               ls -al $BUILD_ARTIFACTSTAGINGDIRECTORY
-            displayName: "Preparing assets for upload"
+            displayName: "Prepare Assets for Upload"
           - task: GitHubRelease@0
             env:
               SYSTEM_DEBUG: true
-            displayName: "Creating GitHub Release"
+            displayName: "Create GitHub Release"
             inputs:
               gitHubConnection: 'lukaspustina-releaseupload'
               repositoryName: '$(Build.Repository.Name)' 
-              # TODO: repositoryName: '$(gh_repository)'
               action: create
               #              target: '$(Build.SourceVersion)'
               #              tagSource: 'auto'
