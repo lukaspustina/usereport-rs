@@ -1,0 +1,29 @@
+DOCKER_BUILD_IMAGE = lukaspustina/rust_musl:stable
+RUN_DOCKER = docker run --rm -it -v "$$(pwd)":/home/rust/src -v "$$(pwd)/.cargo.cache/git":/home/rust/.cargo/git -v "$$(pwd)/.cargo.cache/registry":/home/rust/.cargo/registry $(DOCKER_BUILD_IMAGE)
+RUN_DOCKER = docker run --rm -it -v "$$(pwd)":/home/rust/src -v "$$(pwd)/.cargo.cache/git":/home/rust/.cargo/git -v "$$(pwd)/.cargo.cache/registry":/home/rust/.cargo/registry $(DOCKER_BUILD_IMAGE)
+
+CARGO_PARAM = --all-features
+
+all: cross_compile
+
+.cargo.cache/git:
+	mkdir -p $@
+	$(RUN_DOCKER) sudo chown -R rust:rust /home/rust/.cargo/git
+
+.cargo.cache/registry:
+	mkdir -p $@
+	$(RUN_DOCKER) sudo chown -R rust:rust /home/rust/.cargo/registry
+
+cross_compile: ../target/x86_64-unknown-linux-musl/release/$(FUNC_NAME_BIN)
+../target/x86_64-unknown-linux-musl/release/$(FUNC_NAME_BIN): .cargo.cache/git .cargo.cache/registry
+	$(RUN_DOCKER) cargo test --release $(CARGO_PARAM)
+	$(RUN_DOCKER) cargo build --release $(CARGO_PARAM)
+
+upgrade: upgrade-docker-images
+
+upgrade-docker-images:
+	docker pull $(DOCKER_BUILD_IMAGE)
+
+clean-cross:
+	$(RUN_DOCKER) cargo clean
+
