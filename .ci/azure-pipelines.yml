@@ -102,8 +102,8 @@ stages:
           options: --user 0:0
         steps:
           # The Docker Image already includes a rustup installation but for user 'rust'. Since Azure uses its own user (cf. above), we install it again.
-          - template: templates/install_rust.yml
-          - template: templates/version_information.yml
+          # - template: templates/install_rust.yml
+          # - template: templates/version_information.yml
             # - script: |
             #   cd $BUILD_SOURCESDIRECTORY && \
             #   cargo build --package github-watchtower --release && \
