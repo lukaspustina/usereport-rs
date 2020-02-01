@@ -90,7 +90,7 @@ stages:
   #            displayName: Cargo test
 
   - stage: Release
-      jobs:
+    jobs:
       - job: 'Build_Static_Binary'
         displayName: "Build Static Binary"
         pool:
