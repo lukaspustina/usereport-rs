@@ -89,7 +89,8 @@ stages:
   #          - script: cargo test --all
   #            displayName: Cargo test
 
-  - stage: Release
+  - stage: Build_Release
+    displayName: "Build Release"
     jobs:
       - job: 'Build_Static_Binary'
         displayName: "Build Static Binary"
@@ -119,6 +120,10 @@ stages:
           - publish: $(Build.SourcesDirectory)/$(release_binary)
             artifact: Release_Binary
             displayName: Storing Release Binary
+  - stage: Publish_Release
+    displayName: "Publish Release"
+    dependsOn: Build_Release
+    jobs:
       - job: 'Publish_To_GitHub'
         displayName: "Publish to GitHub"
         steps:
