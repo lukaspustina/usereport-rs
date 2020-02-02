@@ -170,7 +170,7 @@ stages:
               action: create
               target: '$(Build.SourceVersion)'
               tagSource: 'auto'
-              tagPattern: 'v*'
+              tagPattern: 'v.*'
               tag: $(tagName)
               assets: $(Build.ArtifactStagingDirectory)/*
               assetUploadMode: 'delete'
