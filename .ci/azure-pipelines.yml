@@ -34,7 +34,7 @@ stages:
               imageName: ${{ variables.macos_image_name }}
               rustup_toolchain: stable
             linux-stable:
-              imageName: $(linux_image_name)
+              imageName: ${{ variables.linux_image_name }}
               rustup_toolchain: stable
         pool:
           vmImage: $(imageName)
@@ -72,19 +72,19 @@ stages:
         strategy:
           matrix:
             mac-minimum:
-              imageName: $(macos_image_name)
+              imageName: ${{ variables.macos_image_name }}
               rustup_toolchain: $(rust_minimum_version)
             mac-stable:
-              imageName: $(macos_image_name)
+              imageName: ${{ variables.macos_image_name }}
               rustup_toolchain: stable
             linux-minimum:
-              imageName: $(linux_image_name)
+              imageName: ${{ variables.linux_image_name }}
               rustup_toolchain: $(rust_minimum_version)
             linux-stable:
-              imageName: $(linux_image_name)
+              imageName: ${{ variables.linux_image_name }}
               rustup_toolchain: stable
             linux-beta:
-              imageName: $(linux_image_name)
+              imageName: ${{ variables.linux_image_name }}
               rustup_toolchain: beta
         pool:
           vmImage: $(imageName)
