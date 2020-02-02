@@ -31,7 +31,7 @@ stages:
         strategy:
           matrix:
             mac-stable:
-              imageName: $(macos_image_name)
+              imageName: ${{ macos_image_name }}
               rustup_toolchain: stable
             linux-stable:
               imageName: $(linux_image_name)
