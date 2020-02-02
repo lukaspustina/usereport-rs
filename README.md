@@ -1,5 +1,7 @@
 # USE Report
 
+[![Build Status](https://dev.azure.com/lukaspustina/usereport-rs/_apis/build/status/lukaspustina.usereport-rs?branchName=master)](https://dev.azure.com/lukaspustina/usereport-rs/_build/latest?definitionId=3&branchName=master)
+
 This tool is part of my base server installation. I use it everywhere. It allows me to quickly assess performance characteristics in case of performance issues. The output format is Markdown for convenient reading.
 
 The script gathers system statistics on the localhost that may be used as the base information for an performance analysis following the [USE methodology](http://www.brendangregg.com/usemethod.html)
