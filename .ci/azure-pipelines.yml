@@ -148,7 +148,7 @@ stages:
               targetPath: '$(Build.ArtifactStagingDirectory)' 
           - script: |
               ls -al $BUILD_ARTIFACTSTAGINGDIRECTORY && \
-              mv "$BUILD_ARTIFACTSTAGINGDIRECTORY/${CRATE_BIN_NAME} "$BUILD_ARTIFACTSTAGINGDIRECTORY/${CRATE_BIN_NAME}-$AGENT_OSARCHITECTURE-musl-static" && \
+              mv "$BUILD_ARTIFACTSTAGINGDIRECTORY/${CRATE_BIN_NAME}" "$BUILD_ARTIFACTSTAGINGDIRECTORY/${CRATE_BIN_NAME}-$AGENT_OSARCHITECTURE-musl-static" && \
               ls -al $BUILD_ARTIFACTSTAGINGDIRECTORY
             displayName: "Preparing assets for upload"
           - task: GitHubRelease@0
