@@ -87,7 +87,7 @@ stages:
           matrix:
             mac-minimum-${{ variables.rust_minimum_version }}:
               imageName: ${{ variables.macos_image_name }}
-              rustup_toolchain:${{ variables.rust_minimum_version }}
+              rustup_toolchain: ${{ variables.rust_minimum_version }}
             mac-stable:
                imageName: ${{ variables.macos_image_name }}
                rustup_toolchain: stable
