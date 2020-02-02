@@ -39,7 +39,7 @@ stages:
             parameters:
               rustup_toolchain: $(rustup_toolchain)
           - template: templates/version_information.yml
-          - script: cargo fmt --workspace -- --check
+          - script: cargo fmt -- --check
             displayName: Run Fmt
 
       - job: Audit
