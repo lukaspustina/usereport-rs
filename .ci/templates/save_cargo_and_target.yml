@@ -1,0 +1,8 @@
+steps:
+  - publish: /home/vsts/.cargo
+    artifact: Cargo
+    displayName: Storing .cargo directory
+  - publish: $(Build.SourcesDirectory)/target
+    artifact: Target
+    displayName: Storing target directory
+
