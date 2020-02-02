@@ -168,13 +168,14 @@ stages:
               gitHubConnection: 'lukaspustina-releaseupload'
               repositoryName: '$(Build.Repository.Name)' 
               action: create
-              #              target: '$(Build.SourceVersion)'
-              #              tagSource: 'auto'
-              #              tagPattern: 'v*'
-              #              tag: $(tagName)
+              target: '$(Build.SourceVersion)'
+              tagSource: 'auto'
+              tagPattern: 'v*'
+              tag: $(tagName)
               assets: $(Build.ArtifactStagingDirectory)/*
-              #              assetUploadMode: 'delete'
-              #              isDraft: false
-              #              isPreRelease: true
-              #              addChangeLog: true
-              #              compareWith: 'lastFullRelease'
+              assetUploadMode: 'delete'
+              isDraft: false
+              isPreRelease: false
+              addChangeLog: true
+              compareWith: 'lastFullRelease'
+
