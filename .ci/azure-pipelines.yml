@@ -4,7 +4,7 @@ name: $(Build.sourceBranchName)-$(Date:yyyyMMdd)$(Rev:.r)
 variables:
   crate_name: 'usereport-rs'
   crate_bin_name: 'usereport'
-  rust_minimum_version: 1.36.0
+  rust_minimum_version: 1.37.0
   # cf. https://docs.microsoft.com/en-us/azure/devops/pipelines/agents/hosted?view=azure-devops
   macos_image_name: 'macOS-latest'
   linux_image_name: 'ubuntu-18.04'
@@ -78,7 +78,7 @@ stages:
               rustup_toolchain: $(rustup_toolchain)
           - template: templates/install_dependencies.yml
           - template: templates/version_information.yml
-          - script: cargo clippy --workspace --all-features -- -D warnings $(source ".clippy.args")
+          - script: cargo clippy --all --all-features -- -D warnings $(source ".clippy.args")
             displayName: Run Clippy
 
       - job: 'Build_n_Test'
@@ -108,9 +108,9 @@ stages:
               rustup_toolchain: $(rustup_toolchain)
           - template: templates/install_dependencies.yml
           - template: templates/version_information.yml
-          - script: cargo build --workspace --all-features --tests --examples --benches
+          - script: cargo build --all --all-features --tests --examples --benches
             displayName: Cargo build
-          - script: cargo test --workspace --all-features --examples
+          - script: cargo test --all --all-features --examples
             displayName: Cargo test
 
   - stage: Build_Release
@@ -133,7 +133,7 @@ stages:
           - template: templates/version_information.yml
           - script: |
               cd $BUILD_SOURCESDIRECTORY && \
-              cargo build --workspace --all-features --release && \
+              cargo build --all --all-features --release && \
               ls -al target/release/${CRATE_BIN_NAME} && \
               echo "##vso[task.setvariable variable=release_binary]target/release/${CRATE_BIN_NAME}"
             displayName: Build MUSL Static Binary
