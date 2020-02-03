@@ -162,7 +162,7 @@ stages:
               PGK_VERSION=$(git symbolic-ref -q --short HEAD || git describe --tags --exact-match) && \
               cd distribution/deb && \
               BIN_DIR=../../target/release ARCH=${ARCHNAME} VERSION=${PGK_VERSION} DIST=${UBUNTUNAME} make package && \
-              echo "##vso[task.setvariable variable=deb_pkg]distribution/deb/${CRATE_NAME}-${PGK_VERSION}-${UBUNTUNAME}-${ARCHNAME}.deb
+              echo "##vso[task.setvariable variable=deb_pkg]distribution/deb/${CRATE_NAME}-${PGK_VERSION}-${UBUNTUNAME}-${ARCHNAME}.deb"
             displayName: Create Debian Package
           - publish: $(Build.SourcesDirectory)/$(deb_pkg)
             artifact: Deb_Pkg
