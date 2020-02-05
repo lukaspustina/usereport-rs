@@ -217,8 +217,10 @@ stages:
           matrix:
             centerdevice:
               package_cloud_token: $(PACKAGECLOUD_API_TOKEN_CENTERDEVICE)
+              package_cloud_repo: centerdevice/infrastructure
             lukas:
               package_cloud_token: $(variables.PACKAGECLOUD_API_TOKEN_LUKAS)
+              package_cloud_repo: lukaspustina/opensource
         steps:
           - task: UseRubyVersion@0
             inputs:
@@ -235,10 +237,11 @@ stages:
             displayName: "Download Debian Package"
           - script: |
               ls -al $BUILD_ARTIFACTSTAGINGDIRECTORY && \
-              package_cloud push centerdevice/infrastructure/ubuntu/bionic ${BUILD_ARTIFACTSTAGINGDIRECTORY}/*.deb
+              package_cloud push ${PACKAGECLOUD_REPO}/ubuntu/bionic ${BUILD_ARTIFACTSTAGINGDIRECTORY}/*.deb
             displayName: 'Upload Debian Package to PackageCloud'
             env:
               PACKAGECLOUD_TOKEN: $(package_cloud_token)
+              PACKAGECLOUD_REPO: $(package_cloud_repo)
       - job: 'Publish_To_Crates_Io'
         displayName: "Publish to crates.io"
         steps:
