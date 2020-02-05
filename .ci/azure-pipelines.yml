@@ -159,7 +159,7 @@ stages:
           - script: cargo build --all --all-features --release
             displayName: Cargo build Release
           - script: |
-              PGK_VERSION="0.0.0" && \
+              PGK_VERSION="${BUILD_SOURCEBRANCHNAME:-unversioned}" && \
               cd distribution/deb && \
               BIN_DIR=../../target/release ARCH=${ARCHNAME} VERSION=${PGK_VERSION} DIST=${UBUNTUNAME} make package && \
               echo "##vso[task.setvariable variable=deb_pkg]distribution/deb/${CRATE_BIN_NAME}-${PGK_VERSION}-${UBUNTUNAME}-${ARCHNAME}.deb"
@@ -219,7 +219,7 @@ stages:
               package_cloud_token: $(PACKAGECLOUD_API_TOKEN_CENTERDEVICE)
               package_cloud_repo: centerdevice/infrastructure
             lukas:
-              package_cloud_token: $(variables.PACKAGECLOUD_API_TOKEN_LUKAS)
+              package_cloud_token: $(PACKAGECLOUD_API_TOKEN_LUKAS)
               package_cloud_repo: lukaspustina/opensource
         steps:
           - task: UseRubyVersion@0
