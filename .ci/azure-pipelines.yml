@@ -229,7 +229,7 @@ stages:
             displayName: "Download Debian Package"
           - script: |
               ls -al $BUILD_ARTIFACTSTAGINGDIRECTORY && \
-              package_cloud push centerdevice/infrastructure/ubuntu/bionic ${BUILD_ARTIFACTSTAGINGDIRECTORY}/*.deb --verbose
+              package_cloud push centerdevice/infrastructure/ubuntu/bionic ${BUILD_ARTIFACTSTAGINGDIRECTORY}/*.deb
             displayName: 'Upload Debian Package to PackageCloud'
             env:
               PACKAGECLOUD_TOKEN: $(PACKAGECLOUD_API_TOKEN_CENTERDEVICE)
