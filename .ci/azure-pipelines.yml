@@ -171,6 +171,7 @@ stages:
   - stage: Publish_Release
     displayName: "Publish Release"
     dependsOn: Build_Release_Artefacts
+    # condition: startsWith(variables['build.sourceBranch'], 'refs/tags/')
     jobs:
       - job: 'Publish_To_GitHub'
         displayName: "Publish to GitHub"
@@ -209,4 +210,27 @@ stages:
               isPreRelease: false
               addChangeLog: true
               compareWith: 'lastFullRelease'
+      - job: 'Publish_To_PackageCloud'
+        displayName: "Publish to PackageCloud - CenterDevice"
+        # condition: startsWith(variables['build.sourceBranch'], 'refs/tags/')
+        steps:
+          - task: UseRubyVersion@0
+            inputs:
+              versionSpec: '>= 2.4'
+              addToPath: true
+            displayName: "Install Ruby"
+          - script: gem install package_cloud
+            displayName: 'Install PackageCloud CLI'
+          - task: DownloadPipelineArtifact@2
+            inputs:
+              buildType: 'current'
+              artifactName: 'Deb_Pkg'
+              targetPath: '$(Build.ArtifactStagingDirectory)' 
+            displayName: "Download Debian Package"
+          - script: |
+              ls -al $BUILD_ARTIFACTSTAGINGDIRECTORY && \
+              package_cloud push centerdevice/infrastructure/ubuntu/bionic ${BUILD_ARTIFACTSTAGINGDIRECTORY}/*.deb
+            displayName: 'Upload Debian Package to PackageCloud'
+            env:
+              PACKAGECLOUD_TOKEN: $(PACKAGECLOUD_API_TOKEN_CENTERDEVICE)
 
