@@ -229,6 +229,8 @@ stages:
               artifactName: 'Deb_Pkg'
               targetPath: '$(Build.ArtifactStagingDirectory)' 
             displayName: "Download Debian Package"
-          - script: package_cloud push centerdevice/infrastructure/ubuntu/bionic "$BUILD_ARTIFACTSTAGINGDIRECTORY/*bionic*.deb"
+          - script: |
+              ls -al $BUILD_ARTIFACTSTAGINGDIRECTORY && \
+              package_cloud push centerdevice/infrastructure/ubuntu/bionic ${BUILD_ARTIFACTSTAGINGDIRECTORY}/${CRATE_BIN_NAME}*bionic*.deb
             displayName: 'Upload Debian Package to PackageCloud'
 
