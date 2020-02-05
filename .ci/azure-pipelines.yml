@@ -211,14 +211,14 @@ stages:
               addChangeLog: true
               compareWith: 'lastFullRelease'
       - job: 'Publish_To_PackageCloud'
-        displayName: "Publish to PackageCloud - CenterDevice"
+        displayName: "Publish to PackageCloud"
         # condition: startsWith(variables['build.sourceBranch'], 'refs/tags/')
         strategy:
           matrix:
             centerdevice:
-              package_cloud_token: ${{ variables.PACKAGECLOUD_API_TOKEN_CENTERDEVICE }}
+              package_cloud_token: $(PACKAGECLOUD_API_TOKEN_CENTERDEVICE)
             lukas:
-              package_cloud_token: ${{ variables.PACKAGECLOUD_API_TOKEN_LUKAS }}
+              package_cloud_token: $(variables.PACKAGECLOUD_API_TOKEN_LUKAS)
         steps:
           - task: UseRubyVersion@0
             inputs:
