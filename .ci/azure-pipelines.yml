@@ -213,6 +213,8 @@ stages:
       - job: 'Publish_To_PackageCloud'
         displayName: "Publish to PackageCloud - CenterDevice"
         # condition: startsWith(variables['build.sourceBranch'], 'refs/tags/')
+        variables:
+          PACKAGECLOUD_TOKEN: $(PACKAGECLOUD_API_TOKEN_CENTERDEVICE)
         steps:
           - task: UseRubyVersion@0
             inputs:
@@ -228,7 +230,5 @@ stages:
               targetPath: '$(Build.ArtifactStagingDirectory)' 
             displayName: "Download Debian Package"
           - script: package_cloud push centerdevice/infrastructure/ubuntu/bionic "$BUILD_ARTIFACTSTAGINGDIRECTORY/*bionic*.deb"
-            variables:
-              PACKAGECLOUD_TOKEN: $(PACKAGECLOUD_API_TOKEN_CENTERDEVICE)
             displayName: 'Upload Debian Package to PackageCloud'
 
