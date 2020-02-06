@@ -158,9 +158,10 @@ stages:
           - template: templates/version_information.yml
           - script: cargo build --all --all-features --release
             displayName: Cargo build Release
+          # `echo` is shell built-in and does not pick up env vars on the same cli line
           - script: |
               (cd .distribution/deb && ARCH=${ARCHNAME} DIST=${UBUNTUNAME} make package) && \
-              DEB_PKG=$(ls .distribution/deb/*.deb) echo "##vso[task.setvariable variable=deb_pkg]${DEB_PKG}"
+              DEB_PKG=$(ls .distribution/deb/*.deb) && echo "##vso[task.setvariable variable=deb_pkg]${DEB_PKG}"
             displayName: Create Debian Package
           - publish: $(Build.SourcesDirectory)/$(deb_pkg)
             artifact: Deb_Pkg
@@ -250,5 +251,5 @@ stages:
           - script: cargo publish
             displayName: "Cargo publish"
             env:
-              CARGO_REGISTRY_TOKEN: $(CARGO_REGISTRY_TOKEN_LUKAS)
+              CARGO_REGISTRY_TOKEN: $(CARGO_REGISTRY_TOKEN)
 
