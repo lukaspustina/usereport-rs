@@ -160,10 +160,8 @@ stages:
             displayName: Cargo build Release
           # PGK_VERSION must be x.y.z because it is used for the Debian package version meta information
           - script: |
-              PGK_VERSION="${BUILD_SOURCEBRANCHNAME:-0.0.0}" && \
-              cd distribution/deb && \
-              BIN_DIR=../../target/release ARCH=${ARCHNAME} VERSION=${PGK_VERSION} DIST=${UBUNTUNAME} make package && \
-              echo "##vso[task.setvariable variable=deb_pkg]distribution/deb/${CRATE_BIN_NAME}-${PGK_VERSION}-${UBUNTUNAME}-${ARCHNAME}.deb"
+              (cd .distribution/deb && ARCH=${ARCHNAME} DIST=${UBUNTUNAME} make package) && \
+              DEB_PKG=$(ls .distribution/deb/*.deb) echo "##vso[task.setvariable variable=deb_pkg]${DEB_PKG}"
             displayName: Create Debian Package
           - publish: $(Build.SourcesDirectory)/$(deb_pkg)
             artifact: Deb_Pkg
