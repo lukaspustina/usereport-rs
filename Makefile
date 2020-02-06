@@ -19,5 +19,16 @@ fmt:
 audit:
 	cargo audit --deny-warnings
 
+release: release-bump all
+	git commit -am "Bump to version $$(cargo read-manifest | jq .version)"
+	git tag v$$(cargo read-manifest | jq -r .version)
+
+release-bump:
+	cargo bump
+
+publish:
+	git push && git push --tags
+
+
 .PHONY:
 
