@@ -170,7 +170,7 @@ stages:
   - stage: Publish_Release
     displayName: "Publish Release"
     dependsOn: Build_Release_Artefacts
-    # condition: startsWith(variables['build.sourceBranch'], 'refs/tags/')
+    condition: startsWith(variables['build.sourceBranch'], 'refs/tags/')
     jobs:
       - job: 'Publish_To_GitHub'
         displayName: "Publish to GitHub"
