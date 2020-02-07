@@ -6,12 +6,12 @@
 
 `usereport` comes with bundled configuration files for Linux and macOS, respectively, that are built into the corresponding binary. The configuration files contain pre-defined selection of performance measurement and analysis tools. Please see the `contrib` directory for the configuration tools. In case of Linux, several profiles allow for statistic gathering depending on the context of your analysis, i.e., `mem` for virtual memory and `net` for network analyses. By using `usereport` you do not remember the exact tools and their parameter to conduct a performance analysis. Furthermore, each tool configuration contains descriptions of the output to ease interpretation of results, e.g., meaning and metrics of the gathered values, as well as links to further information.
 
-The output format of `usereport` is Markdown or HTML for convenient reading. There's also JSON output avaliable for automatic processing or you can define your own output format using [Handlebars templates](https://handlebarsjs.com). The following screenshots present parts of the HTML output created by `usereport` running the `net` profile performance analysis on Linux -- see the full report [here](docs/linux-net-usereport.html).
+The output format of `usereport` is Markdown or HTML for convenient reading. There's also JSON output avaliable for automatic processing or you can define your own output format using [Handlebars templates](https://handlebarsjs.com). The following screenshots present parts of the HTML output created by `usereport` running the `net` profile performance analysis on Linux -- see the full report [here](https://htmlpreview.github.io/?https://github.com/lukaspustina/usereport-rs/blob/master/docs/linux-net-usereport.html).
 
 <p float="center">
 <center>
-  <a href="docs/linux-net-usereport-html-1.jpg"><img src="docs/linux-net-usereport-html-1.jpg" width="500" /></a>
-  <a href="docs/linux-net-usereport-html-2.jpg"><img src="docs/linux-net-usereport-html-2.jpg" width="500" /></a>
+  <a href="docs/linux-net-usereport-html-1.jpg"><img src="https://raw.githubusercontent.com/lukaspustina/usereport-rs/master/docs/linux-net-usereport-html-1.jpg" /></a>
+  <a href="docs/linux-net-usereport-html-2.jpg"><img src="https://raw.githubusercontent.com/lukaspustina/usereport-rs/master/docs/linux-net-usereport-html-2.jpg" /></a>
 </center>
 </p>
 
@@ -78,17 +78,17 @@ sudo apt-get install usereport
 
 There are binaries available at the GitHub [Release Page](https://github.com/lukaspustina/usereport-rs/releases). The binaries get compiled on Ubuntu Bionic.
 
-### Sources
+### From Source
 
 Please install Rust via [rustup](https://www.rustup.rs) and then run
 
 ```sh
-cargo install usereport-rs
+cargo install --all-features usereport-rs
 ```
 
 ## Postcardware
 
-You're free to use _usereport_. If you find it useful, I would highly appreciate you sending me a postcard from your hometown mentioning how you use _usereport_. My work address is
+You're free to use `usereport`. If you find it useful, I would highly appreciate you sending me a postcard from your hometown mentioning how you use `usereport`. My work address is
 
 ```
 Lukas Pustina
