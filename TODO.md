@@ -28,6 +28,13 @@
 * [X] Correctly parse command args in ", e.g. sh -c "one | two"
 * [X] Add hbs helper which replaces \n with output format appropriate line break
 * [X] Preserve order of commands in output according to profile order
+* [X] Re-work API
+    * [X] https://github.com/rust-lang/api-guidelines
+    * [X] https://rust-lang.github.io/api-guidelines/flexibility.html#functions-minimize-assumptions-about-parameters-by-using-generics-c-generic
+    * [X] https://deterministic.space/elegant-apis-in-rust.html
+
+## Before 1.0.0
+
 * [ ] Create linux and macos configuration
     * macOS
         * sw_vers
@@ -36,10 +43,6 @@
     * Linux
         * https://www.cyberciti.biz/tips/top-linux-monitoring-tools.html
         * http://www.brendangregg.com/USEmethod/use-linux.html
-* [X] Re-work API
-    * [X] https://github.com/rust-lang/api-guidelines
-    * [X] https://rust-lang.github.io/api-guidelines/flexibility.html#functions-minimize-assumptions-about-parameters-by-using-generics-c-generic
-    * [X] https://deterministic.space/elegant-apis-in-rust.html
 * [ ] Activate deny missing docs and add docs
     * [ ] https://rust-lang.github.io/api-guidelines/documentation.html
 

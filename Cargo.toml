@@ -1,6 +1,6 @@
 [package]
 name = "usereport-rs"
-version = "0.0.1"
+version = "0.1.0"
 authors = ["Lukas Pustina <lukas@pustina.net>"]
 description = "Collect system information for the first 60 seconds of a performance analysis"
 repository = "https://github.com/lukaspustina/usereport-es.git"
