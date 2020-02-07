@@ -2,17 +2,22 @@
 
 [![Linux & OS X Build Status](https://dev.azure.com/lukaspustina/usereport-rs/_apis/build/status/lukaspustina.usereport-rs?branchName=master)](https://dev.azure.com/lukaspustina/usereport-rs/_build/latest?definitionId=3&branchName=master) [![](https://img.shields.io/crates/v/usereport-rs.svg)](https://crates.io/crates/usereport-rs) [![](https://docs.rs/usereport-rs/badge.svg)](https://docs.rs/crate/usereport-rs/) [![MIT licensed](https://img.shields.io/badge/license-MIT-blue.svg?label=License)](./LICENSE)
 
-`usereport` gathers system statistics on the localhost that may be used as the base information for an performance analysis following the [USE methodology](http://www.brendangregg.com/usemethod.html)
-created by Brendan Gregg. Please also see [this blog post](http://techblog.netflix.com/2015/11/linux-performance-analysis-in-60s.html) by Brendan for an introduction to USE and the statistics gathered by this tool.
+`usereport` gathers system performance statistics on the localhost that may be used as the base information for a performance analysis following the [USE methodology](http://www.brendangregg.com/usemethod.html) created by Brendan Gregg. Please see [this blog post](http://techblog.netflix.com/2015/11/linux-performance-analysis-in-60s.html) by Brendan for an introduction to USE and the statistics gathered by this tool. `usereport` tool is part of my base server installation. I use it everywhere. It allows me to quickly assess performance characteristics in case of performance issues. 
 
-This tool is part of my base server installation. I use it everywhere. It allows me to quickly assess performance characteristics in case of performance issues. The output format is Markdown or HTML for convenient reading. There's also JSON output possible for automatic processing or you can define you're own output format using [Handlebars templates](https://handlebarsjs.com).
+`usereport` comes with bundled configuration files for Linux and macOS, respectively, that are built into the corresponding binary. The configuration files contain pre-defined selection of performance measurement and analysis tools. Please see the `contrib` directory for the configuration tools. In case of Linux, several profiles allow for statistic gathering depending on the context of your analysis, i.e., `mem` for virtual memory and `net` for network analyses. By using `usereport` you do not remember the exact tools and their parameter to conduct a performance analysis. Furthermore, each tool configuration contains descriptions of the output to ease interpretation of results, e.g., meaning and metrics of the gathered values, as well as links to further information.
+
+The output format of `usereport` is Markdown or HTML for convenient reading. There's also JSON output avaliable for automatic processing or you can define your own output format using [Handlebars templates](https://handlebarsjs.com). The following screenshots present parts of the HTML output created by `usereport` running the `net` profile performance analysis on Linux -- see the full report [here](docs/linux-net-usereport.html).
+
+<p float="center">
+<center>
+  <a href="docs/linux-net-usereport-html-1.jpg"><img src="docs/linux-net-usereport-html-1.jpg" width="500" /></a>
+  <a href="docs/linux-net-usereport-html-2.jpg"><img src="docs/linux-net-usereport-html-2.jpg" width="500" /></a>
+</center>
+</p>
 
 The main functionality is exposed as a Rust library to be used in your own projects at your convenience.
 
-
 ## Command Line Tool
-
-There are default configurations for Linux and macOS, respectively, that are built into the corresponding binary. Please see the `contrib` directory. In case of Linux, several profiles have been defined that allow for statistic gathering depending on the context of your analysis, i.e., `mem` for virtual memory and `net` for network analyses.
 
 ### Help
 
