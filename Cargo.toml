@@ -12,6 +12,8 @@ categories = ["command-line-utilities" ]
 include = [
   "README.md",
   "LICENSE",
+  "contrib/*.hbs",
+  "contrib/*.conf",
   "**/*.rs",
   "Cargo.toml",
 ]
