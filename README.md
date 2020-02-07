@@ -16,8 +16,8 @@ There are default configurations for Linux and macOS, respectively, that are bui
 
 ### Help
 
-```bash
-usereport 0.1.0
+```sh
+usereport 0.1.1
 Lukas Pustina <lukas@pustina.net>
 Collect system information for the first 60 seconds of a performance analysis
 
@@ -53,7 +53,7 @@ ARGS:
 
 ### Example on Linux
 
-```bash
+```sh
 usereport --profile mem --progress --output html
 ```
 
@@ -64,7 +64,7 @@ usereport --profile mem --progress --output html
 
 Please add my [PackageCloud](https://packagecloud.io/lukaspustina/opensource) open source repository and install _usereport_ via apt.
 
-```bash
+```sh
 curl -s https://packagecloud.io/install/repositories/lukaspustina/opensource/script.deb.sh | sudo bash
 sudo apt-get install usereport
 ```
@@ -77,7 +77,7 @@ There are binaries available at the GitHub [Release Page](https://github.com/luk
 
 Please install Rust via [rustup](https://www.rustup.rs) and then run
 
-```bash
+```sh
 cargo install usereport-rs
 ```
 
