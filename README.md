@@ -22,7 +22,7 @@ The main functionality is exposed as a Rust library to be used in your own proje
 ### Help
 
 ```sh
-usereport 0.1.1
+usereport 0.1.2
 Lukas Pustina <lukas@pustina.net>
 Collect system information for the first 60 seconds of a performance analysis
 
@@ -59,7 +59,7 @@ ARGS:
 ### Example on Linux
 
 ```sh
-usereport --profile mem --progress --output html
+usereport --profile mem --progress --repetitions 3 --output html -- +mpstat
 ```
 
 
