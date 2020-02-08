@@ -3,6 +3,7 @@ BIN_NAME=usereport
 
 CARGO_FILE ?= ../../Cargo.toml
 BIN_DIR ?= ../../target/release
+SRC_DIR ?= ../..
 VERSION ?= $(shell sed -n 's/^version.*=.*"\(.*\)"/\1/p' $(CARGO_FILE))
 ARCH ?= amd64
 DIST ?= bionic
