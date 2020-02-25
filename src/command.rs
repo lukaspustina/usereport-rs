@@ -142,10 +142,10 @@ impl Command {
 
         match wait {
             Ok(Some(status)) if status.success() => {
-                trace!("process successfully finished as {:?}", status);
+                debug!("{:?} process successfully finished as {:?}", args, status);
                 let mut stdout = String::new();
                 let _ = p.stdout.as_ref().unwrap().read_to_string(&mut stdout); // TODO: unwrap is unsafe
-                debug!("stdout '{}'", stdout);
+                trace!("stdout '{}'", stdout);
 
                 CommandResult::Success {
                     command: self,
@@ -154,10 +154,10 @@ impl Command {
                 }
             }
             Ok(Some(status)) => {
-                trace!("process successfully finished as {:?}", status);
+                debug!("{:?} process finished as {:?}", args, status);
                 let mut stdout = String::new();
                 let _ = p.stdout.as_ref().unwrap().read_to_string(&mut stdout); // TODO: unwrap is unsafe
-                debug!("stdout '{}'", stdout);
+                trace!("stdout '{}'", stdout);
                 CommandResult::Failed {
                     command: self,
                     run_time_ms,
@@ -165,7 +165,7 @@ impl Command {
                 }
             }
             Ok(None) => {
-                trace!("process timed out and will be killed");
+                debug!("{:?} process timed out and will be killed", args);
                 self.terminate(&mut p);
                 CommandResult::Timeout {
                     command: self,
@@ -173,7 +173,7 @@ impl Command {
                 }
             }
             Err(err) => {
-                trace!("process failed '{:?}'", err);
+                debug!("{:?} process failed '{:?}'", args, err);
                 self.terminate(&mut p);
                 CommandResult::Error {
                     command: self,
