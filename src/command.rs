@@ -1,10 +1,13 @@
 use chrono::Local;
 use log::{debug, trace};
 use serde::{Deserialize, Serialize};
-use std::{io::Read, rc::Rc, time::Duration};
+use std::{
+    io::{Read, Seek, SeekFrom},
+    rc::Rc,
+    time::Duration,
+};
 use subprocess::{Popen, PopenConfig, Redirection};
 use tempfile;
-use std::io::{Seek, SeekFrom};
 
 /// Run a CLI command and store its stdout.
 ///
@@ -42,26 +45,26 @@ use std::io::{Seek, SeekFrom};
 /// ```
 #[derive(Debug, Deserialize, PartialEq, Eq, Serialize, Clone)]
 pub struct Command {
-    pub(crate) name: String,
-    pub(crate) title: Option<String>,
+    pub(crate) name:        String,
+    pub(crate) title:       Option<String>,
     pub(crate) description: Option<String>,
-    pub(crate) command: String,
+    pub(crate) command:     String,
     #[serde(rename = "timeout")]
     /// Timeout for command execution, defaults to 1 sec if not set
     pub(crate) timeout_sec: Option<u64>,
-    pub(crate) links: Option<Vec<Link>>,
+    pub(crate) links:       Option<Vec<Link>>,
 }
 
 impl Command {
     /// Create new command with default values
     pub fn new<T: Into<String>>(name: T, command: T) -> Command {
         Command {
-            name: name.into(),
-            title: None,
+            name:        name.into(),
+            title:       None,
             description: None,
-            command: command.into(),
+            command:     command.into(),
             timeout_sec: None,
-            links: None,
+            links:       None,
         }
     }
 
@@ -139,14 +142,21 @@ impl Command {
         let wait = p.wait_timeout(Duration::new(self.timeout_sec.unwrap_or(1), 0));
         let run_time_ms = (Local::now() - start_time).num_milliseconds() as u64;
 
-        if let Err(err) = Rc::get_mut(&mut tmpfile).unwrap().seek(SeekFrom::Start(0)) { // TODO: unwrap is unsafe
+        if let Err(err) = Rc::get_mut(&mut tmpfile).unwrap().seek(SeekFrom::Start(0)) {
+            // TODO: unwrap is unsafe
             return self.fail(err);
         };
         match wait {
             Ok(Some(status)) if status.success() => {
-                debug!("{:?} process successfully finished as {:?} with {} bytes output", args, status, tmpfile.metadata().unwrap().len());
+                debug!(
+                    "{:?} process successfully finished as {:?} with {} bytes output",
+                    args,
+                    status,
+                    tmpfile.metadata().unwrap().len()
+                );
                 let mut stdout = String::new();
-                if let Err(err) = Rc::get_mut(&mut tmpfile).unwrap().read_to_string(&mut stdout) { // TODO: unwrap is unsafe
+                if let Err(err) = Rc::get_mut(&mut tmpfile).unwrap().read_to_string(&mut stdout) {
+                    // TODO: unwrap is unsafe
                     return self.fail(err);
                 };
                 trace!("stdout '{}'", stdout);
@@ -160,7 +170,8 @@ impl Command {
             Ok(Some(status)) => {
                 debug!("{:?} process finished as {:?}", args, status);
                 let mut stdout = String::new();
-                if let Err(err) = Rc::get_mut(&mut tmpfile).unwrap().read_to_string(&mut stdout) { // TODO: unwrap is unsafe
+                if let Err(err) = Rc::get_mut(&mut tmpfile).unwrap().read_to_string(&mut stdout) {
+                    // TODO: unwrap is unsafe
                     return self.fail(err);
                 };
                 trace!("stdout '{}'", stdout);
@@ -183,7 +194,7 @@ impl Command {
                 self.terminate(&mut p);
                 CommandResult::Error {
                     command: self,
-                    reason: err.to_string(),
+                    reason:  err.to_string(),
                 }
             }
         }
@@ -193,7 +204,7 @@ impl Command {
     fn fail<T: ToString>(self, reason: T) -> CommandResult {
         CommandResult::Error {
             command: self,
-            reason: reason.to_string(),
+            reason:  reason.to_string(),
         }
     }
 
@@ -210,14 +221,14 @@ impl Command {
 #[derive(Debug, PartialEq, Eq, Deserialize, Serialize, Clone)]
 pub struct Link {
     pub(crate) name: String,
-    pub(crate) url: String,
+    pub(crate) url:  String,
 }
 
 impl Link {
     pub fn new<T: Into<String>>(name: T, url: T) -> Link {
         Link {
             name: name.into(),
-            url: url.into(),
+            url:  url.into(),
         }
     }
 
@@ -231,15 +242,15 @@ impl Link {
 pub enum CommandResult {
     /// `Command` has been executed successfully and `String` contains stdout.
     Success {
-        command: Command,
+        command:     Command,
         run_time_ms: u64,
-        stdout: String,
+        stdout:      String,
     },
     /// `Command` failed to execute
     Failed {
-        command: Command,
+        command:     Command,
         run_time_ms: u64,
-        stdout: String,
+        stdout:      String,
     },
     /// `Command` execution exceeded specified timeout
     Timeout { command: Command, run_time_ms: u64 },
@@ -259,9 +270,9 @@ mod tests {
         init();
 
         #[cfg(target_os = "macos")]
-            let command = Command::new("true", r#"/usr/bin/true"#);
+        let command = Command::new("true", r#"/usr/bin/true"#);
         #[cfg(target_os = "linux")]
-            let command = Command::new("true", r#"/bin/true"#);
+        let command = Command::new("true", r#"/bin/true"#);
 
         let res = command.exec();
 
@@ -275,9 +286,9 @@ mod tests {
         init();
 
         #[cfg(target_os = "macos")]
-            let command = Command::new("false", r#"/usr/bin/false"#);
+        let command = Command::new("false", r#"/usr/bin/false"#);
         #[cfg(target_os = "linux")]
-            let command = Command::new("false", r#"/bin/false"#);
+        let command = Command::new("false", r#"/bin/false"#);
 
         let res = command.exec();
 
