@@ -1,9 +1,8 @@
 use crate::{renderer, Analysis, Command, Config, Context, Renderer, ThreadRunner};
+use anyhow::{anyhow, Context as _};
 use atty;
-use exitfailure::ExitFailure;
-use failure::{format_err, ResultExt};
-use indicatif::{ProgressBar, ProgressDrawTarget, ProgressStyle};
-use prettytable::{cell, format, row, Cell, Row, Table};
+use indicatif::{ProgressBar, ProgressStyle};
+use prettytable::{format, row, Cell, Row, Table};
 use std::{
     collections::HashSet,
     fs::File,
@@ -66,9 +65,9 @@ struct Opt {
 }
 
 impl Opt {
-    pub fn validate(self) -> Result<Self, failure::Error> {
+    pub fn validate(self) -> anyhow::Result<Self> {
         if self.output == OutputType::Hbs && self.output_template.is_none() {
-            return Err(format_err!("Output hbs requires output template"));
+            return Err(anyhow!("Output hbs requires output template"));
         }
 
         Ok(self)
@@ -84,7 +83,7 @@ pub enum OutputType {
 }
 
 impl FromStr for OutputType {
-    type Err = failure::Error;
+    type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_ref() {
@@ -92,12 +91,12 @@ impl FromStr for OutputType {
             "html" => Ok(OutputType::Html),
             "json" => Ok(OutputType::Json),
             "markdown" => Ok(OutputType::Markdown),
-            _ => Err(format_err!("failed to parse {} as output type", s)),
+            _ => Err(anyhow!("failed to parse {} as output type", s)),
         }
     }
 }
 
-pub fn main() -> Result<(), ExitFailure> {
+pub fn main() -> anyhow::Result<()> {
     human_panic::setup_panic!();
     env_logger::init();
 
@@ -107,7 +106,7 @@ pub fn main() -> Result<(), ExitFailure> {
         .as_ref()
         .map(Config::from_file)
         .unwrap_or_else(|| Config::from_str(defaults::CONFIG))
-        .with_context(|_| "could not load configuration file")?;
+        .context("could not load configuration file")?;
     config.validate()?;
     let profile_name = opt.profile.as_ref().unwrap_or(&config.defaults.profile);
 
@@ -192,7 +191,7 @@ fn show_commands(config: &Config) {
     table.printstd();
 }
 
-fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> Result<(), ExitFailure> {
+fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> anyhow::Result<()> {
     let parallel = opt.parallel.unwrap_or(config.defaults.max_parallel_commands);
     let repetitions = opt.repetitions.unwrap_or(config.defaults.repetitions);
     let progress = is_show_progress(&opt);
@@ -215,7 +214,7 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> Result<(),
 
     renderer
         .render(&report, handle)
-        .with_context(|_| "failed to render report")?;
+        .context("failed to render report")?;
 
     Ok(())
 }
@@ -234,7 +233,7 @@ fn is_show_progress(opt: &Opt) -> bool {
     false
 }
 
-fn create_commands(opt: &Opt, config: &Config, profile_name: &str) -> Result<Vec<Command>, ExitFailure> {
+fn create_commands(opt: &Opt, config: &Config, profile_name: &str) -> anyhow::Result<Vec<Command>> {
     let (add_commands, remove_commands) = create_command_filter(&opt.filter_commands);
     let mut commands: Vec<Command> = config
         .profile(profile_name)
@@ -275,7 +274,7 @@ fn create_command_filter(command_spec: &[String]) -> (HashSet<&str>, HashSet<&st
 fn create_renderer<W: Write>(
     output_type: &OutputType,
     output_template: Option<&String>,
-) -> Result<Box<dyn Renderer<W>>, ExitFailure> {
+) -> anyhow::Result<Box<dyn Renderer<W>>> {
     let renderer: Box<dyn Renderer<W>> = match output_type {
         OutputType::Hbs => {
             let template_file = output_template.expect("output hbs requires output template");
@@ -302,9 +301,11 @@ fn create_runner(progress: bool, number_of_commands: usize) -> ThreadRunner {
 
 fn create_progress_bar(expected: usize) -> Sender<usize> {
     let (tx, rx): (Sender<usize>, Receiver<usize>) = mpsc::channel();
-    let dt = ProgressDrawTarget::stderr_nohz();
-    let pb = ProgressBar::with_draw_target(expected as u64, dt)
-        .with_style(ProgressStyle::default_bar().template("Running commands {bar:40.cyan/blue} {pos}/{len}"));
+    let pb = ProgressBar::new(expected as u64).with_style(
+        ProgressStyle::default_bar()
+            .template("Running commands {bar:40.cyan/blue} {pos}/{len}")
+            .expect("valid progress template"),
+    );
 
     let _ = std::thread::Builder::new().name("Progress".to_string()).spawn(move || {
         for _ in 0..expected {
@@ -317,7 +318,7 @@ fn create_progress_bar(expected: usize) -> Sender<usize> {
     tx
 }
 
-fn create_context(_opt: &Opt, _config: &Config, profile_name: &str) -> Result<Context, ExitFailure> {
+fn create_context(_opt: &Opt, _config: &Config, profile_name: &str) -> anyhow::Result<Context> {
     let mut context = Context::new()?;
     context.add("Profile", profile_name);
     context.add("Usereport version", env!("CARGO_PKG_VERSION"));

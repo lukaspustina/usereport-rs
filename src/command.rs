@@ -208,7 +208,7 @@ impl Command {
         }
     }
 
-    fn args(&self) -> Result<Vec<String>, shellwords::MismatchedQuotes> { shellwords::split(&self.command) }
+    fn args(&self) -> Result<Vec<String>, shell_words::ParseError> { shell_words::split(&self.command) }
 
     /// Panics
     fn terminate(&self, p: &mut Popen) {
