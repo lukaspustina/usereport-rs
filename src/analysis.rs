@@ -181,6 +181,32 @@ mod tests {
     }
 
     #[test]
+    fn run_with_real_command_produces_report() {
+        #[cfg(target_os = "macos")]
+        let cmd = Command::new("uname", r#"/usr/bin/uname -a"#).with_timeout(5u64);
+        #[cfg(target_os = "linux")]
+        let cmd = Command::new("uname", r#"/bin/uname -a"#).with_timeout(5u64);
+
+        let hostinfos = vec![cmd.clone()];
+        let commands = vec![cmd];
+        let tr = runner::ThreadRunner::new();
+        let analysis = Analysis::new(Box::new(tr), &hostinfos, &commands)
+            .with_repetitions(1)
+            .with_max_parallel_commands(64);
+        let context = Context::new();
+
+        let report = analysis.run(context).expect("analysis ok");
+
+        assert_eq!(report.hostinfo_results().len(), 1);
+        assert_eq!(report.command_results().len(), 1); // 1 repetition
+        assert_eq!(report.command_results()[0].len(), 1);
+        assert_that!(report.context().hostname(), not(eq("")));
+        assert_that!(report.hostinfo_results()[0], matches_pattern!(
+            crate::CommandResult::Success { .. }
+        ));
+    }
+
+    #[test]
     fn second_runner() {
         #[derive(Debug)]
         struct MyRunner {};

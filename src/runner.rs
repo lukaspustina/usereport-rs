@@ -112,6 +112,15 @@ pub mod thread {
                 // This should not happen as long as the child's tx is alive; if it happens, this is a valid reason
                 // to panic
                 let (seq, result) = rx.recv().expect("Failed to receive from child");
+                match &result {
+                    CommandResult::Timeout { command, .. } => {
+                        log::warn!("command '{}' timed out", command.name());
+                    }
+                    CommandResult::Error { command, reason } => {
+                        log::warn!("command '{}' errored: {}", command.name(), reason);
+                    }
+                    _ => {}
+                }
                 results.push((seq, result));
             }
 
@@ -156,6 +165,35 @@ pub mod thread {
             assert_eq!(results.len(), 2);
             assert_that!(results[0], matches_pattern!(CommandResult::Success {
                 stdout: contains_substring(expected),
+                ..
+            }));
+        }
+
+        /// Results must come back in the same order as the commands, regardless of which thread
+        /// finishes first. We use a sleep command as the first entry so it finishes last; the
+        /// parallel chunk runs both at once, so the order guarantee comes entirely from the sort.
+        #[test]
+        fn results_are_in_command_order() {
+            let commands = vec![
+                Command::new("slow", r#"/bin/sleep 0.1"#).with_timeout(5u64),
+                #[cfg(target_os = "macos")]
+                Command::new("fast", r#"/usr/bin/true"#).with_timeout(5u64),
+                #[cfg(target_os = "linux")]
+                Command::new("fast", r#"/bin/true"#).with_timeout(5u64),
+            ];
+
+            let r = ThreadRunner::new();
+            let results = r.run(&commands, 64).expect("run ok");
+
+            assert_eq!(results.len(), 2);
+            // First result must correspond to the slow command
+            assert_that!(results[0], matches_pattern!(CommandResult::Success {
+                command: matches_pattern!(Command { name: eq(&"slow".to_string()), .. }),
+                ..
+            }));
+            // Second result must correspond to the fast command
+            assert_that!(results[1], matches_pattern!(CommandResult::Success {
+                command: matches_pattern!(Command { name: eq(&"fast".to_string()), .. }),
                 ..
             }));
         }
