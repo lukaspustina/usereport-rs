@@ -276,12 +276,12 @@ fn create_renderer<W: Write>(
     let renderer: Box<dyn Renderer<W>> = match output_type {
         OutputType::Hbs => {
             let template_file = output_template.expect("output hbs requires output template");
-            let renderer = renderer::HbsRenderer::from_file(template_file)?;
+            let renderer = renderer::TemplateRenderer::from_file(template_file)?;
             Box::new(renderer)
         }
-        OutputType::Html => Box::new(renderer::HbsRenderer::new(defaults::HTML_TEMPLATE)),
+        OutputType::Html => Box::new(renderer::TemplateRenderer::new(defaults::HTML_TEMPLATE)),
         OutputType::Json => Box::new(renderer::JsonRenderer::new()),
-        OutputType::Markdown => Box::new(renderer::HbsRenderer::new(defaults::MD_TEMPLATE)),
+        OutputType::Markdown => Box::new(renderer::TemplateRenderer::new(defaults::MD_TEMPLATE)),
     };
 
     Ok(renderer)
@@ -327,13 +327,13 @@ fn create_context(_opt: &Opt, _config: &Config, profile_name: &str) -> Context {
 #[cfg(target_os = "macos")]
 mod defaults {
     pub(crate) static CONFIG: &str = include_str!("../../contrib/osx.conf");
-    pub(crate) static HTML_TEMPLATE: &str = include_str!("../../contrib/html.hbs");
-    pub(crate) static MD_TEMPLATE: &str = include_str!("../../contrib/markdown.hbs");
+    pub(crate) static HTML_TEMPLATE: &str = include_str!("../../contrib/html.j2");
+    pub(crate) static MD_TEMPLATE: &str = include_str!("../../contrib/markdown.j2");
 }
 
 #[cfg(target_os = "linux")]
 mod defaults {
     pub(crate) static CONFIG: &str = include_str!("../../contrib/linux.conf");
-    pub(crate) static HTML_TEMPLATE: &str = include_str!("../../contrib/html.hbs");
-    pub(crate) static MD_TEMPLATE: &str = include_str!("../../contrib/markdown.hbs");
+    pub(crate) static HTML_TEMPLATE: &str = include_str!("../../contrib/html.j2");
+    pub(crate) static MD_TEMPLATE: &str = include_str!("../../contrib/markdown.j2");
 }

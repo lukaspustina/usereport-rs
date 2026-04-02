@@ -1,0 +1,80 @@
+# Use Report - {{ context.hostname }}
+
+Date: `{{ context.date_time | rfc2822 }}`
+Hostname: `{{ context.hostname }}`
+Host OS: `{{ context.uname }}`
+
+## Run Configuration
+
+{%- for key, value in context.more | items %}
+{{ key }}: {{ value }}
+{%- endfor %}
+Repetitions: {{ repetitions }}
+Parallelism: {{ max_parallel_commands }}
+
+## Host Information
+{% for result in hostinfo_results %}
+{%- if result.Success %}
+{%- set s = result.Success %}
+### {{ s.command.title or s.command.name }}
+
+```sh
+{{ s.stdout -}}
+```
+
+<small>
+Command: `{{ s.command.command }}` [{{ s.run_time_ms }} ms]
+{{ s.command.description -}}
+{%- for link in s.command.links or [] %} [[{{ link.name }}]({{ link.url }})]{% endfor %}
+</small>
+
+{% endif -%}
+{%- endfor %}
+{% for run in command_results %}
+## Command Results - Run {{ loop.index }}
+{% for result in run %}
+{%- if result.Success %}
+{%- set s = result.Success %}
+### {{ s.command.title or s.command.name }}
+
+```sh
+{{ s.stdout -}}
+```
+
+<small>
+Command: `{{ s.command.command }}` [{{ s.run_time_ms }} ms]
+{{ s.command.description -}}
+{%- for link in s.command.links or [] %} [[{{ link.name }}]({{ link.url }})]{% endfor %}
+</small>
+{%- endif -%}
+{%- if result.Failed %}
+{%- set s = result.Failed %}
+### {{ s.command.title or s.command.name }}: Failed
+
+```sh
+{{ s.stdout if s.stdout else "  " -}}
+```
+
+<small>
+Command: `{{ s.command.command }}` [{{ s.run_time_ms }} ms]
+{{ s.command.description -}}
+{%- for link in s.command.links or [] %} [[{{ link.name }}]({{ link.url }})]{% endfor %}
+</small>
+{%- endif -%}
+{%- if result.Timeout %}
+{%- set s = result.Timeout %}
+### {{ s.command.title or s.command.name }}: Timed out
+Command: `{{ s.command.command }}` [{{ s.run_time_ms }} ms]
+{%- endif -%}
+{%- if result.Error %}
+{%- set s = result.Error %}
+### {{ s.command.title or s.command.name }}: Error
+Reason: {{ s.reason }}
+Command: `{{ s.command.command }}`
+{%- endif %}
+{%- endfor %}
+{%- endfor %}
+
+---
+
+<small>Please see [Linux Performance Analysis in 60,000 Milliseconds](https://medium.com/netflix-techblog/linux-performance-analysis-in-60-000-milliseconds-accc10403c55) for details about the individual reports.</small>

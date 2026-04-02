@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css"
+          integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh" crossorigin="anonymous">
+
+    <title>Use Report - {{ context.hostname }} on {{ context.date_time | rfc2822 }}</title>
+</head>
+<body>
+<div class="container-fluid">
+    <h1>Use Report - {{ context.hostname }} on {{ context.date_time | rfc2822 }}</h1>
+    <p>
+    <ul class="list-group">
+        <li class="list-group-item">Date: <code>{{ context.date_time | rfc2822 }}</code></li>
+        <li class="list-group-item">Hostname: <code>{{ context.hostname }}</code></li>
+        <li class="list-group-item">Host OS: <code>{{ context.uname }}</code></li>
+    </ul>
+    </p>
+    <h2>Run Configuration</h2>
+    <p>
+    <ul class="list-group">
+        {%- for key, value in context.more | items %}
+            <li class="list-group-item">{{ key }}: {{ value }}</li>
+        {%- endfor %}
+        <li class="list-group-item">Repetitions: {{ repetitions }}</li>
+        <li class="list-group-item">Parallelism: {{ max_parallel_commands }}</li>
+    </ul>
+    </p>
+
+    <div>
+        <h2>Host Information</h2>
+        <ul class="list-group">
+            {% for result in hostinfo_results %}
+                <li class="list-group-item">
+                    {%- if result.Success %}
+                    {%- set s = result.Success %}
+                        <h3>{{ s.command.title or s.command.name }}</h3>
+                        <div class="border border-secondary rounded">
+                            <pre>{{ s.stdout }}</pre>
+                        </div>
+                        <p><small>
+                            {%- if s.command.description %}
+                                <p>{{ s.command.description | replace("\n", "<br/>") }}</p>
+                            {%- endif %}
+                            Command: <code>{{ s.command.command }}</code> [{{ s.run_time_ms }} ms]<br/>
+                            {%- for link in s.command.links or [] %}[<a href="{{ link.url }}">{{ link.name }}</a>] {% endfor %}
+                        </small></p>
+                    {%- endif %}
+                    {%- if result.Failed %}
+                    {%- set s = result.Failed %}
+                        <h3 class="text-warning">{{ s.command.title or s.command.name }}: Failed</h3>
+                        <div class="border border-secondary rounded">
+                            <pre>{{ s.stdout }}</pre>
+                        </div>
+                        <p><small>
+                            {%- if s.command.description %}
+                                <p>{{ s.command.description | replace("\n", "<br/>") }}</p>
+                            {%- endif %}
+                            Command: <code>{{ s.command.command }}</code> [{{ s.run_time_ms }} ms]<br/>
+                            {%- for link in s.command.links or [] %}[<a href="{{ link.url }}">{{ link.name }}</a>] {% endfor %}
+                        </small></p>
+                    {%- endif %}
+                    {%- if result.Timeout %}
+                    {%- set s = result.Timeout %}
+                        <h3 class="text-danger">{{ s.command.title or s.command.name }}: Timed out</h3>
+                        <p><small>Command: <code>{{ s.command.command }}</code> [{{ s.run_time_ms }} ms]</small></p>
+                    {%- endif %}
+                    {%- if result.Error %}
+                    {%- set s = result.Error %}
+                        <h3 class="text-danger">{{ s.command.title or s.command.name }}: Error</h3>
+                        <p>
+                            Reason: {{ s.reason }}<br/>
+                            <small>Command: <code>{{ s.command.command }}</code></small>
+                        </p>
+                    {%- endif %}
+                </li>
+            {%- endfor %}
+        </ul>
+    </div>
+
+    <hr/>
+
+    {% for run in command_results %}
+        <h2>Command Results - Run {{ loop.index }}</h2>
+        <ul class="list-group">
+            {% for result in run %}
+                <li class="list-group-item">
+                    {%- if result.Success %}
+                    {%- set s = result.Success %}
+                        <h3>{{ s.command.title or s.command.name }}</h3>
+                        <div class="border border-secondary rounded">
+                            <pre>{{ s.stdout }}</pre>
+                        </div>
+                        <p><small>
+                            {%- if s.command.description %}
+                                <p>{{ s.command.description | replace("\n", "<br/>") }}</p>
+                            {%- endif %}
+                            Command: <code>{{ s.command.command }}</code> [{{ s.run_time_ms }} ms]<br/>
+                            {%- for link in s.command.links or [] %}[<a href="{{ link.url }}">{{ link.name }}</a>] {% endfor %}
+                        </small></p>
+                    {%- endif %}
+                    {%- if result.Failed %}
+                    {%- set s = result.Failed %}
+                        <h3 class="text-warning">{{ s.command.title or s.command.name }}: Failed</h3>
+                        <div class="border border-secondary rounded">
+                            <pre>{{ s.stdout }}</pre>
+                        </div>
+                        <p><small>
+                            {%- if s.command.description %}
+                                <p>{{ s.command.description | replace("\n", "<br/>") }}</p>
+                            {%- endif %}
+                            Command: <code>{{ s.command.command }}</code> [{{ s.run_time_ms }} ms]<br/>
+                            {%- for link in s.command.links or [] %}[<a href="{{ link.url }}">{{ link.name }}</a>] {% endfor %}
+                        </small></p>
+                    {%- endif %}
+                    {%- if result.Timeout %}
+                    {%- set s = result.Timeout %}
+                        <h3 class="text-danger">{{ s.command.title or s.command.name }}: Timed out</h3>
+                        <p><small>Command: <code>{{ s.command.command }}</code> [{{ s.run_time_ms }} ms]</small></p>
+                    {%- endif %}
+                    {%- if result.Error %}
+                    {%- set s = result.Error %}
+                        <h3 class="text-danger">{{ s.command.title or s.command.name }}: Error</h3>
+                        <p>
+                            Reason: {{ s.reason }}<br/>
+                            <small>Command: <code>{{ s.command.command }}</code></small>
+                        </p>
+                    {%- endif %}
+                </li>
+            {%- endfor %}
+        </ul>
+    {%- endfor %}
+
+    <hr/>
+
+    <small>Please see <a
+            href="https://medium.com/netflix-techblog/linux-performance-analysis-in-60-000-milliseconds-accc10403c55">Linux
+        Performance Analysis in 60,000 Milliseconds</a> for details about the individual reports.</small>
+</div>
+<script src="https://code.jquery.com/jquery-3.4.1.slim.min.js"
+        integrity="sha384-J6qa4849blE2+poT4WnyKhv5vZF5SrPo0iEjwBvKU7imGFAV0wwj1yYfoRSJoZ+n"
+        crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js"
+        integrity="sha384-Q6E9RHvbIyZFJoft+2mJbHaEWldlvI9IOYy5n3zV9zzTtmI3UksdQRVvoxMfooAo"
+        crossorigin="anonymous"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js"
+        integrity="sha384-wfSDF2E50Y2D1uUdj0O3uMBJnjuUD4Ih7YwaYd1iqfktj0Uod8GCExl3Og8ifwB6"
+        crossorigin="anonymous"></script>
+</body>
+</html>

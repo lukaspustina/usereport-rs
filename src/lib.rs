@@ -22,7 +22,7 @@ pub use analysis::{Analysis, AnalysisReport, Context};
 #[cfg(feature = "bin")]
 pub use cli::config::Config;
 pub use command::{Command, CommandResult};
-pub use renderer::{HbsRenderer, JsonRenderer, Renderer};
+pub use renderer::{JsonRenderer, Renderer, TemplateRenderer};
 pub use runner::{Runner, ThreadRunner};
 
 /// Test helper

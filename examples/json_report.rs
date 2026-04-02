@@ -9,7 +9,7 @@ fn main() {
     let runner = ThreadRunner::new();
     let hostinfos = config.commands_for_hostinfo();
     let analysis = Analysis::new(Box::new(runner), &hostinfos, &config.commands);
-    let context = Context::new().expect("failed to create context");
+    let context = Context::new();
     let report = analysis.run(context).expect("failed to run analysis");
 
     let renderer = JsonRenderer::new();

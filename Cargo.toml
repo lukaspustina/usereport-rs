@@ -12,7 +12,7 @@ categories = ["command-line-utilities" ]
 include = [
   "README.md",
   "LICENSE",
-  "contrib/*.hbs",
+  "contrib/*.j2",
   "contrib/*.conf",
   "**/*.rs",
   "Cargo.toml",
@@ -48,7 +48,7 @@ anyhow = { version = "1", optional = true }
 chrono = { version = "0.4", features = ["serde"] }
 clap = { version = "4", features = ["derive"], optional = true }
 env_logger = { version = "0.11", optional = true }
-handlebars = "2.0"
+minijinja = "2"
 human-panic = { version = "2", optional = true }
 indicatif = { version = "0.17", optional = true }
 log = "0.4"
