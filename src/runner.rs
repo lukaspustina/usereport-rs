@@ -1,14 +1,14 @@
 use crate::command::{Command, CommandResult};
 
-use snafu::{ResultExt, Snafu};
 use std::fmt::Debug;
+use thiserror::Error;
 
 /// Error type
-#[derive(Debug, Snafu)]
+#[derive(Debug, Error)]
 #[allow(missing_docs)]
 pub enum Error {
     /// Command execution failed
-    #[snafu(display("failed to run command {}: {}", name, source))]
+    #[error("failed to run command {name}: {source}")]
     ExecuteCommandFailed { name: String, source: std::io::Error },
 }
 
@@ -102,7 +102,7 @@ pub mod thread {
                         progress_tx.send(1).expect("Thread failed to send progress via channel");
                     }
                 })
-                .context(ExecuteCommandFailed { name })
+                .map_err(|e| Error::ExecuteCommandFailed { name, source: e })
         }
 
         fn wait_for_results(children: Vec<JoinHandle<()>>, rx: Receiver<ChildResult>) -> Vec<CommandResult> {

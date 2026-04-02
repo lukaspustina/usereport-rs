@@ -1,7 +1,7 @@
 use crate::command::Command;
 
 use serde::{Deserialize, Serialize};
-use snafu::{ResultExt, Snafu};
+use thiserror::Error;
 use std::{
     collections::{HashMap, HashSet},
     fs::File,
@@ -12,17 +12,17 @@ use std::{
 };
 
 /// Error type
-#[derive(Debug, Snafu)]
+#[derive(Debug, Error)]
 #[allow(missing_docs)]
 pub enum Error {
     /// Failed to parse Config
-    #[snafu(display("failed to parse config: {}", source))]
-    ParseConfigFailed { source: toml::de::Error },
+    #[error("failed to parse config: {source}")]
+    ParseConfigFailed { #[from] source: toml::de::Error },
     /// Failed to read file
-    #[snafu(display("failed to read file config '{}': {}", path.display(), source))]
+    #[error("failed to read file config '{path}': {source}")]
     ReadConfigFileFailed { path: PathBuf, source: std::io::Error },
     /// Configuration is invalid
-    #[snafu(display("configuration is invalid because {}", reason))]
+    #[error("configuration is invalid because {reason}")]
     InvalidConfig { reason: &'static str },
 }
 
@@ -43,7 +43,7 @@ impl FromStr for Config {
     type Err = Error;
 
     fn from_str(toml: &str) -> Result<Config> {
-        let config: Config = toml::from_str(toml).context(ParseConfigFailed {})?;
+        let config: Config = toml::from_str(toml)?;
         let config = config.populate_defaults();
         Ok(config)
     }
@@ -51,13 +51,11 @@ impl FromStr for Config {
 
 impl Config {
     pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Config> {
-        let mut file = File::open(path.as_ref()).context(ReadConfigFileFailed {
-            path: path.as_ref().to_path_buf(),
-        })?;
+        let mut file = File::open(path.as_ref())
+            .map_err(|e| Error::ReadConfigFileFailed { path: path.as_ref().to_path_buf(), source: e })?;
         let mut toml = String::new();
-        file.read_to_string(&mut toml).context(ReadConfigFileFailed {
-            path: path.as_ref().to_path_buf(),
-        })?;
+        file.read_to_string(&mut toml)
+            .map_err(|e| Error::ReadConfigFileFailed { path: path.as_ref().to_path_buf(), source: e })?;
         Config::from_str(&toml)
     }
 

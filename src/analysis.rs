@@ -2,20 +2,20 @@ use crate::{runner, Command, CommandResult, Runner};
 
 use chrono::{DateTime, Local};
 use serde::Serialize;
-use snafu::{ResultExt, Snafu};
 use std::{collections::HashMap, fmt::Debug};
+use thiserror::Error;
 use uname;
 
 /// Error type
-#[derive(Debug, Snafu)]
+#[derive(Debug, Error)]
 #[allow(missing_docs)]
 pub enum Error {
     /// Context initialization failed
-    #[snafu(display("context initialization failed because {}", source))]
-    InitContextFailed { source: std::io::Error },
+    #[error("context initialization failed: {source}")]
+    InitContextFailed { #[from] source: std::io::Error },
     /// Analysis run failed
-    #[snafu(display("analysis failed because {}", source))]
-    RunAnalysisFailed { source: runner::Error },
+    #[error("analysis failed: {source}")]
+    RunAnalysisFailed { #[from] source: runner::Error },
 }
 
 /// Result type
@@ -78,7 +78,7 @@ impl<'a, I: IntoIterator<Item = &'a Command> + Copy> Analysis<'a, I> {
         let results = self
             .runner
             .run(commands, self.max_parallel_commands)
-            .context(RunAnalysisFailed {})?;
+            ?;
 
         Ok(results)
     }
@@ -131,7 +131,7 @@ pub struct Context {
 
 impl Context {
     pub fn new() -> Result<Context> {
-        let uname = uname::uname().context(InitContextFailed {})?;
+        let uname = uname::uname()?;
         let hostname = uname.nodename.to_string();
         let uname = format!(
             "{} {} {} {} {}",
