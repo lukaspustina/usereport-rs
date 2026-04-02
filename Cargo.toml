@@ -60,7 +60,7 @@ thiserror = "2"
 subprocess = "0.2"
 tempfile = "3"
 toml = "0.8"
-uname = "0.1"
+rustix = { version = "1", features = ["system"] }
 
 [dev-dependencies]
 env_logger = "0.11"

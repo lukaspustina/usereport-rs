@@ -4,15 +4,11 @@ use chrono::{DateTime, Local};
 use serde::Serialize;
 use std::{collections::HashMap, fmt::Debug};
 use thiserror::Error;
-use uname;
 
 /// Error type
 #[derive(Debug, Error)]
 #[allow(missing_docs)]
 pub enum Error {
-    /// Context initialization failed
-    #[error("context initialization failed: {source}")]
-    InitContextFailed { #[from] source: std::io::Error },
     /// Analysis run failed
     #[error("analysis failed: {source}")]
     RunAnalysisFailed { #[from] source: runner::Error },
@@ -130,21 +126,25 @@ pub struct Context {
 }
 
 impl Context {
-    pub fn new() -> Result<Context> {
-        let uname = uname::uname()?;
-        let hostname = uname.nodename.to_string();
+    pub fn new() -> Context {
+        let utsname = rustix::system::uname();
+        let hostname = utsname.nodename().to_string_lossy().into_owned();
         let uname = format!(
             "{} {} {} {} {}",
-            uname.sysname, uname.nodename, uname.release, uname.version, uname.machine
+            utsname.sysname().to_string_lossy(),
+            utsname.nodename().to_string_lossy(),
+            utsname.release().to_string_lossy(),
+            utsname.version().to_string_lossy(),
+            utsname.machine().to_string_lossy(),
         );
         let date_time = Local::now();
 
-        Ok(Context {
+        Context {
             uname,
             hostname,
             date_time,
             more: Default::default(),
-        })
+        }
     }
 
     pub fn add<T: Into<String>>(&mut self, key: T, value: T) -> &mut Context {
@@ -174,7 +174,7 @@ mod tests {
         let analysis = Analysis::new(runner, &hostinfos, &commands)
             .with_repetitions(1)
             .with_max_parallel_commands(64);
-        let context = Context::new().expect("failed to create context");
+        let context = Context::new();
 
         let res = analysis.run(context);
         asserting("Analysis run").that(&res).is_ok();
@@ -197,7 +197,7 @@ mod tests {
         let analysis = Analysis::new(runner, hostinfos.as_slice(), commands.as_slice())
             .with_repetitions(1)
             .with_max_parallel_commands(64);
-        let context = Context::new().expect("failed to create context");
+        let context = Context::new();
 
         let res = analysis.run(context);
         asserting("Analysis run").that(&res).is_ok();

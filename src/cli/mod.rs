@@ -207,7 +207,7 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> anyhow::Re
     let analysis = Analysis::new(Box::new(runner), &hostinfo, &commands)
         .with_max_parallel_commands(parallel)
         .with_repetitions(repetitions);
-    let context = create_context(opt, config, profile_name)?;
+    let context = create_context(opt, config, profile_name);
 
     let report = analysis.run(context)?;
 
@@ -317,12 +317,12 @@ fn create_progress_bar(expected: usize) -> Sender<usize> {
     tx
 }
 
-fn create_context(_opt: &Opt, _config: &Config, profile_name: &str) -> anyhow::Result<Context> {
-    let mut context = Context::new()?;
+fn create_context(_opt: &Opt, _config: &Config, profile_name: &str) -> Context {
+    let mut context = Context::new();
     context.add("Profile", profile_name);
     context.add("Usereport version", env!("CARGO_PKG_VERSION"));
 
-    Ok(context)
+    context
 }
 
 #[cfg(target_os = "macos")]
