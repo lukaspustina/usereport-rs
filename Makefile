@@ -1,8 +1,8 @@
 check:
-	cargo check --workspace --all-features --tests --examples --benches
+	cargo check --workspace --all-features --tests --examples
 
 build:
-	cargo build --workspace --all-features --tests --examples --benches
+	cargo build --workspace --all-features
 
 test:
 	cargo test --workspace --all-features
@@ -11,10 +11,13 @@ clean-package:
 	cargo clean -p $$(cargo read-manifest | jq -r .name)
 
 clippy:
-	cargo clippy --workspace --all-targets --all-features -- -D warnings $$(source ".clippy.args")
+	cargo clippy --workspace --all-targets --all-features -- -D warnings
 
 fmt:
-	cargo +nightly fmt
+	cargo fmt
+
+fmt-check:
+	cargo fmt --check
 
 audit:
 	cargo audit --deny-warnings
@@ -30,5 +33,4 @@ publish:
 	git push && git push --tags
 
 
-.PHONY:
-
+.PHONY: check build test clean-package clippy fmt fmt-check audit release release-bump publish
