@@ -23,7 +23,7 @@ rust-version = "1.74"
 [badges]
 
 [features]
-bin = ["clap", "env_logger", "anyhow", "human-panic", "indicatif", "prettytable-rs"]
+bin = ["clap", "comfy-table", "env_logger", "anyhow", "human-panic", "indicatif"]
 
 [[bin]]
 name = "usereport"
@@ -52,7 +52,7 @@ handlebars = "2.0"
 human-panic = { version = "2", optional = true }
 indicatif = { version = "0.17", optional = true }
 log = "0.4"
-prettytable-rs = { version = "0.10", optional = true }
+comfy-table = { version = "7", optional = true }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 shell-words = "1"

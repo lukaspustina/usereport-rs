@@ -2,7 +2,7 @@ use crate::{renderer, Analysis, Command, Config, Context, Renderer, ThreadRunner
 use anyhow::{anyhow, Context as _};
 use clap::Parser;
 use indicatif::{ProgressBar, ProgressStyle};
-use prettytable::{format, row, Cell, Row, Table};
+use comfy_table::Table;
 use std::{
     collections::HashSet,
     fs::File,
@@ -142,16 +142,15 @@ fn show_config(config: &Config) {
 
 fn show_profiles(config: &Config) {
     let mut table = Table::new();
-    table.set_format(*format::consts::FORMAT_NO_LINESEP_WITH_TITLE);
-    table.set_titles(row!["Name", "Commands", "Description"]);
+    table.set_header(vec!["Name", "Commands", "Description"]);
     for p in &config.profiles {
-        table.add_row(Row::new(vec![
-            Cell::new(&p.name),
-            Cell::new(&p.commands.as_slice().join("\n")),
-            Cell::new(&p.description.as_ref().map(|x| x.as_str()).unwrap_or("-")),
-        ]));
+        table.add_row(vec![
+            p.name.clone(),
+            p.commands.as_slice().join("\n"),
+            p.description.as_deref().unwrap_or("-").to_string(),
+        ]);
     }
-    table.printstd();
+    println!("{table}");
 }
 
 fn show_output_template(opt: &Opt) {
@@ -178,16 +177,16 @@ fn show_output_template(opt: &Opt) {
 
 fn show_commands(config: &Config) {
     let mut table = Table::new();
-    table.set_format(*format::consts::FORMAT_NO_LINESEP_WITH_TITLE);
-    table.set_titles(row!["Name", "Command", "Title", "Description"]);
+    table.set_header(vec!["Name", "Command", "Title", "Description"]);
     for c in &config.commands {
-        table.add_row(Row::new(vec![
-            Cell::new(&c.name()),
-            Cell::new(&c.command()),
-            Cell::new(&c.title().unwrap_or("-")),
-        ]));
+        table.add_row(vec![
+            c.name().to_string(),
+            c.command().to_string(),
+            c.title().unwrap_or("-").to_string(),
+            c.description().unwrap_or("-").to_string(),
+        ]);
     }
-    table.printstd();
+    println!("{table}");
 }
 
 fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> anyhow::Result<()> {
