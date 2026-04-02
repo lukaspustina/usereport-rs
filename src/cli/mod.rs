@@ -1,66 +1,65 @@
 use crate::{renderer, Analysis, Command, Config, Context, Renderer, ThreadRunner};
 use anyhow::{anyhow, Context as _};
-use atty;
+use clap::Parser;
 use indicatif::{ProgressBar, ProgressStyle};
 use prettytable::{format, row, Cell, Row, Table};
 use std::{
     collections::HashSet,
     fs::File,
-    io::{Read, Write},
+    io::{IsTerminal, Read, Write},
     path::PathBuf,
     str::FromStr,
     sync::mpsc::{self, Receiver, Sender},
 };
-use structopt::{clap, StructOpt};
 
 pub mod config;
 
-#[derive(Debug, StructOpt)]
-#[structopt(name = "usereport", author, about, setting = clap::AppSettings::ColoredHelp)]
+#[derive(Debug, Parser)]
+#[command(author, about)]
 struct Opt {
     /// Configuration from file, or default if not present
-    #[structopt(short, long, parse(from_os_str))]
+    #[arg(short, long)]
     config:               Option<PathBuf>,
     /// Output format
-    #[structopt(short, long, possible_values = & ["hbs", "html", "json", "markdown"], default_value = "markdown")]
+    #[arg(short, long, value_enum, default_value = "markdown")]
     output:               OutputType,
     /// Set output template if output is set to "hbs"
-    #[structopt(long)]
+    #[arg(long)]
     output_template:      Option<String>,
     /// Set number of commands to run in parallel; overrides setting from config file
-    #[structopt(long)]
+    #[arg(long)]
     parallel:             Option<usize>,
     /// Set number of how many times to run commands in row; overrides setting from config file
-    #[structopt(long)]
+    #[arg(long)]
     repetitions:          Option<usize>,
     /// Force to show progress bar while waiting for all commands to finish
-    #[structopt(long, conflicts_with = "no_progress")]
+    #[arg(long, conflicts_with = "no_progress")]
     progress:             bool,
     /// Force to hide progress bar while waiting for all commands to finish
-    #[structopt(long, conflicts_with = "progress")]
+    #[arg(long, conflicts_with = "progress")]
     no_progress:          bool,
     /// Activate debug mode
-    #[structopt(short, long)]
+    #[arg(short, long)]
     debug:                bool,
     /// Set profile to use
-    #[structopt(short = "p", long)]
+    #[arg(short = 'p', long)]
     profile:              Option<String>,
     /// Show active config
-    #[structopt(long)]
+    #[arg(long)]
     show_config:          bool,
     /// Show active template
-    #[structopt(long)]
+    #[arg(long)]
     show_output_template: bool,
     /// Show available profiles
-    #[structopt(long)]
+    #[arg(long)]
     show_profiles:        bool,
     /// Show available commands
-    #[structopt(long)]
+    #[arg(long)]
     show_commands:        bool,
     /// Add or remove commands from selected profile by prefixing the command's name with '+' or
     /// '-', respectively, e.g., +uname -dmesg; you may need to use '--' to signify the end of the
     /// options
-    #[structopt(name = "+|-command")]
+    #[arg(name = "+|-command")]
     filter_commands:      Vec<String>,
 }
 
@@ -74,7 +73,7 @@ impl Opt {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, clap::ValueEnum)]
 pub enum OutputType {
     Hbs,
     Html,
@@ -100,7 +99,7 @@ pub fn main() -> anyhow::Result<()> {
     human_panic::setup_panic!();
     env_logger::init();
 
-    let opt = Opt::from_args().validate()?;
+    let opt = Opt::parse().validate()?;
     let config = opt
         .config
         .as_ref()
@@ -226,7 +225,7 @@ fn is_show_progress(opt: &Opt) -> bool {
     if opt.no_progress {
         return false;
     }
-    if atty::is(atty::Stream::Stderr) {
+    if std::io::stderr().is_terminal() {
         return true;
     }
 

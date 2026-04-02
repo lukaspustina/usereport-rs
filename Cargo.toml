@@ -18,11 +18,12 @@ include = [
   "Cargo.toml",
 ]
 edition = "2018"
+rust-version = "1.74"
 
 [badges]
 
 [features]
-bin = ["atty", "env_logger", "anyhow", "human-panic", "indicatif", "prettytable-rs", "structopt"]
+bin = ["clap", "env_logger", "anyhow", "human-panic", "indicatif", "prettytable-rs"]
 
 [[bin]]
 name = "usereport"
@@ -44,8 +45,8 @@ required-features = ["bin"]
 
 [dependencies]
 anyhow = { version = "1", optional = true }
-atty = { version = "0.2", optional = true }
 chrono = { version = "0.4", features = ["serde"] }
+clap = { version = "4", features = ["derive"], optional = true }
 env_logger = { version = "0.11", optional = true }
 handlebars = "2.0"
 human-panic = { version = "2", optional = true }
@@ -56,7 +57,6 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 shell-words = "1"
 snafu = "0.6"
-structopt = { version = "0.3.7", optional = true }
 subprocess = "0.2"
 tempfile = "3"
 toml = "0.8"
