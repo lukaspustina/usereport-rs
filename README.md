@@ -6,7 +6,7 @@
 
 `usereport` comes with bundled configuration files for Linux and macOS, respectively, that are built into the corresponding binary. The configuration files contain a pre-defined selection of performance measurement and analysis tools. Please see the `contrib` directory for these configuration tools. In case of Linux, several profiles allow for statistics gathering depending on the context of your analysis, i.e., `mem` for virtual memory and `net` for network issues. With `usereport` you do not need to remember the exact tools and their parameters to conduct a performance analysis. Furthermore, each tool configuration contains descriptions of the output to ease interpretation of results, e.g., meaning and metrics of the gathered values, as well as links to further information.
 
-The output format of `usereport` is usually Markdown or HTML for convenient reading. JSON output is also available for automatic processing, or you can define your own output format using [Handlebars templates](https://handlebarsjs.com). The following screenshots present parts of the HTML output created by `usereport` running the `net` profile performance analysis on Linux -- see the full report [here](https://htmlpreview.github.io/?https://github.com/lukaspustina/usereport-rs/blob/master/docs/linux-net-usereport.html).
+The output format of `usereport` is usually Markdown or HTML for convenient reading. JSON output is also available for automatic processing, or you can define your own output format using [Jinja2 templates](https://jinja.palletsprojects.com/). The following screenshots present parts of the HTML output created by `usereport` running the `net` profile performance analysis on Linux -- see the full report [here](https://htmlpreview.github.io/?https://github.com/lukaspustina/usereport-rs/blob/master/docs/linux-net-usereport.html).
 
 <p float="center">
 <center>
@@ -22,34 +22,38 @@ The main functionality is exposed as a Rust library to be used in your own proje
 ### Help
 
 ```sh
-usereport 0.1.2
+usereport 0.1.4
 Lukas Pustina <lukas@pustina.net>
 Collect system information for the first 60 seconds of a performance analysis
-USAGE:
-    usereport [FLAGS] [OPTIONS] [+|-command]...
-FLAGS:
-    -d, --debug                   Activate debug mode
-    -h, --help                    Prints help information
-        --no-progress             Force to hide progress bar while waiting for all commands to finish
-        --progress                Force to show progress bar while waiting for all commands to finish
-        --show-commands           Show available commands
-        --show-config             Show active config
-        --show-output-template    Show active template
-        --show-profiles           Show available profiles
-    -V, --version                 Prints version information
-OPTIONS:
-    -c, --config <config>                      Configuration from file, or default if not present
-    -o, --output <output>                      Output format [default: markdown]  [possible values: hbs,
-                                               html, json, markdown]
-        --output-template <output-template>    Set output template if output is set to "hbs"
-        --parallel <parallel>                  Set number of commands to run in parallel; overrides setting from config
-                                               file
-    -p, --profile <profile>                    Set profile to use
-        --repetitions <repetitions>            Set number of how many times to run commands in row; overrides setting
-                                               from config file
-ARGS:
-    <+|-command>...    Add or remove commands from selected profile by prefixing the command's name with '+' or '-',
-                       respectively, e.g., +uname -dmesg; you may need to use '--' to signify the end of the options
+
+Usage: usereport [OPTIONS] [+|-command]...
+
+Arguments:
+  [+|-command]...  Add or remove commands from selected profile by prefixing the command's name with
+                   '+' or '-', respectively, e.g., +uname -dmesg; you may need to use '--' to
+                   signify the end of the options
+
+Options:
+  -c, --config <config>                      Configuration from file, or default if not present
+  -o, --output <output>                      Output format [default: markdown] [possible values: hbs,
+                                             html, json, markdown]
+      --output-template <output-template>    Set output template if output is set to "hbs"
+      --parallel <parallel>                  Set number of commands to run in parallel; overrides
+                                             setting from config file
+      --repetitions <repetitions>            Set number of how many times to run commands in row;
+                                             overrides setting from config file
+      --progress                             Force to show progress bar while waiting for all commands
+                                             to finish
+      --no-progress                          Force to hide progress bar while waiting for all commands
+                                             to finish
+  -d, --debug                               Activate debug mode
+  -p, --profile <profile>                   Set profile to use
+      --show-config                         Show active config
+      --show-output-template                Show active template
+      --show-profiles                       Show available profiles
+      --show-commands                       Show available commands
+  -h, --help                               Print help
+  -V, --version                            Print version
 ```
 
 ### Example on Linux
@@ -59,15 +63,6 @@ usereport --profile mem --progress --repetitions 3 --output html -- +mpstat
 ```
 
 ## Installation
-
-### Ubuntu Bionic [x86_64]
-
-Please add my [PackageCloud](https://packagecloud.io/lukaspustina/opensource) open source repository and install _usereport_ via apt.
-
-```sh
-curl -s https://packagecloud.io/install/repositories/lukaspustina/opensource/script.deb.sh | sudo bash
-sudo apt-get install usereport
-```
 
 ### Linux Binaries [x86_64]
 
