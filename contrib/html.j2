@@ -6,23 +6,23 @@
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css"
           integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh" crossorigin="anonymous">
 
-    <title>Use Report - {{ context.hostname | e }} on {{ context.date_time | rfc2822 | e }}</title>
+    <title>Use Report - {{ context.hostname }} on {{ context.date_time | rfc2822 }}</title>
 </head>
 <body>
 <div class="container-fluid">
-    <h1>Use Report - {{ context.hostname | e }} on {{ context.date_time | rfc2822 | e }}</h1>
+    <h1>Use Report - {{ context.hostname }} on {{ context.date_time | rfc2822 }}</h1>
     <p>
     <ul class="list-group">
-        <li class="list-group-item">Date: <code>{{ context.date_time | rfc2822 | e }}</code></li>
-        <li class="list-group-item">Hostname: <code>{{ context.hostname | e }}</code></li>
-        <li class="list-group-item">Host OS: <code>{{ context.uname | e }}</code></li>
+        <li class="list-group-item">Date: <code>{{ context.date_time | rfc2822 }}</code></li>
+        <li class="list-group-item">Hostname: <code>{{ context.hostname }}</code></li>
+        <li class="list-group-item">Host OS: <code>{{ context.uname }}</code></li>
     </ul>
     </p>
     <h2>Run Configuration</h2>
     <p>
     <ul class="list-group">
         {% for key, value in context.more %}
-            <li class="list-group-item">{{ key | e }}: {{ value | e }}</li>
+            <li class="list-group-item">{{ key }}: {{ value }}</li>
         {% endfor %}
         <li class="list-group-item">Repetitions: {{ repetitions }}</li>
         <li class="list-group-item">Parallelism: {{ max_parallel_commands }}</li>
@@ -36,55 +36,55 @@
                 <li class="list-group-item">
                     {% if result.Success is defined %}
                         {% set s = result.Success %}
-                        <h3>{% if s.command.title %}{{ s.command.title | e }}{% else %}{{ s.command.name | e }}{% endif %}</h3>
+                        <h3>{% if s.command.title %}{{ s.command.title }}{% else %}{{ s.command.name }}{% endif %}</h3>
                         <div class="border border-secondary rounded">
-                            <pre>{{ s.stdout | e }}</pre>
+                            <pre>{{ s.stdout }}</pre>
                         </div>
                         <p>
                         <small>
                             {% if s.command.description %}
-                                <p>{{ s.command.description | e | replace("\n", "<br/>") }}</p>
+                                <p>{{ s.command.description | e | replace("\n", "<br/>") | safe }}</p>
                             {% endif %}
-                            Command: <code>{{ s.command.command | e }}</code> [{{ s.run_time_ms }} ms]<br/>
-                            {% for link in s.command.links %}[<a href="{{ link.url | e }}">{{ link.name | e }}</a>] {% endfor %}
+                            Command: <code>{{ s.command.command }}</code> [{{ s.run_time_ms }} ms]<br/>
+                            {% for link in s.command.links %}[<a href="{{ link.url }}">{{ link.name }}</a>] {% endfor %}
                         </small>
                         </p>
                     {% endif %}
 
                     {% if result.Failed is defined %}
                         {% set s = result.Failed %}
-                        <h3 class="text-warning">{% if s.command.title %}{{ s.command.title | e }}{% else %}{{ s.command.name | e }}{% endif %}: Failed</h3>
+                        <h3 class="text-warning">{% if s.command.title %}{{ s.command.title }}{% else %}{{ s.command.name }}{% endif %}: Failed</h3>
                         <div class="border border-secondary rounded">
-                            <pre>{{ s.stdout | e }}</pre>
+                            <pre>{{ s.stdout }}</pre>
                         </div>
                         <p>
                         <small>
                             {% if s.command.description %}
-                                <p>{{ s.command.description | e | replace("\n", "<br/>") }}</p>
+                                <p>{{ s.command.description | e | replace("\n", "<br/>") | safe }}</p>
                             {% endif %}
-                            Command: <code>{{ s.command.command | e }}</code> [{{ s.run_time_ms }} ms]<br/>
-                            {% for link in s.command.links %}[<a href="{{ link.url | e }}">{{ link.name | e }}</a>] {% endfor %}
+                            Command: <code>{{ s.command.command }}</code> [{{ s.run_time_ms }} ms]<br/>
+                            {% for link in s.command.links %}[<a href="{{ link.url }}">{{ link.name }}</a>] {% endfor %}
                         </small>
                         </p>
                     {% endif %}
 
                     {% if result.Timeout is defined %}
                         {% set s = result.Timeout %}
-                        <h3 class="text-danger">{% if s.command.title %}{{ s.command.title | e }}{% else %}{{ s.command.name | e }}{% endif %}: Timed out</h3>
+                        <h3 class="text-danger">{% if s.command.title %}{{ s.command.title }}{% else %}{{ s.command.name }}{% endif %}: Timed out</h3>
                         <p>
                             <small>
-                                Command: <code>{{ s.command.command | e }}</code> [{{ s.run_time_ms }} ms]<br/>
+                                Command: <code>{{ s.command.command }}</code> [{{ s.run_time_ms }} ms]<br/>
                             </small>
                         </p>
                     {% endif %}
 
                     {% if result.Error is defined %}
                         {% set s = result.Error %}
-                        <h3 class="text-danger">{% if s.command.title %}{{ s.command.title | e }}{% else %}{{ s.command.name | e }}{% endif %}: Error</h3>
+                        <h3 class="text-danger">{% if s.command.title %}{{ s.command.title }}{% else %}{{ s.command.name }}{% endif %}: Error</h3>
                         <p>
-                            Reason: {{ s.reason | e }}<br/>
+                            Reason: {{ s.reason }}<br/>
                             <small>
-                                Command: <code>{{ s.command.command | e }}</code> [{{ s.run_time_ms }} ms]<br/>
+                                Command: <code>{{ s.command.command }}</code> [{{ s.run_time_ms }} ms]<br/>
                             </small>
                         </p>
                     {% endif %}
@@ -102,55 +102,55 @@
                 <li class="list-group-item">
                     {% if result.Success is defined %}
                         {% set s = result.Success %}
-                        <h3>{% if s.command.title %}{{ s.command.title | e }}{% else %}{{ s.command.name | e }}{% endif %}</h3>
+                        <h3>{% if s.command.title %}{{ s.command.title }}{% else %}{{ s.command.name }}{% endif %}</h3>
                         <div class="border border-secondary rounded">
-                            <pre>{{ s.stdout | e }}</pre>
+                            <pre>{{ s.stdout }}</pre>
                         </div>
                         <p>
                         <small>
                             {% if s.command.description %}
-                                <p>{{ s.command.description | e | replace("\n", "<br/>") }}</p>
+                                <p>{{ s.command.description | e | replace("\n", "<br/>") | safe }}</p>
                             {% endif %}
-                            Command: <code>{{ s.command.command | e }}</code> [{{ s.run_time_ms }} ms]<br/>
-                            {% for link in s.command.links %}[<a href="{{ link.url | e }}">{{ link.name | e }}</a>] {% endfor %}
+                            Command: <code>{{ s.command.command }}</code> [{{ s.run_time_ms }} ms]<br/>
+                            {% for link in s.command.links %}[<a href="{{ link.url }}">{{ link.name }}</a>] {% endfor %}
                         </small>
                         </p>
                     {% endif %}
 
                     {% if result.Failed is defined %}
                         {% set s = result.Failed %}
-                        <h3 class="text-warning">{% if s.command.title %}{{ s.command.title | e }}{% else %}{{ s.command.name | e }}{% endif %}: Failed</h3>
+                        <h3 class="text-warning">{% if s.command.title %}{{ s.command.title }}{% else %}{{ s.command.name }}{% endif %}: Failed</h3>
                         <div class="border border-secondary rounded">
-                            <pre>{{ s.stdout | e }}</pre>
+                            <pre>{{ s.stdout }}</pre>
                         </div>
                         <p>
                         <small>
                             {% if s.command.description %}
-                                <p>{{ s.command.description | e | replace("\n", "<br/>") }}</p>
+                                <p>{{ s.command.description | e | replace("\n", "<br/>") | safe }}</p>
                             {% endif %}
-                            Command: <code>{{ s.command.command | e }}</code> [{{ s.run_time_ms }} ms]<br/>
-                            {% for link in s.command.links %}[<a href="{{ link.url | e }}">{{ link.name | e }}</a>] {% endfor %}
+                            Command: <code>{{ s.command.command }}</code> [{{ s.run_time_ms }} ms]<br/>
+                            {% for link in s.command.links %}[<a href="{{ link.url }}">{{ link.name }}</a>] {% endfor %}
                         </small>
                         </p>
                     {% endif %}
 
                     {% if result.Timeout is defined %}
                         {% set s = result.Timeout %}
-                        <h3 class="text-danger">{% if s.command.title %}{{ s.command.title | e }}{% else %}{{ s.command.name | e }}{% endif %}: Timed out</h3>
+                        <h3 class="text-danger">{% if s.command.title %}{{ s.command.title }}{% else %}{{ s.command.name }}{% endif %}: Timed out</h3>
                         <p>
                             <small>
-                                Command: <code>{{ s.command.command | e }}</code> [{{ s.run_time_ms }} ms]<br/>
+                                Command: <code>{{ s.command.command }}</code> [{{ s.run_time_ms }} ms]<br/>
                             </small>
                         </p>
                     {% endif %}
 
                     {% if result.Error is defined %}
                         {% set s = result.Error %}
-                        <h3 class="text-danger">{% if s.command.title %}{{ s.command.title | e }}{% else %}{{ s.command.name | e }}{% endif %}: Error</h3>
+                        <h3 class="text-danger">{% if s.command.title %}{{ s.command.title }}{% else %}{{ s.command.name }}{% endif %}: Error</h3>
                         <p>
-                            Reason: {{ s.reason | e }}<br/>
+                            Reason: {{ s.reason }}<br/>
                             <small>
-                                Command: <code>{{ s.command.command | e }}</code> [{{ s.run_time_ms }} ms]<br/>
+                                Command: <code>{{ s.command.command }}</code> [{{ s.run_time_ms }} ms]<br/>
                             </small>
                         </p>
                     {% endif %}

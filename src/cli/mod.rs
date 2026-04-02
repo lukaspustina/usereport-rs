@@ -16,7 +16,7 @@ use std::{
 pub mod config;
 
 #[derive(Debug, Parser)]
-#[command(author, about)]
+#[command(author, about, after_help = "Set RUST_LOG=debug for verbose output, e.g.: RUST_LOG=debug usereport")]
 struct Opt {
     /// Configuration from file, or default if not present
     #[arg(short, long)]
@@ -288,7 +288,7 @@ fn create_renderer<W: Write>(
             let renderer = renderer::TemplateRenderer::from_file(template_file)?;
             Box::new(renderer)
         }
-        OutputType::Html => Box::new(renderer::TemplateRenderer::new(defaults::HTML_TEMPLATE)),
+        OutputType::Html => Box::new(renderer::TemplateRenderer::new(defaults::HTML_TEMPLATE).with_html_escape()),
         OutputType::Json => Box::new(renderer::JsonRenderer::new()),
         OutputType::Markdown => Box::new(renderer::TemplateRenderer::new(defaults::MD_TEMPLATE)),
     };

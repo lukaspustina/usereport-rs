@@ -29,6 +29,38 @@ pub enum Error {
 /// Result type
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
+/// Top-level configuration loaded from a TOML file.
+///
+/// # TOML schema
+///
+/// ```toml
+/// [defaults]
+/// profile = "default"      # profile to run when --profile is not given
+/// timeout = 5              # per-command timeout in seconds (applied to commands with no explicit timeout)
+/// repetitions = 1          # how many times to run the command set
+/// max_parallel_commands = 64
+///
+/// # Optional: commands listed here are run before the profile commands and their output
+/// # appears in the "Host Information" section of the report.
+/// [hostinfo]
+/// commands = ["uptime", "uname"]
+///
+/// [[profile]]
+/// name = "default"
+/// description = "Standard performance overview"   # optional
+/// commands = ["uptime", "vmstat", "iostat"]
+///
+/// [[command]]
+/// name = "uptime"          # unique identifier; also used as the display name when title is absent
+/// title = "Uptime"         # optional human-readable heading
+/// description = "..."      # optional explanatory text shown below the output
+/// command = "/usr/bin/uptime"
+/// timeout = 3              # optional override of defaults.timeout, in seconds
+///
+/// [[command.links]]        # optional list of reference links shown below the output
+/// name = "man uptime"
+/// url  = "https://man7.org/linux/man-pages/man1/uptime.1.html"
+/// ```
 #[derive(Debug, Deserialize, Serialize, PartialEq, Eq, Clone)]
 pub struct Config {
     pub defaults: Defaults,

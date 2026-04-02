@@ -84,12 +84,13 @@ pub mod jinja {
 
     #[derive(Default, Debug, Eq, PartialEq, Clone)]
     pub struct TemplateRenderer {
-        template: String,
+        template:    String,
+        html_escape: bool,
     }
 
     impl TemplateRenderer {
         pub fn new<T: Into<String>>(template: T) -> Self {
-            TemplateRenderer { template: template.into() }
+            TemplateRenderer { template: template.into(), html_escape: false }
         }
 
         pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self> {
@@ -98,7 +99,11 @@ pub mod jinja {
             let mut template = String::new();
             file.read_to_string(&mut template)
                 .map_err(|e| Error::ReadTemplateFailed { path: path.as_ref().to_path_buf(), source: e })?;
-            Ok(TemplateRenderer { template })
+            Ok(TemplateRenderer { template, html_escape: false })
+        }
+
+        pub fn with_html_escape(self) -> Self {
+            TemplateRenderer { html_escape: true, ..self }
         }
     }
 
@@ -111,7 +116,11 @@ pub mod jinja {
     impl<W: Write> Renderer<W> for TemplateRenderer {
         fn render(&self, report: &AnalysisReport, mut w: W) -> Result<()> {
             let mut env = minijinja::Environment::new();
-            env.set_auto_escape_callback(|_| minijinja::AutoEscape::None);
+            if self.html_escape {
+                env.set_auto_escape_callback(|_| minijinja::AutoEscape::Html);
+            } else {
+                env.set_auto_escape_callback(|_| minijinja::AutoEscape::None);
+            }
             env.add_filter("rfc2822", rfc2822);
             let output = env.render_str(&self.template, report)?;
             w.write_all(output.as_bytes())
