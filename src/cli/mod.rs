@@ -10,6 +10,7 @@ use std::{
     path::PathBuf,
     str::FromStr,
     sync::mpsc::{self, Receiver, Sender},
+    thread::JoinHandle,
 };
 
 pub mod config;
@@ -98,6 +99,7 @@ impl FromStr for OutputType {
 pub fn main() -> anyhow::Result<()> {
     human_panic::setup_panic!();
     env_logger::init();
+    log::debug!("RUST_LOG={:?}", std::env::var("RUST_LOG").unwrap_or_default());
 
     let opt = Opt::parse().validate()?;
     let config = opt
@@ -110,9 +112,9 @@ pub fn main() -> anyhow::Result<()> {
     let profile_name = opt.profile.as_ref().unwrap_or(&config.defaults.profile);
 
     if opt.debug {
-        eprintln!("Options: {:#?}", &opt);
-        eprintln!("Configuration: {:#?}", &config);
-        eprintln!("Using profile '{}'", profile_name);
+        log::debug!("Options: {:#?}", &opt);
+        log::debug!("Configuration: {:#?}", &config);
+        log::debug!("Using profile '{}'", profile_name);
     }
 
     if opt.show_config {
@@ -120,7 +122,7 @@ pub fn main() -> anyhow::Result<()> {
         return Ok(());
     }
     if opt.show_output_template {
-        show_output_template(&opt);
+        show_output_template(&opt)?;
         return Ok(());
     }
     if opt.show_profiles {
@@ -153,7 +155,7 @@ fn show_profiles(config: &Config) {
     println!("{table}");
 }
 
-fn show_output_template(opt: &Opt) {
+fn show_output_template(opt: &Opt) -> anyhow::Result<()> {
     let template = match opt.output {
         OutputType::Hbs => {
             let template_file = opt
@@ -162,9 +164,9 @@ fn show_output_template(opt: &Opt) {
                 .expect("output hbs requires output template");
             let mut txt = String::new();
             File::open(template_file)
-                .expect("failed to open template file")
+                .context("failed to open template file")?
                 .read_to_string(&mut txt)
-                .expect("failed to read template file");
+                .context("failed to read template file")?;
             txt
         }
         OutputType::Html => defaults::HTML_TEMPLATE.to_string(),
@@ -173,6 +175,7 @@ fn show_output_template(opt: &Opt) {
     };
 
     println!("{}", template);
+    Ok(())
 }
 
 fn show_commands(config: &Config) {
@@ -202,13 +205,19 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> anyhow::Re
     let commands = create_commands(opt, config, profile_name)?;
     let number_of_commands = hostinfo.len() + repetitions * commands.len();
 
-    let runner = create_runner(progress, number_of_commands);
+    let (runner, progress_handle) = create_runner(progress, number_of_commands);
     let analysis = Analysis::new(Box::new(runner), &hostinfo, &commands)
         .with_max_parallel_commands(parallel)
         .with_repetitions(repetitions);
     let context = create_context(opt, config, profile_name);
 
     let report = analysis.run(context)?;
+
+    if let Some(handle) = progress_handle {
+        if handle.join().is_err() {
+            log::warn!("progress bar thread panicked");
+        }
+    }
 
     renderer
         .render(&report, handle)
@@ -235,7 +244,7 @@ fn create_commands(opt: &Opt, config: &Config, profile_name: &str) -> anyhow::Re
     let (add_commands, remove_commands) = create_command_filter(&opt.filter_commands);
     let mut commands: Vec<Command> = config
         .profile(profile_name)
-        .and_then(|p| Ok(config.commands_for_profile(p)))?
+        .map(|p| config.commands_for_profile(p))?
         .into_iter()
         .filter(|x| !remove_commands.contains(x.name()))
         .collect();
@@ -287,17 +296,19 @@ fn create_renderer<W: Write>(
     Ok(renderer)
 }
 
-fn create_runner(progress: bool, number_of_commands: usize) -> ThreadRunner {
+fn create_runner(progress: bool, number_of_commands: usize) -> (ThreadRunner, Option<JoinHandle<()>>) {
     let mut runner = ThreadRunner::new();
+    let mut join_handle = None;
     if progress {
-        let tx = create_progress_bar(number_of_commands);
+        let (tx, handle) = create_progress_bar(number_of_commands);
         runner = runner.with_progress(tx);
+        join_handle = Some(handle);
     }
 
-    runner
+    (runner, join_handle)
 }
 
-fn create_progress_bar(expected: usize) -> Sender<usize> {
+fn create_progress_bar(expected: usize) -> (Sender<usize>, JoinHandle<()>) {
     let (tx, rx): (Sender<usize>, Receiver<usize>) = mpsc::channel();
     let pb = ProgressBar::new(expected as u64).with_style(
         ProgressStyle::default_bar()
@@ -305,15 +316,18 @@ fn create_progress_bar(expected: usize) -> Sender<usize> {
             .expect("valid progress template"),
     );
 
-    let _ = std::thread::Builder::new().name("Progress".to_string()).spawn(move || {
-        for _ in 0..expected {
-            let _ = rx.recv().expect("Thread failed to receive progress via channel");
-            pb.inc(1);
-        }
-        pb.finish_and_clear();
-    });
+    let handle = std::thread::Builder::new()
+        .name("Progress".to_string())
+        .spawn(move || {
+            for _ in 0..expected {
+                let _ = rx.recv().expect("Thread failed to receive progress via channel");
+                pb.inc(1);
+            }
+            pb.finish_and_clear();
+        })
+        .expect("failed to spawn progress thread");
 
-    tx
+    (tx, handle)
 }
 
 fn create_context(_opt: &Opt, _config: &Config, profile_name: &str) -> Context {
@@ -324,16 +338,98 @@ fn create_context(_opt: &Opt, _config: &Config, profile_name: &str) -> Context {
     context
 }
 
-#[cfg(target_os = "macos")]
 mod defaults {
-    pub(crate) static CONFIG: &str = include_str!("../../contrib/osx.conf");
     pub(crate) static HTML_TEMPLATE: &str = include_str!("../../contrib/html.j2");
     pub(crate) static MD_TEMPLATE: &str = include_str!("../../contrib/markdown.j2");
+
+    #[cfg(target_os = "macos")]
+    pub(crate) static CONFIG: &str = include_str!("../../contrib/osx.conf");
+
+    #[cfg(target_os = "linux")]
+    pub(crate) static CONFIG: &str = include_str!("../../contrib/linux.conf");
 }
 
-#[cfg(target_os = "linux")]
-mod defaults {
-    pub(crate) static CONFIG: &str = include_str!("../../contrib/linux.conf");
-    pub(crate) static HTML_TEMPLATE: &str = include_str!("../../contrib/html.j2");
-    pub(crate) static MD_TEMPLATE: &str = include_str!("../../contrib/markdown.j2");
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use googletest::prelude::*;
+
+    fn make_opt(output: OutputType, output_template: Option<&str>) -> Opt {
+        Opt {
+            output,
+            output_template: output_template.map(|s| s.to_string()),
+            config: None,
+            parallel: None,
+            repetitions: None,
+            progress: false,
+            no_progress: false,
+            debug: false,
+            profile: None,
+            show_config: false,
+            show_output_template: false,
+            show_profiles: false,
+            show_commands: false,
+            filter_commands: vec![],
+        }
+    }
+
+    #[test]
+    fn test_filter_plus_adds_to_add_set() {
+        let specs = vec!["+foo".to_string()];
+        let (add, remove) = create_command_filter(&specs);
+        assert!(add.contains("foo"));
+        assert!(remove.is_empty());
+    }
+
+    #[test]
+    fn test_filter_minus_adds_to_remove_set() {
+        let specs = vec!["-bar".to_string()];
+        let (add, remove) = create_command_filter(&specs);
+        assert!(remove.contains("bar"));
+        assert!(add.is_empty());
+    }
+
+    #[test]
+    fn test_filter_bare_word_ignored() {
+        let specs = vec!["bare".to_string()];
+        let (add, remove) = create_command_filter(&specs);
+        assert!(add.is_empty());
+        assert!(remove.is_empty());
+    }
+
+    #[test]
+    fn test_filter_empty_string_ignored() {
+        let specs = vec!["".to_string()];
+        let (add, remove) = create_command_filter(&specs);
+        assert!(add.is_empty());
+        assert!(remove.is_empty());
+    }
+
+    #[test]
+    fn test_filter_mixed() {
+        let specs = vec!["+foo".to_string(), "-bar".to_string(), "bare".to_string(), "".to_string()];
+        let (add, remove) = create_command_filter(&specs);
+        assert!(add.contains("foo"));
+        assert!(remove.contains("bar"));
+        assert_eq!(add.len(), 1);
+        assert_eq!(remove.len(), 1);
+    }
+
+    #[test]
+    fn test_validate_hbs_without_template_returns_err() {
+        let opt = make_opt(OutputType::Hbs, None);
+        assert_that!(opt.validate(), err(anything()));
+    }
+
+    #[test]
+    fn test_validate_hbs_with_template_returns_ok() {
+        let opt = make_opt(OutputType::Hbs, Some("f.j2"));
+        assert_that!(opt.validate(), ok(anything()));
+    }
+
+    #[test]
+    fn test_validate_markdown_without_template_returns_ok() {
+        let opt = make_opt(OutputType::Markdown, None);
+        assert_that!(opt.validate(), ok(anything()));
+    }
 }
