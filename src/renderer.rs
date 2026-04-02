@@ -45,6 +45,36 @@ pub mod json {
             Ok(serde_json::to_writer(w, report)?)
         }
     }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use crate::analysis::{AnalysisReport, Context};
+        use googletest::prelude::*;
+
+        fn empty_report() -> AnalysisReport {
+            AnalysisReport::new(Context::new(), vec![], vec![], 1, 64)
+        }
+
+        #[test]
+        fn json_renderer_produces_valid_json() {
+            let r = JsonRenderer::new();
+            let mut out = Vec::new();
+            let res = r.render(&empty_report(), &mut out);
+            assert_that!(res, ok(anything()));
+            let s = String::from_utf8(out).unwrap();
+            assert_that!(serde_json::from_str::<serde_json::Value>(&s), ok(anything()));
+        }
+
+        #[test]
+        fn json_renderer_contains_hostname() {
+            let r = JsonRenderer::new();
+            let mut out = Vec::new();
+            r.render(&empty_report(), &mut out).unwrap();
+            let s = String::from_utf8(out).unwrap();
+            assert_that!(s, contains_substring("hostname"));
+        }
+    }
 }
 
 pub mod jinja {
@@ -89,4 +119,47 @@ pub mod jinja {
             Ok(())
         }
     }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use crate::analysis::{AnalysisReport, Context};
+        use googletest::prelude::*;
+
+        fn empty_report() -> AnalysisReport {
+            AnalysisReport::new(Context::new(), vec![], vec![], 1, 64)
+        }
+
+        #[test]
+        fn template_renderer_new_renders_literal() {
+            let r = TemplateRenderer::new("hello world");
+            let mut out = Vec::new();
+            let res = r.render(&empty_report(), &mut out);
+            assert_that!(res, ok(anything()));
+            assert_that!(String::from_utf8(out).unwrap(), eq("hello world"));
+        }
+
+        #[test]
+        fn template_renderer_new_renders_field() {
+            let r = TemplateRenderer::new("{{ repetitions }}");
+            let mut out = Vec::new();
+            r.render(&empty_report(), &mut out).unwrap();
+            assert_that!(String::from_utf8(out).unwrap(), eq("1"));
+        }
+
+        #[test]
+        fn template_renderer_from_file_missing_returns_err() {
+            let res = TemplateRenderer::from_file("/no/such/file.j2");
+            assert_that!(res, err(anything()));
+        }
+
+        #[test]
+        fn template_renderer_invalid_template_returns_err() {
+            let r = TemplateRenderer::new("{{ unclosed");
+            let mut out = Vec::new();
+            let res = r.render(&empty_report(), &mut out);
+            assert_that!(res, err(anything()));
+        }
+    }
 }
+
