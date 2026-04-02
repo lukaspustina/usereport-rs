@@ -4,7 +4,7 @@ version = "0.1.4"
 authors = ["Lukas Pustina <lukas@pustina.net>"]
 description = "Collect system information for the first 60 seconds of a performance analysis"
 repository = "https://github.com/lukaspustina/usereport-rs.git"
-documentation = "https://github.com/lukaspustina/usereport-rs.git"
+documentation = "https://docs.rs/usereport-rs"
 readme = "README.md"
 license = "MIT"
 keywords = ["performance", "analysis", "sre"]
@@ -45,7 +45,7 @@ required-features = ["bin"]
 
 [dependencies]
 anyhow = { version = "1", optional = true }
-chrono = { version = "0.4", features = ["serde"] }
+chrono = { version = "0.4.20", features = ["serde"] }
 clap = { version = "4", features = ["derive"], optional = true }
 env_logger = { version = "0.11", optional = true }
 minijinja = "2"
@@ -58,7 +58,7 @@ serde_json = "1.0"
 shell-words = "1"
 thiserror = "2"
 subprocess = "0.2"
-tempfile = "3"
+tempfile = "3.3"
 toml = "0.8"
 rustix = { version = "1", features = ["system"] }
 

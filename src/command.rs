@@ -88,7 +88,7 @@ impl Command {
         }
     }
 
-    /// Set title of command
+    /// Set timeout for command execution
     pub fn with_timeout<T: Into<Option<u64>>>(self, timeout_sec: T) -> Command {
         Command {
             timeout_sec: timeout_sec.into(),
@@ -139,46 +139,39 @@ impl Command {
         };
         debug!("Running '{:?}' as '{:?}'", args, p);
 
-        let wait = p.wait_timeout(Duration::new(self.timeout_sec.unwrap_or(1), 0));
+        let wait = p.wait_timeout(Duration::new(self.timeout_sec.unwrap_or(5), 0));
         let run_time_ms = (Local::now() - start_time).num_milliseconds() as u64;
 
-        if let Err(err) = Rc::get_mut(&mut tmpfile).unwrap().seek(SeekFrom::Start(0)) {
-            // TODO: unwrap is unsafe
-            return self.fail(err);
-        };
         match wait {
-            Ok(Some(status)) if status.success() => {
-                debug!(
-                    "{:?} process successfully finished as {:?} with {} bytes output",
-                    args,
-                    status,
-                    tmpfile.metadata().unwrap().len()
-                );
-                let mut stdout = String::new();
-                if let Err(err) = Rc::get_mut(&mut tmpfile).unwrap().read_to_string(&mut stdout) {
-                    // TODO: unwrap is unsafe
-                    return self.fail(err);
-                };
-                trace!("stdout '{}'", stdout);
-
-                CommandResult::Success {
-                    command: self,
-                    run_time_ms,
-                    stdout,
-                }
-            }
             Ok(Some(status)) => {
-                debug!("{:?} process finished as {:?}", args, status);
+                drop(p);
+                if let Err(err) = Rc::get_mut(&mut tmpfile).expect("sole owner after drop(p)").seek(SeekFrom::Start(0)) {
+                    return self.fail(err);
+                };
                 let mut stdout = String::new();
-                if let Err(err) = Rc::get_mut(&mut tmpfile).unwrap().read_to_string(&mut stdout) {
-                    // TODO: unwrap is unsafe
+                if let Err(err) = Rc::get_mut(&mut tmpfile).expect("sole owner after drop(p)").read_to_string(&mut stdout) {
                     return self.fail(err);
                 };
                 trace!("stdout '{}'", stdout);
-                CommandResult::Failed {
-                    command: self,
-                    run_time_ms,
-                    stdout,
+                if status.success() {
+                    debug!(
+                        "{:?} process successfully finished as {:?} with {} bytes output",
+                        args,
+                        status,
+                        stdout.len()
+                    );
+                    CommandResult::Success {
+                        command: self,
+                        run_time_ms,
+                        stdout,
+                    }
+                } else {
+                    debug!("{:?} process finished as {:?}", args, status);
+                    CommandResult::Failed {
+                        command: self,
+                        run_time_ms,
+                        stdout,
+                    }
                 }
             }
             Ok(None) => {
@@ -210,10 +203,11 @@ impl Command {
 
     fn args(&self) -> Result<Vec<String>, shell_words::ParseError> { shell_words::split(&self.command) }
 
-    /// Panics
     fn terminate(&self, p: &mut Popen) {
-        p.kill().expect("failed to kill command");
-        p.wait().expect("failed to wait for command to finish");
+        if let Err(err) = p.kill() {
+            log::warn!("failed to kill command: {}", err);
+        }
+        let _ = p.wait();
         trace!("process killed");
     }
 }
