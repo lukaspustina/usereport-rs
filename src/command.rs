@@ -263,7 +263,7 @@ mod tests {
     use super::*;
     use crate::tests::*;
 
-    use spectral::prelude::*;
+    use googletest::prelude::*;
 
     #[test]
     fn execution_ok() {
@@ -276,9 +276,7 @@ mod tests {
 
         let res = command.exec();
 
-        asserting("executing command successfully")
-            .that(&res)
-            .is_success_contains("");
+        assert_that!(res, matches_pattern!(CommandResult::Success { .. }));
     }
 
     #[test]
@@ -292,7 +290,7 @@ mod tests {
 
         let res = command.exec();
 
-        asserting("executing command successfully").that(&res).is_failed();
+        assert_that!(res, matches_pattern!(CommandResult::Failed { .. }));
     }
 
     #[test]
@@ -303,7 +301,7 @@ mod tests {
 
         let res = command.exec();
 
-        asserting("executing command successfully").that(&res).is_timeout();
+        assert_that!(res, matches_pattern!(CommandResult::Timeout { .. }));
     }
 
     #[test]
@@ -314,9 +312,10 @@ mod tests {
 
         let res = command.exec();
 
-        asserting("executing command errors")
-            .that(&res)
-            .is_error_contains("No such file or directory")
+        assert_that!(res, matches_pattern!(CommandResult::Error {
+            reason: contains_substring("No such file or directory"),
+            ..
+        }));
     }
 
     #[test]
@@ -324,12 +323,9 @@ mod tests {
         init();
 
         let command = Command::new("no_such_command", r#"/bin/sleep 5"#);
-        let args = command.args();
+        let args = command.args().expect("split ok");
 
-        asserting("splitting command into args")
-            .that(&args)
-            .is_ok()
-            .has_length(2);
+        assert_eq!(args.len(), 2);
     }
 
     #[test]
@@ -337,12 +333,9 @@ mod tests {
         init();
 
         let command = Command::new("no_such_command", r#"sh -c 'dmesg -T | grep "failed"'"#);
-        let args = command.args();
+        let args = command.args().expect("split ok");
 
-        asserting("splitting command into args")
-            .that(&args)
-            .is_ok()
-            .has_length(3);
+        assert_eq!(args.len(), 3);
     }
 
     #[test]
@@ -350,11 +343,8 @@ mod tests {
         init();
 
         let command = Command::new("no_such_command", r#"sh -c "dmesg -T | tail""#);
-        let args = command.args();
+        let args = command.args().expect("split ok");
 
-        asserting("splitting command into args")
-            .that(&args)
-            .is_ok()
-            .has_length(3);
+        assert_eq!(args.len(), 3);
     }
 }

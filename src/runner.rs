@@ -130,9 +130,9 @@ pub mod thread {
     #[cfg(test)]
     mod tests {
         use super::*;
-        use crate::{runner::Runner, tests::*};
+        use crate::runner::Runner;
 
-        use spectral::prelude::*;
+        use googletest::prelude::*;
 
         #[test]
         fn run_ok() {
@@ -151,14 +151,13 @@ pub mod thread {
             let expected = "Linux";
 
             let r = ThreadRunner::new();
-            let results = r.run(&commands, 64);
+            let results = r.run(&commands, 64).expect("Command run");
 
-            asserting("Command run").that(&results).is_ok().has_length(2);
-
-            let results = results.unwrap();
-            asserting("First command result is success")
-                .that(&results[0])
-                .is_success_contains(expected);
+            assert_eq!(results.len(), 2);
+            assert_that!(results[0], matches_pattern!(CommandResult::Success {
+                stdout: contains_substring(expected),
+                ..
+            }));
         }
     }
 }

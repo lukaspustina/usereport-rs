@@ -235,7 +235,7 @@ impl Profile {
 mod tests {
     use super::*;
 
-    use spectral::prelude::*;
+    use googletest::prelude::*;
 
     #[test]
     fn config_read_from_str_ok() {
@@ -277,10 +277,7 @@ timeout = 1
 
         let config = Config::from_str(config_txt);
 
-        asserting("Reading config from toml")
-            .that(&config)
-            .is_ok()
-            .is_equal_to(&expected);
+        assert_that!(config, ok(eq(&expected)));
     }
 
     #[test]
@@ -292,7 +289,7 @@ timeout = 1
 
         let config = Config::from_file(path);
 
-        asserting("Reading config from file").that(&config).is_ok();
+        assert_that!(config, ok(anything()));
     }
 
     #[test]
@@ -316,7 +313,7 @@ timeout = 1
         let config = Config::from_str(config_txt).expect("syntax ok");
         let validation = config.validate();
 
-        asserting("validating config").that(&validation).is_err();
+        assert_that!(validation, err(anything()));
     }
 
     #[test]
@@ -340,7 +337,7 @@ timeout = 1
         let config = Config::from_str(config_txt).expect("syntax ok");
         let validation = config.validate();
 
-        asserting("validating config").that(&validation).is_err();
+        assert_that!(validation, err(anything()));
     }
 
     #[test]
@@ -367,7 +364,7 @@ timeout = 1
         let config = Config::from_str(config_txt).expect("syntax ok");
         let validation = config.validate();
 
-        asserting("validating config").that(&validation).is_err();
+        assert_that!(validation, err(anything()));
     }
 
     #[test]
@@ -388,12 +385,8 @@ command = "/usr/bin/uname -a"
 "#;
         let config = Config::from_str(config_txt).expect("syntax ok");
 
-        asserting("default timeout set")
-            .that(&config.commands.first())
-            .is_some()
-            .map(|x| &x.timeout_sec)
-            .is_some()
-            .is_equal_to(5);
+        let first = config.commands.first().expect("has commands");
+        assert_that!(first.timeout_sec, some(eq(5u64)));
     }
 
     /// Make sure that commands remain in the same order as specified in hostinfo
@@ -405,9 +398,7 @@ command = "/usr/bin/uname -a"
 
         let commands: Vec<String> = config.commands_for_hostinfo().into_iter().map(|x| x.name).collect();
 
-        asserting("Commands have expected order")
-            .that(&commands)
-            .is_equal_to(&expected);
+        assert_that!(commands, eq(&expected));
     }
 
     /// Make sure that commands remain in the same order as specified in a profile
@@ -424,8 +415,6 @@ command = "/usr/bin/uname -a"
             .map(|x| x.name)
             .collect();
 
-        asserting("Commands have expected order")
-            .that(&commands)
-            .is_equal_to(&expected);
+        assert_that!(commands, eq(&expected));
     }
 }

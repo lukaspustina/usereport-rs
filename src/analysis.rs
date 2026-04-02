@@ -163,10 +163,10 @@ impl Context {
 mod tests {
     use super::*;
 
-    use spectral::prelude::*;
+    use googletest::prelude::*;
 
     #[test]
-    fn ok() {
+    fn run_ok() {
         let hostinfos: Vec<Command> = Vec::new();
         let commands: Vec<Command> = Vec::new();
         let tr = runner::ThreadRunner::new();
@@ -177,7 +177,7 @@ mod tests {
         let context = Context::new();
 
         let res = analysis.run(context);
-        asserting("Analysis run").that(&res).is_ok();
+        assert_that!(res, ok(anything()));
     }
 
     #[test]
@@ -200,6 +200,6 @@ mod tests {
         let context = Context::new();
 
         let res = analysis.run(context);
-        asserting("Analysis run").that(&res).is_ok();
+        assert_that!(res, ok(anything()));
     }
 }
