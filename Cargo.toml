@@ -4,7 +4,7 @@ version = "0.1.4"
 authors = ["Lukas Pustina <lukas@pustina.net>"]
 description = "Collect system information for the first 60 seconds of a performance analysis"
 repository = "https://github.com/lukaspustina/usereport-rs.git"
-documentation = "https://github.com/lukaspustina/usereport-rs.git"
+documentation = "https://docs.rs/usereport-rs"
 readme = "README.md"
 license = "MIT"
 keywords = ["performance", "analysis", "sre"]
@@ -44,7 +44,7 @@ required-features = ["bin"]
 
 [dependencies]
 atty = { version = "0.2", optional = true }
-chrono = { version = "0.4", features = ["serde"] }
+chrono = { version = "0.4.20", features = ["serde"] }
 env_logger = { version = "0.7", optional = true }
 exitfailure = { version = "0.5", optional = true }
 failure = { version = "0.1", optional = true }
@@ -56,10 +56,12 @@ prettytable-rs = { version = "0.8", optional = true }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 shellwords = "1"
+proc-macro2 = "=1.0.6"
+quote = "=1.0.2"
 snafu = "0.6"
 structopt = { version = "0.3.7", optional = true }
 subprocess = "0.2"
-tempfile = "3"
+tempfile = "3.3"
 toml = "0.5"
 uname = "0.1"
 
