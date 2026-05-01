@@ -228,6 +228,14 @@
         </ul>
     {% endfor %}
 
+    {% if flamegraph_svg %}
+    <hr/>
+    <h2>CPU Flamegraph</h2>
+    <div style="overflow-x:auto;">
+        {{ flamegraph_svg }}
+    </div>
+    {% endif %}
+
     <hr/>
 
     <small>Please see <a

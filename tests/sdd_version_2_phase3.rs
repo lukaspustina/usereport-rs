@@ -196,6 +196,8 @@ fn ac_phase3_5_analysis_run_populates_signals_and_findings() {
         summary: "rq sat".to_string(),
         evidence_ids: vec!["vmstat.r".to_string(), "host.cpu_count".to_string()],
         suggest: vec![],
+        description: None,
+        links: vec![],
     };
     let engine = RuleEngine::new(vec![rule]);
 
@@ -236,6 +238,8 @@ fn ac_phase3_6_pipeline_findings_are_severity_ordered() {
             summary: "warn".to_string(),
             evidence_ids: vec!["vmstat.r".to_string()],
             suggest: vec![],
+            description: None,
+            links: vec![],
         },
         Rule {
             id: "crit.x".to_string(),
@@ -244,6 +248,8 @@ fn ac_phase3_6_pipeline_findings_are_severity_ordered() {
             summary: "crit".to_string(),
             evidence_ids: vec!["mem.free_pct".to_string()],
             suggest: vec![],
+            description: None,
+            links: vec![],
         },
     ];
     let engine = RuleEngine::new(rules);
@@ -304,6 +310,8 @@ fn ac_phase3_8_compute_exit_code_returns_one_when_pipeline_emits_warn() {
         summary: "rq sat".to_string(),
         evidence_ids: vec!["vmstat.r".to_string()],
         suggest: vec![],
+        description: None,
+        links: vec![],
     };
     let engine = RuleEngine::new(vec![rule]);
     let hostinfos: Vec<Command> = vec![];

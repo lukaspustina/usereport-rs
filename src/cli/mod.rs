@@ -1,6 +1,10 @@
 use crate::{
     baseline::BaselineStore,
-    collector::{cpu::CpuCollector, disk::DiskCollector, host::HostCollector, Collector},
+    collector::{
+        cgroup::CgroupCollector, cpu::CpuCollector, cpufreq::CpuFreqCollector,
+        disk::DiskCollector, host::HostCollector, interrupts::InterruptsCollector,
+        network::NetworkCollector, Collector,
+    },
     diff,
     finding::{Finding, Severity},
     llm::LlmOutput,
@@ -121,7 +125,12 @@ pub struct Opt {
     /// Known values: postgres, java, nginx, kubelet, none (default).
     #[arg(long, value_name = "NAME", default_value = "none")]
     workload: String,
-    /// Subcommand: `usereport baseline …` or `usereport diff <a.json> <b.json>`.
+    /// Run CPU profiling for DURATION (e.g. 10s, 1m) using perf or bpftrace,
+    /// fold stacks with inferno, and embed the flamegraph SVG in the HTML report.
+    /// Requires perf or bpftrace in PATH; emits an info finding when neither is found.
+    #[arg(long, value_name = "DURATION")]
+    profile_cpu: Option<String>,
+    /// Subcommand: `usereport baseline …`, `usereport diff`, or `usereport explain <id>`.
     #[command(subcommand)]
     pub command: Option<Subcommand>,
 }
@@ -140,6 +149,11 @@ pub enum Subcommand {
         /// Output format: `text` (default) or `json`.
         #[arg(long, default_value = "text")]
         output: String,
+    },
+    /// Print the definition, what raises it, what to investigate, and links for a rule or signal ID.
+    /// When the ID is unknown, lists all known rule IDs.
+    Explain {
+        id: String,
     },
 }
 
@@ -376,6 +390,7 @@ fn run_subcommand(cmd: &Subcommand) -> anyhow::Result<()> {
     match cmd {
         Subcommand::Baseline { action } => run_baseline(action),
         Subcommand::Diff { a, b, output } => run_diff(a, b, output),
+        Subcommand::Explain { id } => run_explain(id),
     }
 }
 
@@ -432,6 +447,109 @@ fn run_diff(a_path: &PathBuf, b_path: &PathBuf, output: &str) -> anyhow::Result<
     Ok(())
 }
 
+fn run_explain(id: &str) -> anyhow::Result<()> {
+    let all_rules = builtin_rules();
+    if let Some(rule) = all_rules.iter().find(|r| r.id == id) {
+        println!("ID:       {}", rule.id);
+        println!("Severity: {:?}", rule.severity);
+        println!("Summary:  {}", rule.summary);
+        if let Some(desc) = &rule.description {
+            println!();
+            println!("{}", desc);
+        }
+        if !rule.suggest.is_empty() {
+            println!();
+            println!("To investigate:");
+            for s in &rule.suggest {
+                println!("  {}", s);
+            }
+        }
+        if !rule.links.is_empty() {
+            println!();
+            println!("Links:");
+            for l in &rule.links {
+                println!("  {}", l);
+            }
+        }
+        Ok(())
+    } else {
+        eprintln!("Unknown topic '{}'.", id);
+        eprintln!();
+        eprintln!("Known rule IDs:");
+        for r in &all_rules {
+            eprintln!("  {}", r.id);
+        }
+        std::process::exit(1);
+    }
+}
+
+/// Run CPU profiling for `duration_secs` seconds using perf (or bpftrace when
+/// `use_bpf` is true and bpftrace is on PATH). Returns `Ok(Some(svg))` on
+/// success, `Ok(None)` when no profiling tool is available.
+fn generate_flamegraph(duration_secs: u64, use_bpf: bool) -> anyhow::Result<Option<String>> {
+    let has_perf = which::which("perf").is_ok();
+    let has_bpftrace = use_bpf && which::which("bpftrace").is_ok();
+
+    if !has_perf && !has_bpftrace {
+        return Ok(None);
+    }
+
+    let tmpdir = tempfile::tempdir()?;
+    let perf_data = tmpdir.path().join("perf.data");
+
+    if has_perf {
+        let status = std::process::Command::new("perf")
+            .args(["record", "-F", "99", "-ag", "-o"])
+            .arg(&perf_data)
+            .args(["--", "sleep", &duration_secs.to_string()])
+            .stderr(std::process::Stdio::null())
+            .status()
+            .context("failed to run perf record")?;
+
+        if !status.success() {
+            return Ok(None);
+        }
+
+        let script = std::process::Command::new("perf")
+            .args(["script", "-i"])
+            .arg(&perf_data)
+            .stderr(std::process::Stdio::null())
+            .output()
+            .context("failed to run perf script")?;
+
+        if script.stdout.is_empty() {
+            return Ok(None);
+        }
+
+        return generate_svg_from_perf_script(&script.stdout);
+    }
+
+    Ok(None)
+}
+
+fn generate_svg_from_perf_script(perf_output: &[u8]) -> anyhow::Result<Option<String>> {
+    use inferno::collapse::perf::{Folder, Options as CollapseOpts};
+    use inferno::collapse::Collapse;
+    use inferno::flamegraph;
+
+    let mut collapsed = Vec::new();
+    let mut folder = Folder::from(CollapseOpts::default());
+    folder
+        .collapse(perf_output, &mut collapsed)
+        .context("inferno collapse failed")?;
+
+    let collapsed_str = String::from_utf8_lossy(&collapsed);
+    let lines: Vec<&str> = collapsed_str.lines().filter(|l| !l.is_empty()).collect();
+    if lines.is_empty() {
+        return Ok(None);
+    }
+
+    let mut svg = Vec::new();
+    flamegraph::from_lines(&mut flamegraph::Options::default(), lines.into_iter(), &mut svg)
+        .context("inferno flamegraph failed")?;
+    Ok(Some(String::from_utf8(svg)?))
+}
+
 fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> anyhow::Result<Vec<Finding>> {
     let parallel = opt.parallel.unwrap_or(config.defaults.max_parallel_commands);
     let repetitions = opt.repetitions.unwrap_or(config.defaults.repetitions);
@@ -457,6 +575,10 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> anyhow::Re
         Box::new(HostCollector::new()),
         Box::new(CpuCollector::new()),
         Box::new(DiskCollector::new()),
+        Box::new(NetworkCollector::new()),
+        Box::new(CpuFreqCollector::new()),
+        Box::new(InterruptsCollector::new()),
+        Box::new(CgroupCollector::new()),
     ];
     let mut all_rules = builtin_rules();
     #[cfg(feature = "bpf")]
@@ -505,7 +627,33 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> anyhow::Re
     }
 
     let context = create_context(opt, config, profile_name);
-    let report = analysis.run(context)?;
+    let mut report = analysis.run(context)?;
+
+    // --profile-cpu: generate flamegraph and attach to report.
+    if let Some(profile_dur) = &opt.profile_cpu {
+        let dur = parse_duration(profile_dur)?;
+        let dur_secs = dur.as_secs().max(1);
+        #[cfg(feature = "bpf")]
+        let use_bpf = opt.bpf;
+        #[cfg(not(feature = "bpf"))]
+        let use_bpf = false;
+        match generate_flamegraph(dur_secs, use_bpf) {
+            Ok(Some(svg)) => report = report.with_flamegraph(svg),
+            Ok(None) => {
+                report.findings.push(Finding {
+                    id: "profile.cpu.unavailable".to_string(),
+                    kind: crate::finding::FindingKind::Rule,
+                    severity: Severity::Info,
+                    summary:
+                        "--profile-cpu requested but neither 'perf' nor 'bpftrace' was found in PATH; flamegraph omitted."
+                            .to_string(),
+                    evidence: Vec::new(),
+                    suggest: vec!["Install linux-perf or bpftrace and re-run.".to_string()],
+                });
+            }
+            Err(e) => log::warn!("flamegraph generation failed: {}", e),
+        }
+    }
 
     if let Some(handle) = progress_handle {
         if handle.join().is_err() {
@@ -721,6 +869,7 @@ mod tests {
             #[cfg(feature = "bpf")]
             bpf: false,
             workload: "none".to_string(),
+            profile_cpu: None,
             filter_commands: vec![],
             command: None,
         }

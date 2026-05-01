@@ -91,6 +91,8 @@ fn ac_2_rule_predicate_match_emits_finding() {
         summary: "Run queue exceeds core count".to_string(),
         evidence_ids: vec!["vmstat.r".to_string(), "host.cpu_count".to_string()],
         suggest: vec!["pidstat 1 5".to_string()],
+        description: None,
+        links: vec![],
     };
 
     let signals = vec![make_signal("vmstat.r", 8.0)];
@@ -127,6 +129,8 @@ fn ac_3_rule_predicate_non_match_emits_no_finding() {
         summary: "Run queue exceeds core count".to_string(),
         evidence_ids: vec!["vmstat.r".to_string()],
         suggest: vec![],
+        description: None,
+        links: vec![],
     };
 
     let signals = vec![make_signal("vmstat.r", 2.0)];
@@ -147,6 +151,8 @@ fn ac_3_rule_with_absent_signal_emits_no_finding() {
         summary: "won't fire".to_string(),
         evidence_ids: vec!["does.not.exist".to_string()],
         suggest: vec![],
+        description: None,
+        links: vec![],
     };
 
     let signals: Vec<Signal> = vec![];
@@ -236,6 +242,8 @@ fn ac_5_malformed_user_rule_does_not_block_builtins() {
         summary: "always fires when r > 0".to_string(),
         evidence_ids: vec!["vmstat.r".to_string()],
         suggest: vec![],
+        description: None,
+        links: vec![],
     }];
 
     let load_result = RulesLoader::new()
@@ -277,6 +285,8 @@ fn ac_7_rule_engine_is_deterministic_across_runs() {
             summary: "a".to_string(),
             evidence_ids: vec!["vmstat.r".to_string()],
             suggest: vec![],
+            description: None,
+            links: vec![],
         },
         Rule {
             id: "b.rule".to_string(),
@@ -285,6 +295,8 @@ fn ac_7_rule_engine_is_deterministic_across_runs() {
             summary: "b".to_string(),
             evidence_ids: vec!["mem.free_pct".to_string()],
             suggest: vec![],
+            description: None,
+            links: vec![],
         },
     ];
 

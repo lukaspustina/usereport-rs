@@ -43,6 +43,8 @@ pub struct Rule {
     pub summary: String,
     pub evidence_ids: Vec<String>,
     pub suggest: Vec<String>,
+    pub description: Option<String>,
+    pub links: Vec<String>,
 }
 
 // --- Predicate AST -----------------------------------------------------------
@@ -522,6 +524,10 @@ struct RuleToml {
     evidence: Vec<String>,
     #[serde(default)]
     suggest: Vec<String>,
+    #[serde(default)]
+    description: Option<String>,
+    #[serde(default)]
+    links: Vec<String>,
 }
 
 impl RuleToml {
@@ -536,6 +542,8 @@ impl RuleToml {
             summary: self.summary,
             evidence_ids: self.evidence,
             suggest: self.suggest,
+            description: self.description,
+            links: self.links,
         })
     }
 }
@@ -723,6 +731,8 @@ mod tests {
             summary: "compound rule fired".to_string(),
             evidence_ids: vec!["a".to_string(), "b".to_string()],
             suggest: vec![],
+            description: None,
+            links: vec![],
         };
         let signals = vec![signal("a", 5.0), signal("b", 5.0)];
         let engine = RuleEngine::new(vec![rule]);

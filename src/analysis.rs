@@ -140,6 +140,7 @@ impl<'a, I: IntoIterator<Item = &'a Command> + Copy> Analysis<'a, I> {
             signals,
             findings,
             checked_ok: Vec::new(),
+            flamegraph_svg: None,
         })
     }
 
@@ -210,6 +211,8 @@ pub struct AnalysisReport {
     pub(crate) findings: Vec<Finding>,
     #[serde(default)]
     pub(crate) checked_ok: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) flamegraph_svg: Option<String>,
 }
 
 impl AnalysisReport {
@@ -229,6 +232,7 @@ impl AnalysisReport {
             signals: Vec::new(),
             findings: Vec::new(),
             checked_ok: Vec::new(),
+            flamegraph_svg: None,
         }
     }
 
@@ -254,7 +258,17 @@ impl AnalysisReport {
             signals,
             findings,
             checked_ok,
+            flamegraph_svg: None,
         }
+    }
+
+    pub fn with_flamegraph(mut self, svg: String) -> Self {
+        self.flamegraph_svg = Some(svg);
+        self
+    }
+
+    pub fn flamegraph_svg(&self) -> Option<&str> {
+        self.flamegraph_svg.as_deref()
     }
 
     pub fn context(&self) -> &Context {

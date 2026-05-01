@@ -13,10 +13,14 @@ use thiserror::Error;
 use crate::signal::Signal;
 
 pub mod cpu;
+pub mod cgroup;
 pub mod dmesg;
 pub mod disk;
 pub mod host;
+pub mod interrupts;
+pub mod cpufreq;
 pub mod memory;
+pub mod network;
 #[cfg(feature = "bpf")]
 pub mod bpf;
 

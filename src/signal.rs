@@ -22,7 +22,7 @@ pub struct Signal {
     pub baseline: Option<BaselineStats>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum SignalValue {
     F64(f64),

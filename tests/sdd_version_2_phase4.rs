@@ -280,6 +280,8 @@ fn ac_phase4_9_trend_rule_finding_evidence_cites_signal() {
         summary: "CPU load is rising".to_string(),
         evidence_ids: vec!["cpu.load".to_string()],
         suggest: vec![],
+        description: None,
+        links: vec![],
     };
     let engine = RuleEngine::new(vec![rule]);
 

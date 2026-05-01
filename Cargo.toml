@@ -25,7 +25,7 @@ rust-version = "1.74"
 [badges]
 
 [features]
-bin = ["clap", "comfy-table", "env_logger", "anyhow", "human-panic", "indicatif", "humantime"]
+bin = ["clap", "comfy-table", "env_logger", "anyhow", "human-panic", "indicatif", "humantime", "inferno"]
 bpf = []
 
 [[bin]]
@@ -69,6 +69,7 @@ regex = "1"
 rustix = { version = "1", features = ["system", "fs"] }
 sha2 = "0.10"
 which = "6"
+inferno = { version = "0.11", optional = true }
 
 [dev-dependencies]
 env_logger = "0.11"
