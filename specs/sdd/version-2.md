@@ -647,7 +647,7 @@ Tasks:
 - Add `FindingKind::Pattern` to `Finding` struct.
 
 Completion criteria:
-- Synthetic dmesg fixture files produce expected signals (OOM → `dmesg.oom_count > 0`, blocked-task → `dmesg.blocked_task_count > 0`, EXT4 error → `dmesg.ext4_error_count > 0`).
+- Synthetic dmesg fixture files produce expected signals (OOM → `dmesg.oom_count > 0`, blocked-task → `dmesg.blocked_task_count > 0`, EXT4/XFS error → `dmesg.fs_error_count > 0`).
 - TIME_WAIT exhaustion fixture produces the corresponding pattern finding with expected `suggest` commands.
 - A partial signal set (missing one required signal) produces no pattern finding.
 

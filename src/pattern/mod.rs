@@ -24,6 +24,7 @@ pub enum Error {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// A single compiled pattern.
+#[derive(Debug)]
 pub struct Pattern {
     pub id: String,
     pub when: Predicate,
@@ -33,6 +34,7 @@ pub struct Pattern {
 }
 
 /// Evaluates patterns against a signal set after the rule pass.
+#[derive(Debug)]
 pub struct PatternEngine {
     patterns: Vec<Pattern>,
 }

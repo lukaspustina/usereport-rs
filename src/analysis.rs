@@ -2,6 +2,7 @@ use crate::{
     baseline::{annotate, outlier_findings, BaselineRecord},
     collector::{CollectCtx, Collector},
     finding::{sort_findings, Finding},
+    pattern::PatternEngine,
     rule::RuleEngine,
     runner,
     signal::Signal,
@@ -38,6 +39,7 @@ pub struct Analysis<'a, I: IntoIterator<Item = &'a Command> + Copy> {
     max_parallel_commands: usize,
     collectors: Vec<Box<dyn Collector>>,
     rule_engine: Option<RuleEngine>,
+    pattern_engine: Option<PatternEngine>,
     cgroup_path: Option<PathBuf>,
     baseline_records: Vec<BaselineRecord>,
     sample_duration: Option<Duration>,
@@ -54,6 +56,7 @@ impl<'a, I: IntoIterator<Item = &'a Command> + Copy> Analysis<'a, I> {
             max_parallel_commands: 64,
             collectors: Vec::new(),
             rule_engine: None,
+            pattern_engine: None,
             cgroup_path: None,
             baseline_records: Vec::new(),
             sample_duration: None,
@@ -80,6 +83,15 @@ impl<'a, I: IntoIterator<Item = &'a Command> + Copy> Analysis<'a, I> {
         Analysis {
             collectors,
             rule_engine: Some(rule_engine),
+            ..self
+        }
+    }
+
+    /// Install a pattern engine that runs after the rule pass (SDD §641).
+    /// Pattern findings are merged and re-sorted with rule findings.
+    pub fn with_pattern_engine(self, engine: PatternEngine) -> Self {
+        Analysis {
+            pattern_engine: Some(engine),
             ..self
         }
     }
@@ -156,8 +168,13 @@ impl<'a, I: IntoIterator<Item = &'a Command> + Copy> Analysis<'a, I> {
             Some(engine) => engine.run(&signals, &ctx),
             None => Vec::new(),
         };
+        if let Some(pe) = &self.pattern_engine {
+            findings.extend(pe.run(&signals, &ctx));
+        }
         if !self.baseline_records.is_empty() {
             findings.extend(outlier_findings(&signals));
+        }
+        if !findings.is_empty() {
             sort_findings(&mut findings);
         }
         (signals, findings)
