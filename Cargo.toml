@@ -25,7 +25,7 @@ rust-version = "1.74"
 [badges]
 
 [features]
-bin = ["clap", "comfy-table", "env_logger", "anyhow", "human-panic", "indicatif"]
+bin = ["clap", "comfy-table", "env_logger", "anyhow", "human-panic", "indicatif", "humantime"]
 
 [[bin]]
 name = "usereport"
@@ -47,6 +47,7 @@ required-features = ["bin"]
 
 [dependencies]
 anyhow = { version = "1", optional = true }
+humantime = { version = "2", optional = true }
 chrono = { version = "0.4.20", features = ["serde"] }
 clap = { version = "4", features = ["derive"], optional = true }
 env_logger = { version = "0.11", optional = true }

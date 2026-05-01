@@ -67,14 +67,25 @@ impl Collector for CpuCollector {
         "cpu"
     }
 
-    /// Read `/proc/stat` twice with a 1 s window. On hosts without
-    /// `/proc/stat`, return Ok(empty) — the parser-based mpstat fallback is
-    /// deferred to a Phase 3 follow-up.
-    fn collect(&self, _ctx: &CollectCtx) -> Result<Vec<Signal>> {
+    fn supports_sampling(&self) -> bool {
+        true
+    }
+
+    /// Read `/proc/stat` with a 1 s minimum window. When `ctx.duration` and
+    /// `ctx.interval` are set, loop N = floor(duration/interval)+1 times,
+    /// collecting one snapshot per interval, and populate `Signal::samples`.
+    /// On hosts without `/proc/stat`, return Ok(empty).
+    fn collect(&self, ctx: &CollectCtx) -> Result<Vec<Signal>> {
         let s1 = match std::fs::read_to_string("/proc/stat") {
             Ok(s) => s,
             Err(_) => return Ok(Vec::new()),
         };
+
+        if let (Some(duration), Some(interval)) = (ctx.duration, ctx.interval) {
+            return self.collect_sampled(&s1, duration, interval);
+        }
+
+        // Single-shot: one delta over MIN_WINDOW.
         let started = Instant::now();
         std::thread::sleep(MIN_WINDOW);
         let elapsed_secs = started.elapsed().as_secs_f64().max(1.0);
@@ -83,6 +94,52 @@ impl Collector for CpuCollector {
             Err(_) => return Ok(Vec::new()),
         };
         Ok(Self::from_proc_stat_snapshots(&s1, &s2, elapsed_secs))
+    }
+}
+
+impl CpuCollector {
+    fn collect_sampled(&self, first_snapshot: &str, duration: Duration, interval: Duration) -> Result<Vec<Signal>> {
+        let n = (duration.as_secs_f64() / interval.as_secs_f64()).floor() as usize + 1;
+        // Maps signal id → (unit, vec of per-sample f64 values).
+        let mut samples: std::collections::HashMap<String, (crate::signal::Unit, Vec<f64>)> =
+            std::collections::HashMap::new();
+        let mut prev = first_snapshot.to_string();
+        for _ in 0..n {
+            let sleep_for = interval.max(MIN_WINDOW);
+            let started = Instant::now();
+            std::thread::sleep(sleep_for);
+            let elapsed_secs = started.elapsed().as_secs_f64().max(1.0);
+            let next = match std::fs::read_to_string("/proc/stat") {
+                Ok(s) => s,
+                Err(_) => break,
+            };
+            for sig in Self::from_proc_stat_snapshots(&prev, &next, elapsed_secs) {
+                if let Some(v) = sig.value.as_f64() {
+                    samples.entry(sig.id.clone()).or_insert_with(|| (sig.unit, Vec::new())).1.push(v);
+                }
+            }
+            prev = next;
+        }
+        if samples.is_empty() {
+            return Ok(Vec::new());
+        }
+        let now = chrono::Local::now();
+        let mut signals: Vec<Signal> = samples
+            .into_iter()
+            .map(|(id, (unit, vals))| {
+                let value = vals.last().copied().unwrap_or(0.0);
+                Signal {
+                    id,
+                    value: crate::signal::SignalValue::F64(value),
+                    unit,
+                    at: now,
+                    samples: Some(vals),
+                    baseline: None,
+                }
+            })
+            .collect();
+        signals.sort_by(|a, b| a.id.cmp(&b.id));
+        Ok(signals)
     }
 }
 

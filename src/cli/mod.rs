@@ -46,9 +46,19 @@ pub struct Opt {
     /// Set number of commands to run in parallel; overrides setting from config file
     #[arg(long)]
     parallel: Option<usize>,
-    /// Set number of how many times to run commands in row; overrides setting from config file
-    #[arg(long)]
+    /// Set number of how many times to run commands in row; overrides setting from config file.
+    /// Mutually exclusive with --duration.
+    #[arg(long, conflicts_with = "duration")]
     repetitions: Option<usize>,
+    /// Time-sampling window (e.g. 30s, 2m). When given, collectors that
+    /// support sampling loop N = floor(duration/interval)+1 times. Mutually
+    /// exclusive with --repetitions.
+    #[arg(long, value_name = "DURATION", conflicts_with = "repetitions")]
+    duration: Option<String>,
+    /// Sampling interval within the --duration window (e.g. 2s). Requires
+    /// --duration; defaults to 5s when --duration is given without --interval.
+    #[arg(long, value_name = "INTERVAL", requires = "duration")]
+    interval: Option<String>,
     /// Force to show progress bar while waiting for all commands to finish
     #[arg(long, conflicts_with = "no_progress")]
     progress: bool,
@@ -416,10 +426,29 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> anyhow::Re
     let collectors: Vec<Box<dyn Collector>> = vec![Box::new(CpuCollector::new()), Box::new(DiskCollector::new())];
     let rule_engine = RuleEngine::new(builtin_rules());
 
+    // Phase 4: parse --duration / --interval and thread them into the collector context.
+    let sample_duration = opt
+        .duration
+        .as_deref()
+        .map(parse_duration)
+        .transpose()
+        .context("invalid --duration value")?;
+    let default_interval = std::time::Duration::from_secs(5);
+    let sample_interval = opt
+        .interval
+        .as_deref()
+        .map(parse_duration)
+        .transpose()
+        .context("invalid --interval value")?
+        .or_else(|| sample_duration.map(|_| default_interval));
+
     let mut analysis = Analysis::new(Box::new(runner), &hostinfo, &commands)
         .with_max_parallel_commands(parallel)
         .with_repetitions(repetitions)
         .with_diagnostics(collectors, rule_engine);
+    if let Some(d) = sample_duration {
+        analysis = analysis.with_sample_duration(d, sample_interval.unwrap_or(default_interval));
+    }
     if let Some(cgroup_path) = opt.cgroup.clone() {
         analysis = analysis.with_cgroup(cgroup_path);
     }
@@ -457,6 +486,10 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> anyhow::Re
     }
 
     Ok(report.findings().to_vec())
+}
+
+fn parse_duration(s: &str) -> anyhow::Result<std::time::Duration> {
+    humantime::parse_duration(s).with_context(|| format!("invalid duration {:?}", s))
 }
 
 /// Build a writer for the rendered report. When `output_file` is `Some(path)`,
@@ -625,6 +658,8 @@ mod tests {
             show_profiles: false,
             show_commands: false,
             baseline: None,
+            duration: None,
+            interval: None,
             filter_commands: vec![],
             command: None,
         }

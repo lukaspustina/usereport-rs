@@ -5,6 +5,8 @@
 //! and `mad`; `z_score` returns `0.0` when `mad == 0` (avoid divide-by-zero;
 //! a flat baseline cannot be exceeded).
 
+use crate::signal::{SampleStats, Trend};
+
 /// Median of a slice of `f64`. `None` for empty input.
 pub fn median(values: &[f64]) -> Option<f64> {
     if values.is_empty() {
@@ -56,6 +58,51 @@ pub fn percentile(values: &[f64], p: f64) -> Option<f64> {
     } else {
         let frac = rank - low as f64;
         Some(sorted[low] * (1.0 - frac) + sorted[high] * frac)
+    }
+}
+
+/// Compute `SampleStats` (min, max, p50, p95, trend) from a slice of f64
+/// samples. Returns `None` for empty input. Trend is determined by linear
+/// regression slope: |slope| < 5% of |p50| → Flat (with a floor of 0.01 when
+/// p50 ≈ 0); positive slope → Rising; negative slope → Falling.
+pub fn sample_stats(values: &[f64]) -> Option<SampleStats> {
+    if values.is_empty() {
+        return None;
+    }
+    let min = values.iter().cloned().fold(f64::INFINITY, f64::min);
+    let max = values.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+    let p50 = percentile(values, 50.0)?;
+    let p95 = percentile(values, 95.0)?;
+    let trend = linear_trend(values, p50);
+    Some(SampleStats { min, max, p50, p95, trend })
+}
+
+fn linear_trend(values: &[f64], p50: f64) -> Trend {
+    let n = values.len();
+    if n < 2 {
+        return Trend::Flat;
+    }
+    let n_f = n as f64;
+    let mean_x = (n_f - 1.0) / 2.0;
+    let mean_y = values.iter().sum::<f64>() / n_f;
+    let mut num = 0.0f64;
+    let mut den = 0.0f64;
+    for (i, &v) in values.iter().enumerate() {
+        let x = i as f64 - mean_x;
+        num += x * (v - mean_y);
+        den += x * x;
+    }
+    if den == 0.0 {
+        return Trend::Flat;
+    }
+    let slope = num / den;
+    let flat_threshold = (p50.abs() * 0.05).max(0.01);
+    if slope.abs() < flat_threshold {
+        Trend::Flat
+    } else if slope > 0.0 {
+        Trend::Rising
+    } else {
+        Trend::Falling
     }
 }
 

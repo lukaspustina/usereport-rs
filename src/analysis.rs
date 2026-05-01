@@ -10,7 +10,7 @@ use crate::{
 
 use chrono::{DateTime, Local};
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, fmt::Debug, path::PathBuf};
+use std::{collections::HashMap, fmt::Debug, path::PathBuf, time::Duration};
 use thiserror::Error;
 
 /// Error type
@@ -40,6 +40,8 @@ pub struct Analysis<'a, I: IntoIterator<Item = &'a Command> + Copy> {
     rule_engine: Option<RuleEngine>,
     cgroup_path: Option<PathBuf>,
     baseline_records: Vec<BaselineRecord>,
+    sample_duration: Option<Duration>,
+    sample_interval: Option<Duration>,
 }
 
 impl<'a, I: IntoIterator<Item = &'a Command> + Copy> Analysis<'a, I> {
@@ -54,6 +56,8 @@ impl<'a, I: IntoIterator<Item = &'a Command> + Copy> Analysis<'a, I> {
             rule_engine: None,
             cgroup_path: None,
             baseline_records: Vec::new(),
+            sample_duration: None,
+            sample_interval: None,
         }
     }
 
@@ -76,6 +80,17 @@ impl<'a, I: IntoIterator<Item = &'a Command> + Copy> Analysis<'a, I> {
         Analysis {
             collectors,
             rule_engine: Some(rule_engine),
+            ..self
+        }
+    }
+
+    /// Enable time-sampled collection. Collectors that return
+    /// `supports_sampling() == true` will loop N = floor(duration/interval)+1
+    /// times and populate `Signal::samples`.
+    pub fn with_sample_duration(self, duration: Duration, interval: Duration) -> Self {
+        Analysis {
+            sample_duration: Some(duration),
+            sample_interval: Some(interval),
             ..self
         }
     }
@@ -121,8 +136,8 @@ impl<'a, I: IntoIterator<Item = &'a Command> + Copy> Analysis<'a, I> {
             return (Vec::new(), Vec::new());
         }
         let ctx = CollectCtx {
-            duration: None,
-            interval: None,
+            duration: self.sample_duration,
+            interval: self.sample_interval,
             cgroup_path: self.cgroup_path.clone(),
             baseline: None,
             cpu_count: std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1),

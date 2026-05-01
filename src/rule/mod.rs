@@ -18,9 +18,10 @@ use std::path::{Path, PathBuf};
 use serde::Deserialize;
 use thiserror::Error;
 
+use crate::baseline::stats::sample_stats;
 use crate::collector::CollectCtx;
 use crate::finding::{sort_findings, Evidence, Finding, FindingKind, Severity};
-use crate::signal::{Signal, SignalValue};
+use crate::signal::{Signal, SignalValue, Trend};
 
 pub mod builtin;
 
@@ -150,8 +151,53 @@ fn resolve_path(path: &[String], signals_index: &SignalIndex<'_>, ctx: &CollectC
         }
         return None;
     }
+
+    // Check for SampleStats suffixes (.p50, .p95, .p99, .min, .max, .trend).
+    // Only intercept when: (a) the last segment is a known suffix, (b) the
+    // prefix path resolves to an actual signal that has samples. If either
+    // check fails we fall through to a bare signal lookup, avoiding collisions
+    // with signals whose IDs happen to end in a reserved word (e.g. "disk.max").
+    let sample_suffix = path.last().map(|s| s.as_str());
+    let is_sample_suffix = matches!(sample_suffix, Some("p50" | "p95" | "p99" | "min" | "max" | "trend"));
+    if is_sample_suffix && path.len() >= 2 {
+        let signal_id = path[..path.len() - 1].join(".");
+        if let Some(signal) = signals_index.get(&signal_id) {
+            if let Some(samples) = signal.samples.as_deref() {
+                if let Some(stats) = sample_stats(samples) {
+                    return match sample_suffix.unwrap() {
+                        "p50" => Some(LhsValue::Number(stats.p50)),
+                        "p95" => Some(LhsValue::Number(stats.p95)),
+                        "p99" => crate::baseline::stats::percentile(samples, 99.0)
+                            .map(LhsValue::Number),
+                        "min" => Some(LhsValue::Number(stats.min)),
+                        "max" => Some(LhsValue::Number(stats.max)),
+                        "trend" => {
+                            let s = match stats.trend {
+                                Trend::Rising => "rising",
+                                Trend::Falling => "falling",
+                                Trend::Flat => "flat",
+                            };
+                            Some(LhsValue::Text(s.to_string()))
+                        }
+                        _ => None,
+                    };
+                }
+            }
+        }
+        // prefix signal not found or has no samples — fall through to bare lookup.
+    }
+
     let id = path.join(".");
     let signal = signals_index.get(&id)?;
+
+    // Bare signal ID with samples: use SampleStats::p50 instead of Signal::value
+    // so that rules comparing a sampled signal see the representative value.
+    if let Some(samples) = signal.samples.as_deref() {
+        if let Some(stats) = sample_stats(samples) {
+            return Some(LhsValue::Number(stats.p50));
+        }
+    }
+
     match &signal.value {
         SignalValue::F64(v) => Some(LhsValue::Number(*v)),
         SignalValue::I64(v) => Some(LhsValue::Number(*v as f64)),
