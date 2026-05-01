@@ -75,3 +75,23 @@ inferno = { version = "0.12", optional = true }
 env_logger = "0.11"
 googletest = "0.14"
 
+# ── Release ──────────────────────────────────────────────────────────────────
+
+[workspace]
+# Single-crate workspace declaration — required by cargo-dist.
+
+[workspace.metadata.dist]
+cargo-dist-version = "0.31.0"
+ci = "github"
+targets = [
+    "x86_64-unknown-linux-musl",
+    "aarch64-unknown-linux-musl",
+    "aarch64-apple-darwin",
+]
+features = ["bin"]      # binary requires --features bin to compile
+installers = ["shell"]
+
+[workspace.metadata.dist.github-custom-runners]
+# Native arm64 runner — avoids cross/Docker for the aarch64-musl build.
+aarch64-unknown-linux-musl = "ubuntu-24.04-arm"
+
