@@ -62,7 +62,7 @@ thiserror = "2"
 subprocess = "0.2"
 tempfile = "3.3"
 toml = "0.8"
-rustix = { version = "1", features = ["system"] }
+rustix = { version = "1", features = ["system", "fs"] }
 which = "6"
 
 [dev-dependencies]

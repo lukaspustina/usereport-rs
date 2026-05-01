@@ -1,6 +1,7 @@
 use crate::{
+    baseline::{annotate, outlier_findings, BaselineRecord},
     collector::{CollectCtx, Collector},
-    finding::Finding,
+    finding::{sort_findings, Finding},
     rule::RuleEngine,
     runner,
     signal::Signal,
@@ -8,7 +9,7 @@ use crate::{
 };
 
 use chrono::{DateTime, Local};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fmt::Debug, path::PathBuf};
 use thiserror::Error;
 
@@ -38,6 +39,7 @@ pub struct Analysis<'a, I: IntoIterator<Item = &'a Command> + Copy> {
     collectors: Vec<Box<dyn Collector>>,
     rule_engine: Option<RuleEngine>,
     cgroup_path: Option<PathBuf>,
+    baseline_records: Vec<BaselineRecord>,
 }
 
 impl<'a, I: IntoIterator<Item = &'a Command> + Copy> Analysis<'a, I> {
@@ -51,6 +53,7 @@ impl<'a, I: IntoIterator<Item = &'a Command> + Copy> Analysis<'a, I> {
             collectors: Vec::new(),
             rule_engine: None,
             cgroup_path: None,
+            baseline_records: Vec::new(),
         }
     }
 
@@ -86,6 +89,15 @@ impl<'a, I: IntoIterator<Item = &'a Command> + Copy> Analysis<'a, I> {
         }
     }
 
+    /// Install baseline records used to annotate signals (and emit
+    /// auto-outlier findings) during the diagnostic pipeline (SDD §116).
+    pub fn with_baseline_records(self, records: Vec<BaselineRecord>) -> Self {
+        Analysis {
+            baseline_records: records,
+            ..self
+        }
+    }
+
     pub fn run(&self, context: Context) -> Result<AnalysisReport> {
         let hostinfo_results = self.run_commands(self.hostinfos)?;
         let command_results = self.run_commands_rep(self.commands, self.repetitions)?;
@@ -105,7 +117,7 @@ impl<'a, I: IntoIterator<Item = &'a Command> + Copy> Analysis<'a, I> {
     }
 
     fn run_diagnostics(&self) -> (Vec<Signal>, Vec<Finding>) {
-        if self.collectors.is_empty() && self.rule_engine.is_none() {
+        if self.collectors.is_empty() && self.rule_engine.is_none() && self.baseline_records.is_empty() {
             return (Vec::new(), Vec::new());
         }
         let ctx = CollectCtx {
@@ -122,10 +134,17 @@ impl<'a, I: IntoIterator<Item = &'a Command> + Copy> Analysis<'a, I> {
                 Err(e) => log::warn!("collector '{}' failed: {}", c.id(), e),
             }
         }
-        let findings = match &self.rule_engine {
+        if !self.baseline_records.is_empty() {
+            annotate(&mut signals, &self.baseline_records);
+        }
+        let mut findings = match &self.rule_engine {
             Some(engine) => engine.run(&signals, &ctx),
             None => Vec::new(),
         };
+        if !self.baseline_records.is_empty() {
+            findings.extend(outlier_findings(&signals));
+            sort_findings(&mut findings);
+        }
         (signals, findings)
     }
 
@@ -146,7 +165,7 @@ impl<'a, I: IntoIterator<Item = &'a Command> + Copy> Analysis<'a, I> {
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct AnalysisReport {
     pub(crate) context: Context,
     pub(crate) hostinfo_results: Vec<CommandResult>,
@@ -239,7 +258,7 @@ impl AnalysisReport {
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Context {
     pub(crate) hostname: String,
     pub(crate) uname: String,

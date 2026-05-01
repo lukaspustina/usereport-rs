@@ -4,11 +4,11 @@
 //! the report. Each carries the rule (or pattern) that fired, severity, the
 //! supporting `Evidence`, and ordered next-step `suggest` commands.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::signal::SignalValue;
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Finding {
     pub id: String,
     pub kind: FindingKind,
@@ -18,20 +18,20 @@ pub struct Finding {
     pub suggest: Vec<String>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum FindingKind {
     Rule,
     Pattern,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Severity {
     Info,
     Warn,
     Crit,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Evidence {
     pub signal_id: String,
     pub observed: SignalValue,

@@ -1,9 +1,11 @@
 use crate::{
+    baseline::BaselineStore,
     collector::{cpu::CpuCollector, disk::DiskCollector, Collector},
+    diff,
     finding::{Finding, Severity},
     renderer,
     rule::{builtin::builtin_rules, RuleEngine},
-    Analysis, Command, Config, Context, Renderer, ThreadRunner,
+    Analysis, AnalysisReport, Command, Config, Context, Renderer, ThreadRunner,
 };
 use anyhow::{anyhow, Context as _};
 use clap::Parser;
@@ -78,11 +80,51 @@ pub struct Opt {
     /// Show available commands
     #[arg(long)]
     show_commands: bool,
+    /// Annotate signals with a named baseline (loaded from
+    /// ${XDG_DATA_HOME}/usereport/baselines/<NAME>.json) and emit
+    /// auto-outlier findings (|z|>3 → warn, |z|>6 → crit).
+    #[arg(long, value_name = "NAME")]
+    pub baseline: Option<String>,
     /// Add or remove commands from selected profile by prefixing the command's name with '+' or
     /// '-', respectively, e.g., +uname -dmesg; you may need to use '--' to signify the end of the
     /// options
     #[arg(name = "+|-command")]
     filter_commands: Vec<String>,
+    /// Subcommand: `usereport baseline …` or `usereport diff <a.json> <b.json>`.
+    #[command(subcommand)]
+    pub command: Option<Subcommand>,
+}
+
+#[derive(Debug, clap::Subcommand)]
+pub enum Subcommand {
+    /// Manage named baselines (record / list / show / delete).
+    Baseline {
+        #[command(subcommand)]
+        action: BaselineAction,
+    },
+    /// Diff two AnalysisReport JSON files.
+    Diff {
+        a: PathBuf,
+        b: PathBuf,
+        /// Output format: `text` (default) or `json`.
+        #[arg(long, default_value = "text")]
+        output: String,
+    },
+}
+
+#[derive(Debug, clap::Subcommand)]
+pub enum BaselineAction {
+    /// Capture the current run as a named baseline.
+    Record {
+        #[arg(long)]
+        name: Option<String>,
+    },
+    /// List stored baselines.
+    List,
+    /// Show a stored baseline's contents.
+    Show { name: String },
+    /// Delete a stored baseline.
+    Delete { name: String },
 }
 
 impl Opt {
@@ -191,6 +233,13 @@ pub fn main() -> anyhow::Result<()> {
     log::debug!("RUST_LOG={:?}", std::env::var("RUST_LOG").unwrap_or_default());
 
     let opt = Opt::parse().validate()?;
+
+    // Phase 2: subcommand dispatch (baseline / diff). The default code path
+    // (no subcommand) preserves the existing report-generation behaviour.
+    if let Some(cmd) = opt.command.as_ref() {
+        return run_subcommand(cmd);
+    }
+
     let config = opt
         .config
         .as_ref()
@@ -287,6 +336,66 @@ fn show_commands(config: &Config) {
     println!("{table}");
 }
 
+fn run_subcommand(cmd: &Subcommand) -> anyhow::Result<()> {
+    match cmd {
+        Subcommand::Baseline { action } => run_baseline(action),
+        Subcommand::Diff { a, b, output } => run_diff(a, b, output),
+    }
+}
+
+fn run_baseline(action: &BaselineAction) -> anyhow::Result<()> {
+    let store = BaselineStore::xdg().context("locate baseline directory")?;
+    match action {
+        BaselineAction::Record { name } => {
+            let label = name.as_deref().unwrap_or("default");
+            store
+                .record(label, &[])
+                .with_context(|| format!("record baseline '{}'", label))?;
+            println!(
+                "recorded baseline '{}' at {}",
+                label,
+                store.dir().join(format!("{}.json", label)).display()
+            );
+        }
+        BaselineAction::List => {
+            for name in store.list().context("list baselines")? {
+                println!("{}", name);
+            }
+        }
+        BaselineAction::Show { name } => match store.load(name).with_context(|| format!("load baseline '{}'", name))? {
+            Some(record) => println!("{}", serde_json::to_string_pretty(&record)?),
+            None => return Err(anyhow!("baseline '{}' not found", name)),
+        },
+        BaselineAction::Delete { name } => {
+            store
+                .delete(name)
+                .with_context(|| format!("delete baseline '{}'", name))?;
+            println!("deleted baseline '{}'", name);
+        }
+    }
+    Ok(())
+}
+
+fn run_diff(a_path: &PathBuf, b_path: &PathBuf, output: &str) -> anyhow::Result<()> {
+    let a_bytes = std::fs::read(a_path).with_context(|| format!("read {}", a_path.display()))?;
+    let b_bytes = std::fs::read(b_path).with_context(|| format!("read {}", b_path.display()))?;
+    let a: AnalysisReport = serde_json::from_slice(&a_bytes).with_context(|| format!("parse {}", a_path.display()))?;
+    let b: AnalysisReport = serde_json::from_slice(&b_bytes).with_context(|| format!("parse {}", b_path.display()))?;
+    let report = diff::diff(&a, &b);
+    let stdout = std::io::stdout();
+    let mut handle = stdout.lock();
+    match output {
+        "json" => {
+            serde_json::to_writer_pretty(&mut handle, &report)?;
+            writeln!(handle)?;
+        }
+        _ => {
+            diff::render_text(&report, &mut handle)?;
+        }
+    }
+    Ok(())
+}
+
 fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> anyhow::Result<Vec<Finding>> {
     let parallel = opt.parallel.unwrap_or(config.defaults.max_parallel_commands);
     let repetitions = opt.repetitions.unwrap_or(config.defaults.repetitions);
@@ -313,6 +422,13 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> anyhow::Re
         .with_diagnostics(collectors, rule_engine);
     if let Some(cgroup_path) = opt.cgroup.clone() {
         analysis = analysis.with_cgroup(cgroup_path);
+    }
+    if let Some(name) = opt.baseline.as_deref() {
+        let store = BaselineStore::xdg().context("locate baseline directory")?;
+        match store.load(name).with_context(|| format!("load baseline '{}'", name))? {
+            Some(record) => analysis = analysis.with_baseline_records(vec![record]),
+            None => return Err(anyhow!("baseline '{}' not found", name)),
+        }
     }
 
     let context = create_context(opt, config, profile_name);
@@ -494,7 +610,9 @@ mod tests {
             show_output_template: false,
             show_profiles: false,
             show_commands: false,
+            baseline: None,
             filter_commands: vec![],
+            command: None,
         }
     }
 

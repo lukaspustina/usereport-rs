@@ -6,9 +6,9 @@
 //! annotation is added by the baseline subsystem (Phase 2).
 
 use chrono::{DateTime, Local};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Signal {
     pub id: String,
     pub value: SignalValue,
@@ -18,7 +18,7 @@ pub struct Signal {
     pub baseline: Option<BaselineStats>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum SignalValue {
     F64(f64),
@@ -27,7 +27,7 @@ pub enum SignalValue {
     Text(String),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Unit {
     Pct,
     MillisPerOp,
@@ -40,7 +40,7 @@ pub enum Unit {
     None,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BaselineStats {
     pub p50: f64,
     pub p95: f64,
@@ -48,7 +48,7 @@ pub struct BaselineStats {
     pub z_score: f64,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SampleStats {
     pub min: f64,
     pub max: f64,
@@ -57,7 +57,7 @@ pub struct SampleStats {
     pub trend: Trend,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Trend {
     Rising,
     Falling,

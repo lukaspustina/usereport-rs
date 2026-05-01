@@ -5,8 +5,14 @@
 /// Analysis encapsulates the whole process of running USE report commands
 pub mod analysis;
 
+/// Baseline persistence + outlier detection (Phase 2+).
+pub mod baseline;
+
 /// External CLI commands used to collect USE report information.
 pub mod command;
+
+/// Compare two `AnalysisReport`s (Phase 2+).
+pub mod diff;
 
 /// CLI
 #[cfg(feature = "bin")]
