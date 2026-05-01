@@ -218,6 +218,10 @@ pub struct Defaults {
     pub repetitions: usize,
     #[serde(default = "default_max_parallel_commands")]
     pub max_parallel_commands: usize,
+    /// Rolling-baseline window size (SDD §116). Every successful run appends
+    /// one record; older records are pruned when the file exceeds this count.
+    #[serde(default = "default_baseline_rolling_n")]
+    pub baseline_rolling_n: usize,
 }
 
 impl Default for Defaults {
@@ -227,6 +231,7 @@ impl Default for Defaults {
             timeout: 5,
             repetitions: 1,
             max_parallel_commands: 64,
+            baseline_rolling_n: 24,
         }
     }
 }
@@ -245,6 +250,10 @@ fn default_repetitions() -> usize {
 
 fn default_max_parallel_commands() -> usize {
     Defaults::default().max_parallel_commands
+}
+
+fn default_baseline_rolling_n() -> usize {
+    Defaults::default().baseline_rolling_n
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Eq, Clone)]
@@ -286,6 +295,31 @@ mod tests {
     use super::*;
 
     use googletest::prelude::*;
+
+    #[test]
+    fn defaults_baseline_rolling_n_is_24() {
+        // SDD §116: rolling baseline window defaults to 24.
+        assert_eq!(Defaults::default().baseline_rolling_n, 24);
+    }
+
+    #[test]
+    fn defaults_omits_baseline_rolling_n_uses_default() {
+        // A config with no `baseline_rolling_n` key still parses and yields 24.
+        let toml_src = r#"
+[defaults]
+timeout = 5
+
+[[profile]]
+name = "default"
+commands = ["uname"]
+
+[[command]]
+name = "uname"
+command = "uname -a"
+"#;
+        let config = Config::from_str(toml_src).expect("parse");
+        assert_eq!(config.defaults.baseline_rolling_n, 24);
+    }
 
     #[test]
     fn config_read_from_str_ok() {

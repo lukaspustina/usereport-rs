@@ -442,6 +442,20 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> anyhow::Re
 
     renderer.render(&report, writer).context("failed to render report")?;
 
+    // Phase 2 §116: every successful run appends one record to the rolling
+    // JSONL, pruned to baseline_rolling_n. Failures are logged but do not
+    // fail the run — the report is the user's primary deliverable.
+    if !report.signals().is_empty() {
+        match BaselineStore::xdg() {
+            Ok(store) => {
+                if let Err(e) = store.append_rolling(report.signals(), config.defaults.baseline_rolling_n) {
+                    log::warn!("failed to append rolling baseline: {}", e);
+                }
+            }
+            Err(e) => log::warn!("could not locate rolling baseline directory: {}", e),
+        }
+    }
+
     Ok(report.findings().to_vec())
 }
 
