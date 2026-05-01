@@ -41,44 +41,56 @@ use tempfile;
 ///         command: _,
 ///         reason: reason,
 ///     } => println!("Command errored because {}", reason),
+///     CommandResult::SkippedMissing {
+///         command: _,
+///         binary: binary,
+///     } => println!("Skipped because '{}' is not on PATH", binary),
 /// };
 /// ```
 #[derive(Debug, Deserialize, PartialEq, Eq, Serialize, Clone)]
 pub struct Command {
-    pub(crate) name:        String,
-    pub(crate) title:       Option<String>,
+    pub(crate) name: String,
+    pub(crate) title: Option<String>,
     pub(crate) description: Option<String>,
-    pub(crate) command:     String,
+    pub(crate) command: String,
     #[serde(rename = "timeout")]
     /// Timeout for command execution, defaults to 1 sec if not set
     pub(crate) timeout_sec: Option<u64>,
-    pub(crate) links:       Option<Vec<Link>>,
+    pub(crate) links: Option<Vec<Link>>,
 }
 
 impl Command {
     /// Create new command with default values
     pub fn new<T: Into<String>>(name: T, command: T) -> Command {
         Command {
-            name:        name.into(),
-            title:       None,
+            name: name.into(),
+            title: None,
             description: None,
-            command:     command.into(),
+            command: command.into(),
             timeout_sec: None,
-            links:       None,
+            links: None,
         }
     }
 
     /// Get name of command
-    pub fn name(&self) -> &str { &self.name }
+    pub fn name(&self) -> &str {
+        &self.name
+    }
 
     /// Get command args
-    pub fn command(&self) -> &str { &self.command }
+    pub fn command(&self) -> &str {
+        &self.command
+    }
 
     /// Get title of command
-    pub fn title(&self) -> Option<&str> { self.title.as_ref().map(|x| x.as_str()) }
+    pub fn title(&self) -> Option<&str> {
+        self.title.as_deref()
+    }
 
     /// Get description of command
-    pub fn description(&self) -> Option<&str> { self.description.as_ref().map(|x| x.as_str()) }
+    pub fn description(&self) -> Option<&str> {
+        self.description.as_deref()
+    }
 
     /// Set title of command
     pub fn with_title<T: Into<String>>(self, title: T) -> Command {
@@ -121,6 +133,13 @@ impl Command {
             Ok(args) => args,
             Err(_) => return self.fail("failed to split command into arguments"),
         };
+        if let Some(binary) = args.first() {
+            if which::which(binary).is_err() {
+                debug!("binary '{}' not found on $PATH; skipping", binary);
+                let binary = binary.clone();
+                return CommandResult::SkippedMissing { command: self, binary };
+            }
+        }
         let mut tmpfile = match tempfile::tempfile() {
             Ok(f) => Rc::new(f),
             Err(err) => return self.fail(err),
@@ -145,11 +164,17 @@ impl Command {
         match wait {
             Ok(Some(status)) => {
                 drop(p);
-                if let Err(err) = Rc::get_mut(&mut tmpfile).expect("sole owner after drop(p)").seek(SeekFrom::Start(0)) {
+                if let Err(err) = Rc::get_mut(&mut tmpfile)
+                    .expect("sole owner after drop(p)")
+                    .seek(SeekFrom::Start(0))
+                {
                     return self.fail(err);
                 };
                 let mut stdout = String::new();
-                if let Err(err) = Rc::get_mut(&mut tmpfile).expect("sole owner after drop(p)").read_to_string(&mut stdout) {
+                if let Err(err) = Rc::get_mut(&mut tmpfile)
+                    .expect("sole owner after drop(p)")
+                    .read_to_string(&mut stdout)
+                {
                     return self.fail(err);
                 };
                 trace!("stdout '{}'", stdout);
@@ -187,7 +212,7 @@ impl Command {
                 self.terminate(&mut p);
                 CommandResult::Error {
                     command: self,
-                    reason:  err.to_string(),
+                    reason: err.to_string(),
                 }
             }
         }
@@ -197,11 +222,13 @@ impl Command {
     fn fail<T: ToString>(self, reason: T) -> CommandResult {
         CommandResult::Error {
             command: self,
-            reason:  reason.to_string(),
+            reason: reason.to_string(),
         }
     }
 
-    fn args(&self) -> Result<Vec<String>, shell_words::ParseError> { shell_words::split(&self.command) }
+    fn args(&self) -> Result<Vec<String>, shell_words::ParseError> {
+        shell_words::split(&self.command)
+    }
 
     fn terminate(&self, p: &mut Popen) {
         if let Err(err) = p.kill() {
@@ -215,20 +242,24 @@ impl Command {
 #[derive(Debug, PartialEq, Eq, Deserialize, Serialize, Clone)]
 pub struct Link {
     pub(crate) name: String,
-    pub(crate) url:  String,
+    pub(crate) url: String,
 }
 
 impl Link {
     pub fn new<T: Into<String>>(name: T, url: T) -> Link {
         Link {
             name: name.into(),
-            url:  url.into(),
+            url: url.into(),
         }
     }
 
-    pub fn name(&self) -> &str { &self.name }
+    pub fn name(&self) -> &str {
+        &self.name
+    }
 
-    pub fn url(&self) -> &str { &self.url }
+    pub fn url(&self) -> &str {
+        &self.url
+    }
 }
 
 /// Encapsulates a command execution result
@@ -236,20 +267,22 @@ impl Link {
 pub enum CommandResult {
     /// `Command` has been executed successfully and `String` contains stdout.
     Success {
-        command:     Command,
+        command: Command,
         run_time_ms: u64,
-        stdout:      String,
+        stdout: String,
     },
     /// `Command` failed to execute
     Failed {
-        command:     Command,
+        command: Command,
         run_time_ms: u64,
-        stdout:      String,
+        stdout: String,
     },
     /// `Command` execution exceeded specified timeout
     Timeout { command: Command, run_time_ms: u64 },
     /// `Command` could not be executed
     Error { command: Command, reason: String },
+    /// `Command` was skipped because its binary is not on `$PATH`.
+    SkippedMissing { command: Command, binary: String },
 }
 
 #[cfg(test)]
@@ -299,17 +332,32 @@ mod tests {
     }
 
     #[test]
-    fn execution_error() {
+    fn execution_skipped_missing() {
         init();
 
         let command = Command::new("no_such_command", r#"/no_such_command"#);
 
         let res = command.exec();
 
-        assert_that!(res, matches_pattern!(CommandResult::Error {
-            reason: contains_substring("No such file or directory"),
-            ..
-        }));
+        assert_that!(
+            res,
+            matches_pattern!(CommandResult::SkippedMissing {
+                binary: eq(&"/no_such_command".to_string()),
+                ..
+            })
+        );
+    }
+
+    #[test]
+    fn execution_error_on_unparseable_command() {
+        init();
+
+        // Unbalanced quote — shell-words::split returns Err before PATH lookup.
+        let command = Command::new("bad", r#"echo 'unterminated"#);
+
+        let res = command.exec();
+
+        assert_that!(res, matches_pattern!(CommandResult::Error { .. }));
     }
 
     #[test]

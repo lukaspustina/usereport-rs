@@ -14,6 +14,8 @@ include = [
   "LICENSE",
   "contrib/*.j2",
   "contrib/*.conf",
+  "contrib/rules/**/*.toml",
+  "contrib/patterns/**/*.toml",
   "**/*.rs",
   "Cargo.toml",
 ]
@@ -61,6 +63,7 @@ subprocess = "0.2"
 tempfile = "3.3"
 toml = "0.8"
 rustix = { version = "1", features = ["system"] }
+which = "6"
 
 [dev-dependencies]
 env_logger = "0.11"

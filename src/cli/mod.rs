@@ -1,8 +1,8 @@
 use crate::{renderer, Analysis, Command, Config, Context, Renderer, ThreadRunner};
 use anyhow::{anyhow, Context as _};
 use clap::Parser;
-use indicatif::{ProgressBar, ProgressStyle};
 use comfy_table::Table;
+use indicatif::{ProgressBar, ProgressStyle};
 use std::{
     collections::HashSet,
     fs::File,
@@ -16,67 +16,75 @@ use std::{
 pub mod config;
 
 #[derive(Debug, Parser)]
-#[command(author, about, after_help = "Set RUST_LOG=debug for verbose output, e.g.: RUST_LOG=debug usereport")]
+#[command(
+    author,
+    about,
+    after_help = "Set RUST_LOG=debug for verbose output, e.g.: RUST_LOG=debug usereport"
+)]
 struct Opt {
     /// Configuration from file, or default if not present
     #[arg(short, long)]
-    config:               Option<PathBuf>,
+    config: Option<PathBuf>,
     /// Output format
     #[arg(short, long, value_enum, default_value = "markdown")]
-    output:               OutputType,
-    /// Set output template if output is set to "hbs"
+    output: OutputType,
+    /// Set output template if output is set to "template"
     #[arg(long)]
-    output_template:      Option<String>,
+    output_template: Option<String>,
+    /// Write rendered output to a file (parent directories are created automatically);
+    /// when absent, output goes to stdout.
+    #[arg(short = 'O', long)]
+    output_file: Option<PathBuf>,
     /// Set number of commands to run in parallel; overrides setting from config file
     #[arg(long)]
-    parallel:             Option<usize>,
+    parallel: Option<usize>,
     /// Set number of how many times to run commands in row; overrides setting from config file
     #[arg(long)]
-    repetitions:          Option<usize>,
+    repetitions: Option<usize>,
     /// Force to show progress bar while waiting for all commands to finish
     #[arg(long, conflicts_with = "no_progress")]
-    progress:             bool,
+    progress: bool,
     /// Force to hide progress bar while waiting for all commands to finish
     #[arg(long, conflicts_with = "progress")]
-    no_progress:          bool,
+    no_progress: bool,
     /// Activate debug mode
     #[arg(short, long)]
-    debug:                bool,
+    debug: bool,
     /// Set profile to use
     #[arg(short = 'p', long)]
-    profile:              Option<String>,
+    profile: Option<String>,
     /// Show active config
     #[arg(long)]
-    show_config:          bool,
+    show_config: bool,
     /// Show active template
     #[arg(long)]
     show_output_template: bool,
     /// Show available profiles
     #[arg(long)]
-    show_profiles:        bool,
+    show_profiles: bool,
     /// Show available commands
     #[arg(long)]
-    show_commands:        bool,
+    show_commands: bool,
     /// Add or remove commands from selected profile by prefixing the command's name with '+' or
     /// '-', respectively, e.g., +uname -dmesg; you may need to use '--' to signify the end of the
     /// options
     #[arg(name = "+|-command")]
-    filter_commands:      Vec<String>,
+    filter_commands: Vec<String>,
 }
 
 impl Opt {
     pub fn validate(self) -> anyhow::Result<Self> {
-        if self.output == OutputType::Hbs && self.output_template.is_none() {
-            return Err(anyhow!("Output hbs requires output template"));
+        if self.output == OutputType::Template && self.output_template.is_none() {
+            return Err(anyhow!("Output template requires --output-template <PATH>"));
         }
 
         Ok(self)
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, clap::ValueEnum)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OutputType {
-    Hbs,
+    Template,
     Html,
     Json,
     Markdown,
@@ -87,12 +95,40 @@ impl FromStr for OutputType {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_ref() {
-            "hbs" => Ok(OutputType::Hbs),
+            "hbs" => {
+                eprintln!("warning: --output hbs is deprecated; use --output template");
+                Ok(OutputType::Template)
+            }
+            "template" => Ok(OutputType::Template),
             "html" => Ok(OutputType::Html),
             "json" => Ok(OutputType::Json),
             "markdown" => Ok(OutputType::Markdown),
             _ => Err(anyhow!("failed to parse {} as output type", s)),
         }
+    }
+}
+
+impl clap::ValueEnum for OutputType {
+    fn value_variants<'a>() -> &'a [Self] {
+        &[
+            OutputType::Template,
+            OutputType::Html,
+            OutputType::Json,
+            OutputType::Markdown,
+        ]
+    }
+
+    fn to_possible_value(&self) -> Option<clap::builder::PossibleValue> {
+        Some(match self {
+            OutputType::Template => clap::builder::PossibleValue::new("template"),
+            OutputType::Html => clap::builder::PossibleValue::new("html"),
+            OutputType::Json => clap::builder::PossibleValue::new("json"),
+            OutputType::Markdown => clap::builder::PossibleValue::new("markdown"),
+        })
+    }
+
+    fn from_str(input: &str, _ignore_case: bool) -> Result<Self, String> {
+        <Self as std::str::FromStr>::from_str(input).map_err(|e| e.to_string())
     }
 }
 
@@ -157,11 +193,11 @@ fn show_profiles(config: &Config) {
 
 fn show_output_template(opt: &Opt) -> anyhow::Result<()> {
     let template = match opt.output {
-        OutputType::Hbs => {
+        OutputType::Template => {
             let template_file = opt
                 .output_template
                 .as_ref()
-                .expect("output hbs requires output template");
+                .expect("output template requires --output-template <PATH>");
             let mut txt = String::new();
             File::open(template_file)
                 .context("failed to open template file")?
@@ -195,11 +231,10 @@ fn show_commands(config: &Config) {
 fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> anyhow::Result<()> {
     let parallel = opt.parallel.unwrap_or(config.defaults.max_parallel_commands);
     let repetitions = opt.repetitions.unwrap_or(config.defaults.repetitions);
-    let progress = is_show_progress(&opt);
+    let progress = is_show_progress(opt);
     // Create renderer early to detect misconfiguration early
-    let stdout = std::io::stdout();
-    let handle = stdout.lock();
-    let renderer = create_renderer(&opt.output, opt.output_template.as_ref())?;
+    let writer = output_writer(&opt.output_file)?;
+    let renderer = create_renderer::<Box<dyn Write + Send>>(&opt.output, opt.output_template.as_ref())?;
 
     let hostinfo = config.commands_for_hostinfo();
     let commands = create_commands(opt, config, profile_name)?;
@@ -219,11 +254,28 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> anyhow::Re
         }
     }
 
-    renderer
-        .render(&report, handle)
-        .context("failed to render report")?;
+    renderer.render(&report, writer).context("failed to render report")?;
 
     Ok(())
+}
+
+/// Build a writer for the rendered report. When `output_file` is `Some(path)`,
+/// the file is created (with parent directories) and a buffered writer is
+/// returned. When `None`, stdout is returned.
+pub fn output_writer(output_file: &Option<PathBuf>) -> anyhow::Result<Box<dyn Write + Send>> {
+    match output_file {
+        Some(path) => {
+            if let Some(parent) = path.parent() {
+                if !parent.as_os_str().is_empty() {
+                    std::fs::create_dir_all(parent)
+                        .with_context(|| format!("failed to create parent directories for {}", path.display()))?;
+                }
+            }
+            let file = File::create(path).with_context(|| format!("failed to open output file {}", path.display()))?;
+            Ok(Box::new(file))
+        }
+        None => Ok(Box::new(std::io::stdout())),
+    }
 }
 
 fn is_show_progress(opt: &Opt) -> bool {
@@ -283,8 +335,8 @@ fn create_renderer<W: Write>(
     output_template: Option<&String>,
 ) -> anyhow::Result<Box<dyn Renderer<W>>> {
     let renderer: Box<dyn Renderer<W>> = match output_type {
-        OutputType::Hbs => {
-            let template_file = output_template.expect("output hbs requires output template");
+        OutputType::Template => {
+            let template_file = output_template.expect("output template requires --output-template <PATH>");
             let renderer = renderer::TemplateRenderer::from_file(template_file)?;
             Box::new(renderer)
         }
@@ -358,6 +410,7 @@ mod tests {
         Opt {
             output,
             output_template: output_template.map(|s| s.to_string()),
+            output_file: None,
             config: None,
             parallel: None,
             repetitions: None,
@@ -407,7 +460,12 @@ mod tests {
 
     #[test]
     fn test_filter_mixed() {
-        let specs = vec!["+foo".to_string(), "-bar".to_string(), "bare".to_string(), "".to_string()];
+        let specs = vec![
+            "+foo".to_string(),
+            "-bar".to_string(),
+            "bare".to_string(),
+            "".to_string(),
+        ];
         let (add, remove) = create_command_filter(&specs);
         assert!(add.contains("foo"));
         assert!(remove.contains("bar"));
@@ -416,14 +474,14 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_hbs_without_template_returns_err() {
-        let opt = make_opt(OutputType::Hbs, None);
+    fn test_validate_template_without_template_returns_err() {
+        let opt = make_opt(OutputType::Template, None);
         assert_that!(opt.validate(), err(anything()));
     }
 
     #[test]
-    fn test_validate_hbs_with_template_returns_ok() {
-        let opt = make_opt(OutputType::Hbs, Some("f.j2"));
+    fn test_validate_template_with_template_returns_ok() {
+        let opt = make_opt(OutputType::Template, Some("f.j2"));
         assert_that!(opt.validate(), ok(anything()));
     }
 
@@ -431,5 +489,22 @@ mod tests {
     fn test_validate_markdown_without_template_returns_ok() {
         let opt = make_opt(OutputType::Markdown, None);
         assert_that!(opt.validate(), ok(anything()));
+    }
+
+    #[test]
+    fn test_output_writer_none_returns_writer() {
+        let _ = output_writer(&None).expect("stdout writer ok");
+    }
+
+    #[test]
+    fn test_output_writer_some_creates_parent_dirs() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let path = tmp.path().join("nested/dir/out.txt");
+        {
+            let mut w = output_writer(&Some(path.clone())).expect("writer ok");
+            w.write_all(b"x").unwrap();
+            w.flush().unwrap();
+        }
+        assert!(path.exists());
     }
 }

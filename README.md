@@ -1,12 +1,12 @@
 # USE-Report
 
-[![Linux & OS X Build Status](https://dev.azure.com/lukaspustina/usereport-rs/_apis/build/status/lukaspustina.usereport-rs?branchName=master)](https://dev.azure.com/lukaspustina/usereport-rs/_build/latest?definitionId=3&branchName=master) [![](https://img.shields.io/crates/v/usereport-rs.svg)](https://crates.io/crates/usereport-rs) [![](https://docs.rs/usereport-rs/badge.svg)](https://docs.rs/crate/usereport-rs/) [![MIT licensed](https://img.shields.io/badge/license-MIT-blue.svg?label=License)](./LICENSE)
+[![CI](https://github.com/lukaspustina/usereport-rs/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/lukaspustina/usereport-rs/actions/workflows/ci.yml) [![](https://img.shields.io/crates/v/usereport-rs.svg)](https://crates.io/crates/usereport-rs) [![](https://docs.rs/usereport-rs/badge.svg)](https://docs.rs/crate/usereport-rs/) [![MIT licensed](https://img.shields.io/badge/license-MIT-blue.svg?label=License)](./LICENSE)
 
 `usereport` gathers system performance statistics on the local host that may be used as the base information for a performance analysis following the [USE methodology](http://www.brendangregg.com/usemethod.html) created by Brendan Gregg. Please see [this blog post](http://techblog.netflix.com/2015/11/linux-performance-analysis-in-60s.html) by Brendan for an introduction to USE and the statistics gathered by this tool. The `usereport` tool is part of my base server installation. I use it everywhere. It allows me to quickly assess several system characteristics in case of performance issues.
 
 `usereport` comes with bundled configuration files for Linux and macOS, respectively, that are built into the corresponding binary. The configuration files contain a pre-defined selection of performance measurement and analysis tools. Please see the `contrib` directory for these configuration tools. In case of Linux, several profiles allow for statistics gathering depending on the context of your analysis, i.e., `mem` for virtual memory and `net` for network issues. With `usereport` you do not need to remember the exact tools and their parameters to conduct a performance analysis. Furthermore, each tool configuration contains descriptions of the output to ease interpretation of results, e.g., meaning and metrics of the gathered values, as well as links to further information.
 
-The output format of `usereport` is usually Markdown or HTML for convenient reading. JSON output is also available for automatic processing, or you can define your own output format using [Jinja2 templates](https://jinja.palletsprojects.com/). The following screenshots present parts of the HTML output created by `usereport` running the `net` profile performance analysis on Linux -- see the full report [here](https://htmlpreview.github.io/?https://github.com/lukaspustina/usereport-rs/blob/master/docs/linux-net-usereport.html).
+The output format of `usereport` is usually Markdown or HTML for convenient reading. JSON output is also available for automatic processing, or you can define your own output format using [Jinja2](https://jinja.palletsprojects.com/) templates rendered by [minijinja](https://github.com/mitsuhiko/minijinja). The following screenshots present parts of the HTML output created by `usereport` running the `net` profile performance analysis on Linux -- see the full report [here](https://htmlpreview.github.io/?https://github.com/lukaspustina/usereport-rs/blob/master/docs/linux-net-usereport.html).
 
 <p float="center">
 <center>
@@ -35,9 +35,11 @@ Arguments:
 
 Options:
   -c, --config <config>                      Configuration from file, or default if not present
-  -o, --output <output>                      Output format [default: markdown] [possible values: hbs,
+  -o, --output <output>                      Output format [default: markdown] [possible values: template,
                                              html, json, markdown]
-      --output-template <output-template>    Set output template if output is set to "hbs"
+      --output-template <output-template>    Set output template if output is set to "template"
+  -O, --output-file <output-file>            Write rendered output to a file (parent directories are
+                                             created automatically); when absent, output goes to stdout
       --parallel <parallel>                  Set number of commands to run in parallel; overrides
                                              setting from config file
       --repetitions <repetitions>            Set number of how many times to run commands in row;
@@ -66,12 +68,19 @@ usereport --profile mem --progress --repetitions 3 --output html -- +mpstat
 
 ### Linux Binaries [x86_64]
 
-There are binaries available at the GitHub [Release Page](https://github.com/lukaspustina/usereport-rs/releases). The binaries get compiled on Ubuntu Bionic.
+There are pre-built binaries on the GitHub [Release Page](https://github.com/lukaspustina/usereport-rs/releases).
+
+### From crates.io
+
+The fastest path is [`cargo binstall`](https://github.com/cargo-bins/cargo-binstall), which fetches a pre-built binary when one is available and otherwise compiles from source:
+
+```sh
+cargo binstall usereport-rs
+```
 
 ### From Source
 
 Please install Rust via [rustup](https://www.rustup.rs) and then run
-
 
 ```sh
 cargo install --all-features usereport-rs
