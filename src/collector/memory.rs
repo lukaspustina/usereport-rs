@@ -1,23 +1,51 @@
-//! Parser-based memory collector reading `free -m` output.
-//!
-//! Direct `/proc/meminfo` reading is Phase 3.
+//! Memory collector — reads via platform::read_mem_snapshot() on both platforms.
 
 use chrono::Local;
 
 use super::{CollectCtx, Collector, Error, Result};
+use crate::collector::platform::{MemSnapshot, read_mem_snapshot};
 use crate::signal::{Signal, SignalValue, Unit};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct MemoryCollector {
-    stdout: String,
+    /// Stored `free -m` output for the `from_stdout` legacy test path.
+    stdout: Option<String>,
 }
 
 impl MemoryCollector {
-    /// Build a collector from a captured `free -m` stdout buffer (used in
-    /// tests and as a stable interface for the runner once it pipes captured
-    /// command output into the diagnostic pipeline).
+    /// Runtime constructor: no pre-captured output; `collect()` calls
+    /// `platform::read_mem_snapshot()` at runtime.
+    pub fn new() -> Self {
+        MemoryCollector { stdout: None }
+    }
+
+    /// Build a collector from a captured `free -m` stdout buffer (test path).
     pub fn from_stdout(stdout: String) -> Self {
-        MemoryCollector { stdout }
+        MemoryCollector { stdout: Some(stdout) }
+    }
+
+    /// Convert a `MemSnapshot` to signals. Used by `collect()` on both platforms.
+    pub fn signals_from_mem_snapshot(snap: &MemSnapshot) -> Result<Vec<Signal>> {
+        let now = Local::now();
+        let mut signals = Vec::new();
+
+        push(&mut signals, "mem.total_mb", snap.total_mb, Unit::Count, now);
+        push(&mut signals, "mem.used_mb", snap.used_mb, Unit::Count, now);
+        push(&mut signals, "mem.free_mb", snap.free_mb, Unit::Count, now);
+
+        if let Some(avail) = snap.available_mb {
+            push(&mut signals, "mem.available_mb", avail, Unit::Count, now);
+        }
+
+        if snap.total_mb > 0.0 {
+            push(&mut signals, "mem.free_pct", snap.free_mb / snap.total_mb * 100.0, Unit::Pct, now);
+        }
+
+        push(&mut signals, "swap.total_mb", snap.swap_total_mb, Unit::Count, now);
+        push(&mut signals, "swap.used_mb", snap.swap_used_mb, Unit::Count, now);
+        push(&mut signals, "swap.free_mb", snap.swap_free_mb, Unit::Count, now);
+
+        Ok(signals)
     }
 }
 
@@ -27,7 +55,16 @@ impl Collector for MemoryCollector {
     }
 
     fn collect(&self, _ctx: &CollectCtx) -> Result<Vec<Signal>> {
-        parse_free_output(&self.stdout)
+        // Legacy test path: use pre-captured stdout.
+        if let Some(ref s) = self.stdout {
+            return parse_free_output(s);
+        }
+
+        // Runtime path: call platform function (same on Linux and macOS).
+        match read_mem_snapshot() {
+            Some(snap) => Self::signals_from_mem_snapshot(&snap),
+            None => Ok(Vec::new()),
+        }
     }
 }
 
@@ -41,7 +78,6 @@ fn parse_free_output(s: &str) -> Result<Vec<Signal>> {
         let trimmed = line.trim();
         if let Some(rest) = trimmed.strip_prefix("Mem:") {
             let nums = numeric_tokens(rest);
-            // free(1) -m columns: total used free shared buff/cache available
             if nums.len() < 3 {
                 return Err(Error::ParseFailed {
                     collector: "memory".to_string(),
@@ -75,8 +111,7 @@ fn parse_free_output(s: &str) -> Result<Vec<Signal>> {
 
     if let (Some(total), Some(free)) = (mem_total, mem_free) {
         if total > 0.0 {
-            let pct = free / total * 100.0;
-            push(&mut signals, "mem.free_pct", pct, Unit::Pct, now);
+            push(&mut signals, "mem.free_pct", free / total * 100.0, Unit::Pct, now);
         }
     }
 

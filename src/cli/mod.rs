@@ -3,7 +3,7 @@ use crate::{
     baseline::BaselineStore,
     collector::{
         Collector, cgroup::CgroupCollector, cpu::CpuCollector, cpufreq::CpuFreqCollector, disk::DiskCollector,
-        host::HostCollector, interrupts::InterruptsCollector, network::NetworkCollector,
+        host::HostCollector, interrupts::InterruptsCollector, memory::MemoryCollector, network::NetworkCollector,
     },
     diff,
     finding::{Finding, Severity},
@@ -577,6 +577,7 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> anyhow::Re
         Box::new(DiskCollector::new()),
         Box::new(NetworkCollector::new()),
         Box::new(CpuFreqCollector::new()),
+        Box::new(MemoryCollector::new()),
         Box::new(InterruptsCollector::new()),
         Box::new(CgroupCollector::new()),
     ];

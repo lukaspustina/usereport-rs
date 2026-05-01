@@ -1,8 +1,7 @@
-//! Network collector — `/proc/net/dev`, `/proc/net/snmp`, `/proc/net/sockstat`
-//! delta engine (SDD Req 9).
+//! Network collector — platform snapshot delta engine.
 //!
-//! Two snapshots ≥ 1 s apart yield per-second rates. On hosts without `/proc`
-//! (e.g. macOS) returns an empty Vec gracefully.
+//! Two snapshots ≥ 1 s apart yield per-second rates. On hosts where the
+//! platform function returns None, returns an empty Vec.
 
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
@@ -10,6 +9,7 @@ use std::time::{Duration, Instant};
 use chrono::Local;
 
 use super::{CollectCtx, Collector, Result};
+use crate::collector::platform::{NetSnapshot, read_net_snapshot};
 use crate::signal::{Signal, SignalValue, Unit};
 
 const MIN_WINDOW: Duration = Duration::from_secs(1);
@@ -31,7 +31,6 @@ impl NetworkCollector {
             return signals;
         }
 
-        // rx_drops: sum across non-loopback interfaces
         let drops1 = parse_rx_drops(dev1);
         let drops2 = parse_rx_drops(dev2);
         let total_drops: u64 = drops2
@@ -40,16 +39,43 @@ impl NetworkCollector {
             .sum();
         push(&mut signals, "net.rx_drops", total_drops as f64, Unit::Count, now);
 
-        // retrans_pct from /proc/net/snmp TCP counters
         if let (Some(s1), Some(s2)) = (parse_tcp_snmp(snmp1), parse_tcp_snmp(snmp2)) {
             let out_delta = s2.out_segs.saturating_sub(s1.out_segs) as f64;
             let ret_delta = s2.retrans_segs.saturating_sub(s1.retrans_segs) as f64;
-            let retrans_pct = if out_delta > 0.0 {
-                (ret_delta / out_delta) * 100.0
-            } else {
-                0.0
-            };
+            let retrans_pct =
+                if out_delta > 0.0 { (ret_delta / out_delta) * 100.0 } else { 0.0 };
             push(&mut signals, "net.retrans_pct", retrans_pct, Unit::Pct, now);
+        }
+
+        signals
+    }
+
+    /// Snapshot-based delta engine for both Linux and macOS.
+    /// `net.tw_count` is read point-in-time from snapshot `b`.
+    pub fn from_net_snapshots(a: &NetSnapshot, b: &NetSnapshot, elapsed_secs: f64) -> Vec<Signal> {
+        let now = Local::now();
+        let mut signals = Vec::new();
+        if elapsed_secs <= 0.0 {
+            return signals;
+        }
+
+        // rx_drops: sum of per-interface deltas
+        let total_drops: u64 = b
+            .rx_drops
+            .iter()
+            .map(|(iface, d2)| d2.saturating_sub(*a.rx_drops.get(iface).unwrap_or(d2)))
+            .sum();
+        push(&mut signals, "net.rx_drops", total_drops as f64, Unit::Count, now);
+
+        // retrans_pct from TCP counters
+        let out_delta = b.tcp_out_segs.saturating_sub(a.tcp_out_segs) as f64;
+        let ret_delta = b.tcp_retrans_segs.saturating_sub(a.tcp_retrans_segs) as f64;
+        let retrans_pct = if out_delta > 0.0 { (ret_delta / out_delta) * 100.0 } else { 0.0 };
+        push(&mut signals, "net.retrans_pct", retrans_pct, Unit::Pct, now);
+
+        // tw_count — point-in-time from b
+        if let Some(tw) = b.tcp_tw_count {
+            push(&mut signals, "net.tw_count", tw as f64, Unit::Count, now);
         }
 
         signals
@@ -62,11 +88,10 @@ impl Collector for NetworkCollector {
     }
 
     fn collect(&self, _ctx: &CollectCtx) -> Result<Vec<Signal>> {
-        let dev1 = match std::fs::read_to_string("/proc/net/dev") {
-            Ok(s) => s,
-            Err(_) => return Ok(Vec::new()),
+        let s1 = match read_net_snapshot() {
+            Some(s) => s,
+            None => return Ok(Vec::new()),
         };
-        let snmp1 = std::fs::read_to_string("/proc/net/snmp").unwrap_or_default();
 
         let start = Instant::now();
         let elapsed = start.elapsed();
@@ -74,23 +99,19 @@ impl Collector for NetworkCollector {
             std::thread::sleep(MIN_WINDOW - elapsed);
         }
 
-        let dev2 = std::fs::read_to_string("/proc/net/dev").unwrap_or_default();
-        let snmp2 = std::fs::read_to_string("/proc/net/snmp").unwrap_or_default();
+        let s2 = match read_net_snapshot() {
+            Some(s) => s,
+            None => return Ok(Vec::new()),
+        };
         let elapsed_secs = start.elapsed().as_secs_f64().max(0.001);
 
-        let mut signals = Self::from_snapshots(&dev1, &dev2, &snmp1, &snmp2, elapsed_secs);
-
-        // tw_count from /proc/net/sockstat (not a delta — point-in-time count)
-        if let Ok(sockstat) = std::fs::read_to_string("/proc/net/sockstat") {
-            if let Some(tw) = parse_tw_count(&sockstat) {
-                let now = Local::now();
-                push(&mut signals, "net.tw_count", tw as f64, Unit::Count, now);
-            }
-        }
-
-        Ok(signals)
+        Ok(Self::from_net_snapshots(&s1, &s2, elapsed_secs))
     }
 }
+
+// ---------------------------------------------------------------------------
+// Legacy /proc helpers — preserved for from_snapshots()
+// ---------------------------------------------------------------------------
 
 #[derive(Default)]
 struct TcpSnmp {
@@ -121,10 +142,7 @@ fn parse_tcp_snmp(s: &str) -> Option<TcpSnmp> {
             .and_then(|v| v.parse().ok())
             .unwrap_or(0)
     };
-    Some(TcpSnmp {
-        out_segs: get("OutSegs"),
-        retrans_segs: get("RetransSegs"),
-    })
+    Some(TcpSnmp { out_segs: get("OutSegs"), retrans_segs: get("RetransSegs") })
 }
 
 fn parse_rx_drops(s: &str) -> HashMap<String, u64> {
@@ -137,8 +155,6 @@ fn parse_rx_drops(s: &str) -> HashMap<String, u64> {
             continue;
         }
         let fields: Vec<&str> = line[colon + 1..].split_whitespace().collect();
-        // /proc/net/dev columns: bytes packets errs drop ... (rx) | bytes packets errs drop ... (tx)
-        // drop is index 3 (0-based)
         if let Some(drop_str) = fields.get(3) {
             if let Ok(drops) = drop_str.parse::<u64>() {
                 map.insert(iface.to_string(), drops);
@@ -146,19 +162,6 @@ fn parse_rx_drops(s: &str) -> HashMap<String, u64> {
         }
     }
     map
-}
-
-fn parse_tw_count(s: &str) -> Option<u64> {
-    for line in s.lines() {
-        if let Some(rest) = line.strip_prefix("TCP:") {
-            for part in rest.split_whitespace().collect::<Vec<_>>().windows(2) {
-                if part[0] == "tw" {
-                    return part[1].parse().ok();
-                }
-            }
-        }
-    }
-    None
 }
 
 fn push(signals: &mut Vec<Signal>, id: &str, val: f64, unit: Unit, now: chrono::DateTime<Local>) {
@@ -203,10 +206,8 @@ mod tests {
         let ids: Vec<_> = signals.iter().map(|s| s.id.as_str()).collect();
         assert!(ids.contains(&"net.rx_drops"), "missing rx_drops: {:?}", ids);
         assert!(ids.contains(&"net.retrans_pct"), "missing retrans_pct: {:?}", ids);
-        // 3 new drops on eth0 over 1s
         let drops = signals.iter().find(|s| s.id == "net.rx_drops").unwrap();
         assert_eq!(drops.value, SignalValue::F64(3.0));
-        // RetransSegs delta = 15-9=6, OutSegs delta = 1000-900=100 → 6%
         let retrans = signals.iter().find(|s| s.id == "net.retrans_pct").unwrap();
         if let SignalValue::F64(v) = retrans.value {
             assert!((v - 6.0).abs() < 0.01, "retrans_pct = {}", v);
@@ -214,8 +215,10 @@ mod tests {
     }
 
     #[test]
-    fn parse_tw_count_extracts_value() {
-        let sockstat = "sockets: used 292\nTCP: inuse 115 orphan 0 tw 2345 alloc 117 mem 8\n";
-        assert_eq!(parse_tw_count(sockstat), Some(2345));
+    fn parse_tw_count_via_from_snapshots_not_emitted() {
+        // from_snapshots doesn't emit tw_count (that's from_net_snapshots only)
+        let signals = NetworkCollector::from_snapshots(DEV1, DEV2, SNMP1, SNMP2, 1.0);
+        let ids: Vec<_> = signals.iter().map(|s| s.id.as_str()).collect();
+        assert!(!ids.contains(&"net.tw_count"));
     }
 }

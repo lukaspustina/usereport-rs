@@ -1,7 +1,4 @@
 //! Host-level collector: emits cpu_count, mem_total_bytes, load_avg_1m.
-//!
-//! Reads from `/proc/loadavg` and `/proc/meminfo` on Linux; falls back
-//! gracefully on macOS and other systems (returns zero values).
 
 use chrono::Local;
 
@@ -24,9 +21,23 @@ impl super::Collector for HostCollector {
 
     fn collect(&self, _ctx: &CollectCtx) -> Result<Vec<Signal>> {
         let now = Local::now();
-        let cpu_count = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1) as f64;
-        let mem_total = read_mem_total_bytes().unwrap_or(0) as f64;
-        let load_avg = read_load_avg_1m().unwrap_or(0.0);
+        let cpu_count;
+        let mem_total;
+        let load_avg;
+
+        match super::platform::read_host_snapshot() {
+            Some(snap) => {
+                cpu_count = snap.cpu_count as f64;
+                mem_total = snap.mem_total_bytes as f64;
+                load_avg = snap.load_avg_1m;
+            }
+            None => {
+                cpu_count =
+                    std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1) as f64;
+                mem_total = 0.0;
+                load_avg = 0.0;
+            }
+        }
 
         Ok(vec![
             Signal {
@@ -58,20 +69,4 @@ impl super::Collector for HostCollector {
             },
         ])
     }
-}
-
-fn read_mem_total_bytes() -> Option<u64> {
-    let content = std::fs::read_to_string("/proc/meminfo").ok()?;
-    for line in content.lines() {
-        if let Some(rest) = line.strip_prefix("MemTotal:") {
-            let kb: u64 = rest.split_whitespace().next()?.parse().ok()?;
-            return Some(kb * 1024);
-        }
-    }
-    None
-}
-
-fn read_load_avg_1m() -> Option<f64> {
-    let content = std::fs::read_to_string("/proc/loadavg").ok()?;
-    content.split_whitespace().next()?.parse().ok()
 }

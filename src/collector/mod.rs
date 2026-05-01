@@ -16,6 +16,7 @@ use crate::signal::Signal;
 pub mod bpf;
 pub mod cgroup;
 pub mod cpu;
+pub mod platform;
 pub mod cpufreq;
 pub mod disk;
 pub mod dmesg;
