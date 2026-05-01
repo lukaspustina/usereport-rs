@@ -1,0 +1,6 @@
+[[pattern]]
+id = "nfs_stall"
+when = "dmesg.blocked_task_count > 0 AND cpu.iowait_pct > 20"
+severity = "crit"
+summary = "Blocked tasks with high iowait may indicate an NFS/network filesystem stall."
+suggest = ["showmount -a", "nfsstat -c", "dmesg -T | grep -i nfs", "mountstats"]

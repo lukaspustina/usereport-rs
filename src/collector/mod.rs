@@ -13,6 +13,7 @@ use thiserror::Error;
 use crate::signal::Signal;
 
 pub mod cpu;
+pub mod dmesg;
 pub mod disk;
 pub mod memory;
 

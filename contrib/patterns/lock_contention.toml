@@ -1,0 +1,6 @@
+[[pattern]]
+id = "lock_contention"
+when = "dmesg.blocked_task_count > 0 AND cpu.iowait_pct > 10"
+severity = "warn"
+summary = "Kernel tasks blocked > 120s combined with elevated iowait suggests lock contention."
+suggest = ["dmesg -T | grep blocked", "perf lock report", "echo 1 > /proc/sys/kernel/hung_task_warnings"]

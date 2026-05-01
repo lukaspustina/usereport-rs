@@ -27,6 +27,9 @@ pub mod finding;
 /// Reports in HTML, JSON, and Markdown format
 pub mod renderer;
 
+/// Multi-signal pattern correlator (Phase 5+).
+pub mod pattern;
+
 /// Declarative rules + predicate DSL (Phase 1+).
 pub mod rule;
 

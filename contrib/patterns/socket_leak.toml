@@ -1,0 +1,6 @@
+[[pattern]]
+id = "socket_leak"
+when = "net.tw_count > 10000 AND net.rx_drops > 0"
+severity = "warn"
+summary = "Elevated TIME_WAIT sockets combined with RX drops suggests an application socket leak."
+suggest = ["ss -s", "ss -tan | awk '{print $1}' | sort | uniq -c | sort -rn", "netstat -s | grep -i drop"]

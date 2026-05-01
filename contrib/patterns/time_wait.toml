@@ -1,0 +1,6 @@
+[[pattern]]
+id = "time_wait_exhaustion"
+when = "net.tw_count > 28000 AND net.connect_failures > 0"
+severity = "crit"
+summary = "TIME_WAIT exhaustion likely: high tw_count with active connect failures."
+suggest = ["sysctl net.ipv4.tcp_tw_reuse", "sysctl net.ipv4.ip_local_port_range", "ss -s"]

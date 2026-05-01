@@ -1,0 +1,6 @@
+[[pattern]]
+id = "slab_leak"
+when = "mem.free_pct < 10 AND dmesg.oom_count == 0"
+severity = "warn"
+summary = "Very low free memory without OOM kills suggests a kernel slab memory leak."
+suggest = ["cat /proc/slabinfo | sort -k3 -nr | head -20", "slabtop -s c", "echo 3 > /proc/sys/vm/drop_caches"]
