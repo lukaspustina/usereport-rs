@@ -1,0 +1,31 @@
+[[rule]]
+id = "net.retransmit_elevated"
+when = "net.retrans_pct > 1"
+severity = "warn"
+summary = "TCP retransmission rate above 1%."
+evidence = ["net.retrans_pct"]
+suggest = ["ss -s", "sar -n TCP,ETCP 1 5"]
+
+[[rule]]
+id = "net.rx_drops"
+when = "net.rx_drops > 0"
+severity = "warn"
+summary = "Receiver-side packet drops detected."
+evidence = ["net.rx_drops"]
+suggest = ["ip -s link", "ethtool -S <iface>"]
+
+[[rule]]
+id = "net.time_wait_high"
+when = "net.tw_count > 28000"
+severity = "warn"
+summary = "TIME_WAIT socket count above 28k — port exhaustion risk."
+evidence = ["net.tw_count"]
+suggest = ["ss -tan state time-wait | wc -l", "sysctl net.ipv4.tcp_tw_reuse"]
+
+[[rule]]
+id = "net.irq_imbalance"
+when = "net.max_cpu_irq_pct > 80"
+severity = "warn"
+summary = "One CPU is handling more than 80% of NIC interrupts."
+evidence = ["net.max_cpu_irq_pct"]
+suggest = ["mpstat -P ALL 1 5", "cat /proc/interrupts"]

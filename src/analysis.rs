@@ -1,4 +1,4 @@
-use crate::{runner, Command, CommandResult, Runner};
+use crate::{finding::Finding, runner, signal::Signal, Command, CommandResult, Runner};
 
 use chrono::{DateTime, Local};
 use serde::Serialize;
@@ -62,6 +62,9 @@ impl<'a, I: IntoIterator<Item = &'a Command> + Copy> Analysis<'a, I> {
             command_results,
             repetitions: self.repetitions,
             max_parallel_commands: self.max_parallel_commands,
+            signals: Vec::new(),
+            findings: Vec::new(),
+            checked_ok: Vec::new(),
         })
     }
 
@@ -89,6 +92,12 @@ pub struct AnalysisReport {
     pub(crate) command_results: Vec<Vec<CommandResult>>,
     pub(crate) repetitions: usize,
     pub(crate) max_parallel_commands: usize,
+    #[serde(default)]
+    pub(crate) signals: Vec<Signal>,
+    #[serde(default)]
+    pub(crate) findings: Vec<Finding>,
+    #[serde(default)]
+    pub(crate) checked_ok: Vec<String>,
 }
 
 impl AnalysisReport {
@@ -105,6 +114,34 @@ impl AnalysisReport {
             command_results,
             repetitions,
             max_parallel_commands,
+            signals: Vec::new(),
+            findings: Vec::new(),
+            checked_ok: Vec::new(),
+        }
+    }
+
+    /// Constructor for diagnostic-aware reports — the rule engine has already
+    /// produced findings for the given signals.
+    #[allow(clippy::too_many_arguments)]
+    pub fn new_with_diagnostics(
+        context: Context,
+        hostinfo_results: Vec<CommandResult>,
+        command_results: Vec<Vec<CommandResult>>,
+        repetitions: usize,
+        max_parallel_commands: usize,
+        signals: Vec<Signal>,
+        findings: Vec<Finding>,
+        checked_ok: Vec<String>,
+    ) -> AnalysisReport {
+        AnalysisReport {
+            context,
+            hostinfo_results,
+            command_results,
+            repetitions,
+            max_parallel_commands,
+            signals,
+            findings,
+            checked_ok,
         }
     }
 
@@ -126,6 +163,18 @@ impl AnalysisReport {
 
     pub fn max_parallel_commands(&self) -> usize {
         self.max_parallel_commands
+    }
+
+    pub fn signals(&self) -> &[Signal] {
+        &self.signals
+    }
+
+    pub fn findings(&self) -> &[Finding] {
+        &self.findings
+    }
+
+    pub fn checked_ok(&self) -> &[String] {
+        &self.checked_ok
     }
 }
 

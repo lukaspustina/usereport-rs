@@ -1,0 +1,35 @@
+# Built-in CPU rules (SDD §99).
+# Thresholds here are the initial defaults; they are user-overridable via
+# rules.d/ overrides.
+
+[[rule]]
+id = "cpu.runqueue_saturation"
+when = "vmstat.r > host.cpu_count"
+severity = "warn"
+summary = "Run queue exceeds core count — CPU saturated."
+evidence = ["vmstat.r", "host.cpu_count"]
+suggest = ["pidstat 1 5", "perf top -F 99"]
+
+[[rule]]
+id = "cpu.iowait_elevated"
+when = "cpu.iowait_pct > 20"
+severity = "warn"
+summary = "iowait elevated — CPU is waiting on I/O."
+evidence = ["cpu.iowait_pct"]
+suggest = ["iostat -x 1 5", "iotop -ao"]
+
+[[rule]]
+id = "cpu.saturation"
+when = "cpu.usr_pct > 80"
+severity = "warn"
+summary = "User-mode CPU usage saturated above 80%."
+evidence = ["cpu.usr_pct"]
+suggest = ["pidstat 1 5", "perf top"]
+
+[[rule]]
+id = "cpu.frequency_throttling"
+when = "cpu.freq_ratio < 0.8"
+severity = "warn"
+summary = "CPU frequency below 80% of nominal — throttled."
+evidence = ["cpu.freq_ratio"]
+suggest = ["sensors", "cat /sys/class/thermal/thermal_zone*/temp"]

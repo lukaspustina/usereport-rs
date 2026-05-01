@@ -12,18 +12,32 @@ pub mod command;
 #[cfg(feature = "bin")]
 pub mod cli;
 
+/// Typed signal collectors (Phase 1+).
+pub mod collector;
+
+/// Findings produced by the rule engine.
+pub mod finding;
+
 /// Reports in HTML, JSON, and Markdown format
 pub mod renderer;
 
+/// Declarative rules + predicate DSL (Phase 1+).
+pub mod rule;
+
 /// Trait and default implementation to run commands and collect their output
 pub mod runner;
+
+/// Typed metric values (Phase 1+).
+pub mod signal;
 
 pub use analysis::{Analysis, AnalysisReport, Context};
 #[cfg(feature = "bin")]
 pub use cli::config::Config;
 pub use command::{Command, CommandResult};
+pub use finding::{Evidence, Finding, FindingKind, Severity};
 pub use renderer::{JsonRenderer, Renderer, TemplateRenderer};
 pub use runner::{Runner, ThreadRunner};
+pub use signal::{Signal, SignalValue, Unit};
 
 /// Test helper
 #[cfg(test)]

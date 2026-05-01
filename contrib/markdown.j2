@@ -1,8 +1,38 @@
 # Use Report - {{ context.hostname }}
 
-Date: `{{ context.date_time | rfc2822 }}`
-Hostname: `{{ context.hostname }}`
-Host OS: `{{ context.uname }}`
+## Summary
+
+- Host: `{{ context.hostname }}`
+- Kernel: `{{ context.uname }}`
+- Date: `{{ context.date_time | rfc2822 }}`
+- Repetitions: {{ repetitions }}
+- Parallelism: {{ max_parallel_commands }}
+{%- if findings %}
+- Top concern: **{{ findings[0].severity }}** — {{ findings[0].summary }}
+{%- endif %}
+
+{% if findings %}
+## Findings
+
+{% for f in findings -%}
+### [{{ f.severity }}] {{ f.id }}
+
+{{ f.summary }}
+
+{% if f.evidence -%}
+Evidence:
+{% for e in f.evidence -%}
+- `{{ e.signal_id }}` = {{ e.observed }}
+{% endfor %}
+{%- endif %}
+{% if f.suggest -%}
+Next steps:
+{% for cmd in f.suggest -%}
+- `{{ cmd }}`
+{% endfor %}
+{%- endif %}
+{% endfor %}
+{%- endif %}
 
 ## Run Configuration
 

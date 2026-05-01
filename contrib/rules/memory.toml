@@ -1,0 +1,15 @@
+[[rule]]
+id = "mem.pressure"
+when = "mem.free_pct < 10"
+severity = "warn"
+summary = "Free memory below 10% of total."
+evidence = ["mem.free_pct", "mem.free_mb", "mem.total_mb"]
+suggest = ["ps -eo pid,rss,cmd --sort=-rss | head -20", "cat /proc/meminfo"]
+
+[[rule]]
+id = "mem.swap_in_active"
+when = "vmstat.swap_in > 0"
+severity = "warn"
+summary = "Pages are being swapped in from disk."
+evidence = ["vmstat.swap_in"]
+suggest = ["vmstat 1 10", "free -m"]

@@ -1,0 +1,596 @@
+//! Declarative rules and predicate DSL.
+//!
+//! The predicate grammar (per SDD §333):
+//!
+//! ```text
+//! expr   ::= term (("AND" | "OR") term)*
+//! term   ::= path op value
+//! path   ::= IDENT ("." IDENT)*
+//! op     ::= ">" | "<" | ">=" | "<=" | "==" | "!="
+//! value  ::= NUMBER | BOOL | STRING
+//! ```
+//!
+//! Phase 1 supports bare signal paths and `host.*` paths. SampleStats suffixes
+//! (`.p50`, `.p95`, ...) and z-score paths are deferred to Phase 4.
+
+use std::path::{Path, PathBuf};
+
+use serde::Deserialize;
+use thiserror::Error;
+
+use crate::collector::CollectCtx;
+use crate::finding::{sort_findings, Evidence, Finding, FindingKind, Severity};
+use crate::signal::{Signal, SignalValue};
+
+pub mod builtin;
+
+#[derive(Debug, Error)]
+pub enum Error {
+    #[error("predicate parse error: {0}")]
+    Predicate(String),
+    #[error("failed to read rules directory {path}: {source}")]
+    ReadDir { path: PathBuf, source: std::io::Error },
+}
+
+pub type Result<T, E = Error> = std::result::Result<T, E>;
+
+#[derive(Debug, Clone)]
+pub struct Rule {
+    pub id: String,
+    pub when: Predicate,
+    pub severity: Severity,
+    pub summary: String,
+    pub evidence_ids: Vec<String>,
+    pub suggest: Vec<String>,
+}
+
+// --- Predicate AST -----------------------------------------------------------
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Predicate {
+    Cmp { path: Vec<String>, op: Op, rhs: Rhs },
+    And(Box<Predicate>, Box<Predicate>),
+    Or(Box<Predicate>, Box<Predicate>),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Rhs {
+    Value(Value),
+    Path(Vec<String>),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Op {
+    Gt,
+    Lt,
+    Ge,
+    Le,
+    Eq,
+    Ne,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Value {
+    Number(f64),
+    Bool(bool),
+    Str(String),
+}
+
+impl Predicate {
+    pub fn parse(input: &str) -> Result<Self> {
+        let tokens = tokenize(input).map_err(Error::Predicate)?;
+        let mut parser = Parser { tokens, pos: 0 };
+        let p = parser.parse_expr()?;
+        if parser.pos != parser.tokens.len() {
+            return Err(Error::Predicate(format!(
+                "trailing tokens at position {}: {:?}",
+                parser.pos,
+                &parser.tokens[parser.pos..]
+            )));
+        }
+        Ok(p)
+    }
+
+    pub fn evaluate(&self, signals_index: &SignalIndex<'_>, ctx: &CollectCtx) -> bool {
+        match self {
+            Predicate::And(a, b) => a.evaluate(signals_index, ctx) && b.evaluate(signals_index, ctx),
+            Predicate::Or(a, b) => a.evaluate(signals_index, ctx) || b.evaluate(signals_index, ctx),
+            Predicate::Cmp { path, op, rhs } => evaluate_cmp(path, *op, rhs, signals_index, ctx),
+        }
+    }
+}
+
+fn evaluate_cmp(path: &[String], op: Op, rhs: &Rhs, signals_index: &SignalIndex<'_>, ctx: &CollectCtx) -> bool {
+    let lhs = resolve_path(path, signals_index, ctx);
+    let rhs_resolved = match rhs {
+        Rhs::Value(v) => match v {
+            Value::Number(n) => Some(LhsValue::Number(*n)),
+            Value::Bool(b) => Some(LhsValue::Bool(*b)),
+            Value::Str(s) => Some(LhsValue::Text(s.clone())),
+        },
+        Rhs::Path(p) => resolve_path(p, signals_index, ctx),
+    };
+    match (lhs, rhs_resolved) {
+        (Some(LhsValue::Number(n)), Some(LhsValue::Number(m))) => match op {
+            Op::Gt => n > m,
+            Op::Lt => n < m,
+            Op::Ge => n >= m,
+            Op::Le => n <= m,
+            Op::Eq => (n - m).abs() < f64::EPSILON,
+            Op::Ne => (n - m).abs() >= f64::EPSILON,
+        },
+        (Some(LhsValue::Bool(b)), Some(LhsValue::Bool(c))) => match op {
+            Op::Eq => b == c,
+            Op::Ne => b != c,
+            _ => false,
+        },
+        (Some(LhsValue::Text(t)), Some(LhsValue::Text(s))) => match op {
+            Op::Eq => t == s,
+            Op::Ne => t != s,
+            _ => false,
+        },
+        // Absent or type-mismatched signals never match (SDD §453).
+        _ => false,
+    }
+}
+
+enum LhsValue {
+    Number(f64),
+    Bool(bool),
+    Text(String),
+}
+
+fn resolve_path(path: &[String], signals_index: &SignalIndex<'_>, ctx: &CollectCtx) -> Option<LhsValue> {
+    if path.is_empty() {
+        return None;
+    }
+    if path[0] == "host" {
+        if path.len() == 2 && path[1] == "cpu_count" {
+            return Some(LhsValue::Number(ctx.cpu_count as f64));
+        }
+        return None;
+    }
+    let id = path.join(".");
+    let signal = signals_index.get(&id)?;
+    match &signal.value {
+        SignalValue::F64(v) => Some(LhsValue::Number(*v)),
+        SignalValue::I64(v) => Some(LhsValue::Number(*v as f64)),
+        SignalValue::Bool(v) => Some(LhsValue::Bool(*v)),
+        SignalValue::Text(v) => Some(LhsValue::Text(v.clone())),
+    }
+}
+
+pub struct SignalIndex<'a> {
+    by_id: std::collections::HashMap<&'a str, &'a Signal>,
+}
+
+impl<'a> SignalIndex<'a> {
+    pub fn build(signals: &'a [Signal]) -> Self {
+        SignalIndex {
+            by_id: signals.iter().map(|s| (s.id.as_str(), s)).collect(),
+        }
+    }
+
+    pub fn get(&self, id: &str) -> Option<&&'a Signal> {
+        self.by_id.get(id)
+    }
+}
+
+// --- Tokenizer + Parser ------------------------------------------------------
+
+#[derive(Debug, Clone, PartialEq)]
+enum Tok {
+    Ident(String),
+    Number(f64),
+    Str(String),
+    Bool(bool),
+    Op(Op),
+    And,
+    Or,
+    Dot,
+    LParen,
+    RParen,
+}
+
+fn tokenize(s: &str) -> std::result::Result<Vec<Tok>, String> {
+    let bytes = s.as_bytes();
+    let mut i = 0;
+    let mut tokens = Vec::new();
+    while i < bytes.len() {
+        let c = bytes[i] as char;
+        if c.is_whitespace() {
+            i += 1;
+            continue;
+        }
+        if c == '.' {
+            tokens.push(Tok::Dot);
+            i += 1;
+            continue;
+        }
+        if c == '(' {
+            tokens.push(Tok::LParen);
+            i += 1;
+            continue;
+        }
+        if c == ')' {
+            tokens.push(Tok::RParen);
+            i += 1;
+            continue;
+        }
+        if c == '"' || c == '\'' {
+            let quote = c;
+            let start = i + 1;
+            i += 1;
+            while i < bytes.len() && bytes[i] as char != quote {
+                i += 1;
+            }
+            if i >= bytes.len() {
+                return Err("unterminated string literal".into());
+            }
+            let lit = std::str::from_utf8(&bytes[start..i]).map_err(|e| e.to_string())?;
+            tokens.push(Tok::Str(lit.to_string()));
+            i += 1; // skip closing quote
+            continue;
+        }
+        if c.is_ascii_digit() || (c == '-' && i + 1 < bytes.len() && (bytes[i + 1] as char).is_ascii_digit()) {
+            let start = i;
+            i += 1;
+            while i < bytes.len() {
+                let cc = bytes[i] as char;
+                if cc.is_ascii_digit() || cc == '.' {
+                    i += 1;
+                } else {
+                    break;
+                }
+            }
+            let lit = std::str::from_utf8(&bytes[start..i]).map_err(|e| e.to_string())?;
+            let n: f64 = lit.parse().map_err(|e: std::num::ParseFloatError| e.to_string())?;
+            tokens.push(Tok::Number(n));
+            continue;
+        }
+        if c == '>' || c == '<' || c == '=' || c == '!' {
+            let next = bytes.get(i + 1).map(|&b| b as char);
+            let op = match (c, next) {
+                ('>', Some('=')) => {
+                    i += 2;
+                    Op::Ge
+                }
+                ('<', Some('=')) => {
+                    i += 2;
+                    Op::Le
+                }
+                ('=', Some('=')) => {
+                    i += 2;
+                    Op::Eq
+                }
+                ('!', Some('=')) => {
+                    i += 2;
+                    Op::Ne
+                }
+                ('>', _) => {
+                    i += 1;
+                    Op::Gt
+                }
+                ('<', _) => {
+                    i += 1;
+                    Op::Lt
+                }
+                _ => return Err(format!("unexpected character at {}: {:?}", i, c)),
+            };
+            tokens.push(Tok::Op(op));
+            continue;
+        }
+        if c.is_alphabetic() || c == '_' {
+            let start = i;
+            while i < bytes.len() {
+                let cc = bytes[i] as char;
+                if cc.is_alphanumeric() || cc == '_' {
+                    i += 1;
+                } else {
+                    break;
+                }
+            }
+            let lit = std::str::from_utf8(&bytes[start..i]).map_err(|e| e.to_string())?;
+            let upper = lit.to_ascii_uppercase();
+            let tok = match upper.as_str() {
+                "AND" => Tok::And,
+                "OR" => Tok::Or,
+                "TRUE" => Tok::Bool(true),
+                "FALSE" => Tok::Bool(false),
+                _ => Tok::Ident(lit.to_string()),
+            };
+            tokens.push(tok);
+            continue;
+        }
+        return Err(format!("unexpected character {:?} at position {}", c, i));
+    }
+    Ok(tokens)
+}
+
+struct Parser {
+    tokens: Vec<Tok>,
+    pos: usize,
+}
+
+impl Parser {
+    fn parse_expr(&mut self) -> Result<Predicate> {
+        let mut left = self.parse_term()?;
+        loop {
+            let op = match self.tokens.get(self.pos) {
+                Some(Tok::And) => "AND",
+                Some(Tok::Or) => "OR",
+                _ => break,
+            };
+            self.pos += 1;
+            let right = self.parse_term()?;
+            left = if op == "AND" {
+                Predicate::And(Box::new(left), Box::new(right))
+            } else {
+                Predicate::Or(Box::new(left), Box::new(right))
+            };
+        }
+        Ok(left)
+    }
+
+    fn parse_term(&mut self) -> Result<Predicate> {
+        let path = self.parse_path()?;
+        let op = match self.next_owned() {
+            Some(Tok::Op(o)) => o,
+            other => {
+                return Err(Error::Predicate(format!(
+                    "expected comparison operator, got {:?}",
+                    other
+                )))
+            }
+        };
+        let rhs = match self.tokens.get(self.pos).cloned() {
+            Some(Tok::Number(n)) => {
+                self.pos += 1;
+                Rhs::Value(Value::Number(n))
+            }
+            Some(Tok::Bool(b)) => {
+                self.pos += 1;
+                Rhs::Value(Value::Bool(b))
+            }
+            Some(Tok::Str(s)) => {
+                self.pos += 1;
+                Rhs::Value(Value::Str(s))
+            }
+            Some(Tok::Ident(_)) => {
+                // Path-on-RHS: e.g. `vmstat.r > host.cpu_count`.
+                let path = self.parse_path()?;
+                Rhs::Path(path)
+            }
+            other => return Err(Error::Predicate(format!("expected value or path, got {:?}", other))),
+        };
+        Ok(Predicate::Cmp { path, op, rhs })
+    }
+
+    fn parse_path(&mut self) -> Result<Vec<String>> {
+        let mut segments = Vec::new();
+        match self.next_owned() {
+            Some(Tok::Ident(s)) => segments.push(s),
+            other => {
+                return Err(Error::Predicate(format!(
+                    "expected identifier at start of path, got {:?}",
+                    other
+                )))
+            }
+        }
+        while matches!(self.tokens.get(self.pos), Some(Tok::Dot)) {
+            self.pos += 1;
+            match self.next_owned() {
+                Some(Tok::Ident(s)) => segments.push(s),
+                other => {
+                    return Err(Error::Predicate(format!(
+                        "expected identifier after '.', got {:?}",
+                        other
+                    )))
+                }
+            }
+        }
+        Ok(segments)
+    }
+
+    fn next_owned(&mut self) -> Option<Tok> {
+        let t = self.tokens.get(self.pos)?.clone();
+        self.pos += 1;
+        Some(t)
+    }
+}
+
+// --- Rule engine -------------------------------------------------------------
+
+#[derive(Debug, Clone)]
+pub struct RuleEngine {
+    rules: Vec<Rule>,
+}
+
+impl RuleEngine {
+    pub fn new(rules: Vec<Rule>) -> Self {
+        RuleEngine { rules }
+    }
+
+    pub fn rules(&self) -> &[Rule] {
+        &self.rules
+    }
+
+    pub fn run(&self, signals: &[Signal], ctx: &CollectCtx) -> Vec<Finding> {
+        let index = SignalIndex::build(signals);
+        let mut findings = Vec::new();
+        for rule in &self.rules {
+            if rule.when.evaluate(&index, ctx) {
+                let evidence = rule
+                    .evidence_ids
+                    .iter()
+                    .filter_map(|sid| evidence_for(sid, &index, ctx))
+                    .collect();
+                findings.push(Finding {
+                    id: rule.id.clone(),
+                    kind: FindingKind::Rule,
+                    severity: rule.severity,
+                    summary: rule.summary.clone(),
+                    evidence,
+                    suggest: rule.suggest.clone(),
+                });
+            }
+        }
+        sort_findings(&mut findings);
+        findings
+    }
+}
+
+/// Look up the observed value for an `evidence_ids` entry. Resolves both
+/// signal IDs and `host.*` paths (which come from `CollectCtx`). Entries that
+/// resolve to nothing are silently skipped.
+fn evidence_for(id: &str, index: &SignalIndex<'_>, ctx: &CollectCtx) -> Option<Evidence> {
+    if let Some(signal) = index.get(id) {
+        return Some(Evidence {
+            signal_id: id.to_string(),
+            observed: signal.value.clone(),
+        });
+    }
+    if id == "host.cpu_count" {
+        return Some(Evidence {
+            signal_id: id.to_string(),
+            observed: SignalValue::I64(ctx.cpu_count as i64),
+        });
+    }
+    None
+}
+
+// --- TOML loader -------------------------------------------------------------
+
+#[derive(Debug, Deserialize)]
+struct RuleFile {
+    #[serde(default)]
+    rule: Vec<RuleToml>,
+}
+
+#[derive(Debug, Deserialize)]
+struct RuleToml {
+    id: String,
+    when: String,
+    severity: String,
+    summary: String,
+    #[serde(default)]
+    evidence: Vec<String>,
+    #[serde(default)]
+    suggest: Vec<String>,
+}
+
+impl RuleToml {
+    fn into_rule(self) -> Result<Rule> {
+        let when = Predicate::parse(&self.when).map_err(|e| Error::Predicate(format!("rule '{}': {}", self.id, e)))?;
+        let severity =
+            parse_severity(&self.severity).map_err(|e| Error::Predicate(format!("rule '{}': {}", self.id, e)))?;
+        Ok(Rule {
+            id: self.id,
+            when,
+            severity,
+            summary: self.summary,
+            evidence_ids: self.evidence,
+            suggest: self.suggest,
+        })
+    }
+}
+
+fn parse_severity(s: &str) -> std::result::Result<Severity, String> {
+    match s.to_ascii_lowercase().as_str() {
+        "info" => Ok(Severity::Info),
+        "warn" => Ok(Severity::Warn),
+        "crit" => Ok(Severity::Crit),
+        other => Err(format!("unknown severity: {}", other)),
+    }
+}
+
+/// Parse a TOML rule-file string into a `Vec<Rule>`. Per-rule predicate or
+/// severity errors are returned as the first failure; the caller (see
+/// `RulesLoader`) is responsible for converting them into `warn` findings so
+/// one bad file does not poison the rest.
+pub fn parse_rules_toml(s: &str) -> Result<Vec<Rule>> {
+    let parsed: RuleFile = toml::from_str(s).map_err(|e| Error::Predicate(e.to_string()))?;
+    parsed.rule.into_iter().map(|r| r.into_rule()).collect()
+}
+
+#[derive(Debug, Default)]
+pub struct RulesLoader {
+    builtins: Vec<Rule>,
+    user_dir: Option<PathBuf>,
+}
+
+#[derive(Debug)]
+pub struct RulesLoadResult {
+    pub rules: Vec<Rule>,
+    pub load_findings: Vec<Finding>,
+}
+
+impl RulesLoader {
+    pub fn new() -> Self {
+        RulesLoader::default()
+    }
+
+    pub fn with_builtins(mut self, rules: Vec<Rule>) -> Self {
+        self.builtins = rules;
+        self
+    }
+
+    pub fn with_user_dir<P: AsRef<Path>>(mut self, dir: P) -> Self {
+        self.user_dir = Some(dir.as_ref().to_path_buf());
+        self
+    }
+
+    /// Load built-in rules first, then user rules from the configured dir
+    /// (if any). Per SDD §89: malformed user files do NOT poison built-ins;
+    /// each malformed file becomes a `warn` finding.
+    pub fn load(self) -> RulesLoadResult {
+        let mut rules = self.builtins;
+        let mut load_findings = Vec::new();
+        if let Some(dir) = self.user_dir {
+            match std::fs::read_dir(&dir) {
+                Ok(entries) => {
+                    let mut paths: Vec<PathBuf> = entries
+                        .filter_map(|e| e.ok().map(|e| e.path()))
+                        .filter(|p| p.extension().and_then(|s| s.to_str()) == Some("toml"))
+                        .collect();
+                    paths.sort();
+                    for path in paths {
+                        match std::fs::read_to_string(&path) {
+                            Ok(content) => match parse_rules_toml(&content) {
+                                Ok(mut more) => rules.append(&mut more),
+                                Err(e) => load_findings.push(Finding {
+                                    id: "rules.malformed_user_file".to_string(),
+                                    kind: FindingKind::Rule,
+                                    severity: Severity::Warn,
+                                    summary: format!("skipped malformed rule file {}: {}", path.display(), e),
+                                    evidence: vec![],
+                                    suggest: vec![],
+                                }),
+                            },
+                            Err(e) => load_findings.push(Finding {
+                                id: "rules.user_file_unreadable".to_string(),
+                                kind: FindingKind::Rule,
+                                severity: Severity::Warn,
+                                summary: format!("skipped unreadable rule file {}: {}", path.display(), e),
+                                evidence: vec![],
+                                suggest: vec![],
+                            }),
+                        }
+                    }
+                }
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                    // Absent directory is not an error.
+                }
+                Err(e) => load_findings.push(Finding {
+                    id: "rules.user_dir_unreadable".to_string(),
+                    kind: FindingKind::Rule,
+                    severity: Severity::Warn,
+                    summary: format!("could not read rules directory {}: {}", dir.display(), e),
+                    evidence: vec![],
+                    suggest: vec![],
+                }),
+            }
+        }
+        RulesLoadResult { rules, load_findings }
+    }
+}

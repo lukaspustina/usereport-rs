@@ -32,13 +32,51 @@
 <body>
 <div class="container-fluid">
     <h1>Use Report - {{ context.hostname }} on {{ context.date_time | rfc2822 }}</h1>
-    <p>
+
+    <h2>Summary</h2>
     <ul class="list-group">
+        <li class="list-group-item">Host: <code>{{ context.hostname }}</code></li>
+        <li class="list-group-item">Kernel: <code>{{ context.uname }}</code></li>
         <li class="list-group-item">Date: <code>{{ context.date_time | rfc2822 }}</code></li>
-        <li class="list-group-item">Hostname: <code>{{ context.hostname }}</code></li>
-        <li class="list-group-item">Host OS: <code>{{ context.uname }}</code></li>
+        <li class="list-group-item">Repetitions: {{ repetitions }}</li>
+        <li class="list-group-item">Parallelism: {{ max_parallel_commands }}</li>
+        {% if findings %}
+        <li class="list-group-item">Top concern: <strong>{{ findings[0].severity }}</strong> — {{ findings[0].summary | e }}</li>
+        {% endif %}
     </ul>
-    </p>
+
+    {% if findings %}
+    <h2>Findings</h2>
+    <ul class="list-group">
+        {% for f in findings %}
+        <li class="list-group-item">
+            <h3>
+                {% if f.severity == "Crit" %}<span class="text-danger">[CRIT]</span>
+                {% elif f.severity == "Warn" %}<span class="text-warning">[WARN]</span>
+                {% else %}[INFO]
+                {% endif %}
+                {{ f.id | e }}
+            </h3>
+            <p>{{ f.summary | e }}</p>
+            {% if f.evidence %}
+            <p><small>Evidence:
+                {% for e in f.evidence %}
+                <code>{{ e.signal_id | e }}</code> = {{ e.observed }}{% if not loop.last %}, {% endif %}
+                {% endfor %}
+            </small></p>
+            {% endif %}
+            {% if f.suggest %}
+            <p><small>Next steps:
+                {% for cmd in f.suggest %}
+                <code>{{ cmd | e }}</code>{% if not loop.last %} · {% endif %}
+                {% endfor %}
+            </small></p>
+            {% endif %}
+        </li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+
     <h2>Run Configuration</h2>
     <p>
     <ul class="list-group">

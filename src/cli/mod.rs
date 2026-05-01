@@ -1,4 +1,7 @@
-use crate::{renderer, Analysis, Command, Config, Context, Renderer, ThreadRunner};
+use crate::{
+    finding::{Finding, Severity},
+    renderer, Analysis, Command, Config, Context, Renderer, ThreadRunner,
+};
 use anyhow::{anyhow, Context as _};
 use clap::Parser;
 use comfy_table::Table;
@@ -50,6 +53,9 @@ struct Opt {
     /// Activate debug mode
     #[arg(short, long)]
     debug: bool,
+    /// Exit-code policy based on the highest-severity finding produced.
+    #[arg(long, value_enum, default_value = "never")]
+    exit_on: ExitOn,
     /// Set profile to use
     #[arg(short = 'p', long)]
     profile: Option<String>,
@@ -132,6 +138,46 @@ impl clap::ValueEnum for OutputType {
     }
 }
 
+/// Exit-code policy controlled by `--exit-on`. See SDD §103.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+pub enum ExitOn {
+    Never,
+    Warn,
+    Crit,
+}
+
+/// Compute the process exit code for a run based on the configured policy and
+/// the produced findings.
+///
+/// Per SDD Req 8 / AC-4:
+/// - `Never` → always 0.
+/// - `Warn`  → 1 if any `warn` finding fires, else 0. Exit 1 is never emitted
+///   under `Never`.
+/// - `Crit`  → 2 if any `crit` finding fires, else 0. Exit 2 is never emitted
+///   outside `Crit`. A `warn` finding under `Crit` does not raise exit code.
+pub fn compute_exit_code(exit_on: ExitOn, findings: &[Finding]) -> i32 {
+    match exit_on {
+        ExitOn::Never => 0,
+        ExitOn::Warn => {
+            if findings
+                .iter()
+                .any(|f| f.severity == Severity::Warn || f.severity == Severity::Crit)
+            {
+                1
+            } else {
+                0
+            }
+        }
+        ExitOn::Crit => {
+            if findings.iter().any(|f| f.severity == Severity::Crit) {
+                2
+            } else {
+                0
+            }
+        }
+    }
+}
+
 pub fn main() -> anyhow::Result<()> {
     human_panic::setup_panic!();
     env_logger::init();
@@ -170,7 +216,17 @@ pub fn main() -> anyhow::Result<()> {
         return Ok(());
     }
 
-    generate_report(&opt, &config, profile_name)
+    generate_report(&opt, &config, profile_name)?;
+
+    // Phase 1: the diagnostic pipeline (collectors + rule engine) is not yet
+    // wired into Analysis::run(), so `findings` is always empty here and the
+    // process exits 0. The wiring is in place for Phase 3 when collectors run.
+    let findings: Vec<Finding> = Vec::new();
+    let code = compute_exit_code(opt.exit_on, &findings);
+    if code != 0 {
+        std::process::exit(code);
+    }
+    Ok(())
 }
 
 fn show_config(config: &Config) {
@@ -417,6 +473,7 @@ mod tests {
             progress: false,
             no_progress: false,
             debug: false,
+            exit_on: ExitOn::Never,
             profile: None,
             show_config: false,
             show_output_template: false,
