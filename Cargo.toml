@@ -19,8 +19,8 @@ include = [
   "**/*.rs",
   "Cargo.toml",
 ]
-edition = "2018"
-rust-version = "1.74"
+edition = "2024"
+rust-version = "1.85"
 
 [badges]
 
@@ -49,27 +49,27 @@ required-features = ["bin"]
 [dependencies]
 anyhow = { version = "1", optional = true }
 humantime = { version = "2", optional = true }
-chrono = { version = "0.4.20", features = ["serde"] }
+chrono = { version = "0.4", features = ["serde"] }
 clap = { version = "4", features = ["derive"], optional = true }
 env_logger = { version = "0.11", optional = true }
 minijinja = "2"
 human-panic = { version = "2", optional = true }
-indicatif = { version = "0.17", optional = true }
+indicatif = { version = "0.18", optional = true }
 log = "0.4"
 comfy-table = { version = "7", optional = true }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 shell-words = "1"
 thiserror = "2"
 subprocess = "0.2"
-tempfile = "3.3"
-toml = "0.8"
+tempfile = "3"
+toml = "1"
 hmac = "0.12"
 regex = "1"
 rustix = { version = "1", features = ["system", "fs"] }
 sha2 = "0.10"
-which = "6"
-inferno = { version = "0.11", optional = true }
+which = "8"
+inferno = { version = "0.12", optional = true }
 
 [dev-dependencies]
 env_logger = "0.11"
