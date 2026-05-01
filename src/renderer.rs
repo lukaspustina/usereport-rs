@@ -9,13 +9,19 @@ use thiserror::Error;
 pub enum Error {
     /// Rendering of report to Json failed
     #[error("failed to render report to Json: {source}")]
-    RenderJsonFailed { #[from] source: serde_json::Error },
+    RenderJsonFailed {
+        #[from]
+        source: serde_json::Error,
+    },
     /// Failed to read template from file
     #[error("failed to read template from file '{path}': {source}")]
     ReadTemplateFailed { path: PathBuf, source: std::io::Error },
     /// Template rendering failed (parse or render error)
     #[error("failed to render template: {source}")]
-    RenderTemplateFailed { #[from] source: minijinja::Error },
+    RenderTemplateFailed {
+        #[from]
+        source: minijinja::Error,
+    },
     /// Failed to write rendered output
     #[error("failed to write output: {source}")]
     WriteOutputFailed { source: std::io::Error },
@@ -37,7 +43,9 @@ pub mod json {
     pub struct JsonRenderer {}
 
     impl JsonRenderer {
-        pub fn new() -> Self { JsonRenderer {} }
+        pub fn new() -> Self {
+            JsonRenderer {}
+        }
     }
 
     impl<W: Write> Renderer<W> for JsonRenderer {
@@ -84,26 +92,40 @@ pub mod jinja {
 
     #[derive(Default, Debug, Eq, PartialEq, Clone)]
     pub struct TemplateRenderer {
-        template:    String,
+        template: String,
         html_escape: bool,
     }
 
     impl TemplateRenderer {
         pub fn new<T: Into<String>>(template: T) -> Self {
-            TemplateRenderer { template: template.into(), html_escape: false }
+            TemplateRenderer {
+                template: template.into(),
+                html_escape: false,
+            }
         }
 
         pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self> {
-            let mut file = File::open(path.as_ref())
-                .map_err(|e| Error::ReadTemplateFailed { path: path.as_ref().to_path_buf(), source: e })?;
+            let mut file = File::open(path.as_ref()).map_err(|e| Error::ReadTemplateFailed {
+                path: path.as_ref().to_path_buf(),
+                source: e,
+            })?;
             let mut template = String::new();
             file.read_to_string(&mut template)
-                .map_err(|e| Error::ReadTemplateFailed { path: path.as_ref().to_path_buf(), source: e })?;
-            Ok(TemplateRenderer { template, html_escape: false })
+                .map_err(|e| Error::ReadTemplateFailed {
+                    path: path.as_ref().to_path_buf(),
+                    source: e,
+                })?;
+            Ok(TemplateRenderer {
+                template,
+                html_escape: false,
+            })
         }
 
         pub fn with_html_escape(self) -> Self {
-            TemplateRenderer { html_escape: true, ..self }
+            TemplateRenderer {
+                html_escape: true,
+                ..self
+            }
         }
     }
 
@@ -171,4 +193,3 @@ pub mod jinja {
         }
     }
 }
-

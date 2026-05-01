@@ -1,7 +1,6 @@
 use crate::command::Command;
 
 use serde::{Deserialize, Serialize};
-use thiserror::Error;
 use std::{
     collections::{HashMap, HashSet},
     fs::File,
@@ -10,6 +9,7 @@ use std::{
     path::{Path, PathBuf},
     str::FromStr,
 };
+use thiserror::Error;
 
 /// Error type
 #[derive(Debug, Error)]
@@ -17,7 +17,10 @@ use std::{
 pub enum Error {
     /// Failed to parse Config
     #[error("failed to parse config: {source}")]
-    ParseConfigFailed { #[from] source: toml::de::Error },
+    ParseConfigFailed {
+        #[from]
+        source: toml::de::Error,
+    },
     /// Failed to read file
     #[error("failed to read file config '{path}': {source}")]
     ReadConfigFileFailed { path: PathBuf, source: std::io::Error },
@@ -83,16 +86,21 @@ impl FromStr for Config {
 
 impl Config {
     pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Config> {
-        let mut file = File::open(path.as_ref())
-            .map_err(|e| Error::ReadConfigFileFailed { path: path.as_ref().to_path_buf(), source: e })?;
+        let mut file = File::open(path.as_ref()).map_err(|e| Error::ReadConfigFileFailed {
+            path: path.as_ref().to_path_buf(),
+            source: e,
+        })?;
         let mut toml = String::new();
         file.read_to_string(&mut toml)
-            .map_err(|e| Error::ReadConfigFileFailed { path: path.as_ref().to_path_buf(), source: e })?;
+            .map_err(|e| Error::ReadConfigFileFailed {
+                path: path.as_ref().to_path_buf(),
+                source: e,
+            })?;
         Config::from_str(&toml)
     }
 
     pub fn profile(&self, profile_name: &str) -> Result<&Profile> {
-        self.profiles.iter().find(|x| x.name == profile_name).ok_or_else(|| {
+        self.profiles.iter().find(|x| x.name == profile_name).ok_or({
             Error::InvalidConfig {
                 reason: "no such profile",
             }
@@ -103,7 +111,7 @@ impl Config {
         self.hostinfo
             .as_ref()
             .map(|hostinfo| self.command_names_to_commands(&hostinfo.commands))
-            .unwrap_or_else(Vec::new)
+            .unwrap_or_default()
     }
 
     fn command_names_to_commands(&self, names: &[String]) -> Vec<Command> {
@@ -115,7 +123,9 @@ impl Config {
             .collect()
     }
 
-    fn commands_as_map(&self) -> HashMap<&str, &Command> { self.commands.iter().map(|x| (x.name(), x)).collect() }
+    fn commands_as_map(&self) -> HashMap<&str, &Command> {
+        self.commands.iter().map(|x| (x.name(), x)).collect()
+    }
 
     pub fn commands_for_profile(&self, profile: &Profile) -> Vec<Command> {
         self.command_names_to_commands(&profile.commands)
@@ -134,7 +144,7 @@ impl Config {
 
         if let Some(ref hostinfo) = self.hostinfo {
             for c in &hostinfo.commands {
-                command_names.get(c).ok_or_else(|| {
+                command_names.get(c).ok_or({
                     Error::InvalidConfig {
                         reason: "hostinfo command not found",
                     }
@@ -155,7 +165,7 @@ impl Config {
 
         for p in &self.profiles {
             for c in &p.commands {
-                command_names.get(c).ok_or_else(|| {
+                command_names.get(c).ok_or({
                     Error::InvalidConfig {
                         reason: "profile command not found",
                     }
@@ -201,11 +211,11 @@ impl Config {
 #[derive(Debug, Deserialize, Serialize, PartialEq, Eq, Clone)]
 pub struct Defaults {
     #[serde(default = "default_profile")]
-    pub profile:               String,
+    pub profile: String,
     #[serde(default = "default_timeout")]
-    pub timeout:               u64,
+    pub timeout: u64,
     #[serde(default = "default_repetitions")]
-    pub repetitions:           usize,
+    pub repetitions: usize,
     #[serde(default = "default_max_parallel_commands")]
     pub max_parallel_commands: usize,
 }
@@ -213,21 +223,29 @@ pub struct Defaults {
 impl Default for Defaults {
     fn default() -> Self {
         Defaults {
-            profile:               "default".to_string(),
-            timeout:               5,
-            repetitions:           1,
+            profile: "default".to_string(),
+            timeout: 5,
+            repetitions: 1,
             max_parallel_commands: 64,
         }
     }
 }
 
-fn default_profile() -> String { Defaults::default().profile }
+fn default_profile() -> String {
+    Defaults::default().profile
+}
 
-fn default_timeout() -> u64 { Defaults::default().timeout }
+fn default_timeout() -> u64 {
+    Defaults::default().timeout
+}
 
-fn default_repetitions() -> usize { Defaults::default().repetitions }
+fn default_repetitions() -> usize {
+    Defaults::default().repetitions
+}
 
-fn default_max_parallel_commands() -> usize { Defaults::default().max_parallel_commands }
+fn default_max_parallel_commands() -> usize {
+    Defaults::default().max_parallel_commands
+}
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Eq, Clone)]
 pub struct Hostinfo {
@@ -236,8 +254,8 @@ pub struct Hostinfo {
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Eq, Clone)]
 pub struct Profile {
-    pub name:        String,
-    pub commands:    Vec<String>,
+    pub name: String,
+    pub commands: Vec<String>,
     pub description: Option<String>,
 }
 
@@ -252,7 +270,7 @@ impl Profile {
         description: S,
     ) -> Profile {
         let name = name.into();
-        let commands = commands.to_vec().into_iter().map(Into::into).collect();
+        let commands = commands.iter().cloned().map(Into::into).collect();
         let description = description.into().map(Into::into);
 
         Profile {
@@ -291,15 +309,11 @@ timeout = 1
             timeout: 5,
             ..Defaults::default()
         };
-        let mut profiles = Vec::new();
-        profiles.push(Profile::new("default", &["uname"]));
-        let mut commands = Vec::new();
-        commands.push(
-            Command::new("uname", "/usr/bin/uname -a")
-                .with_title("Host OS")
-                .with_description("Basic host OS information")
-                .with_timeout(1),
-        );
+        let profiles = vec![Profile::new("default", &["uname"])];
+        let commands = vec![Command::new("uname", "/usr/bin/uname -a")
+            .with_title("Host OS")
+            .with_description("Basic host OS information")
+            .with_timeout(1)];
         let expected = Config {
             defaults,
             hostinfo: None,

@@ -11,7 +11,10 @@ use thiserror::Error;
 pub enum Error {
     /// Analysis run failed
     #[error("analysis failed: {source}")]
-    RunAnalysisFailed { #[from] source: runner::Error },
+    RunAnalysisFailed {
+        #[from]
+        source: runner::Error,
+    },
 }
 
 /// Result type
@@ -20,10 +23,10 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 // Copy: This allows to reuse the into_iter object; safe for &Vec or &[]
 #[derive(Debug)]
 pub struct Analysis<'a, I: IntoIterator<Item = &'a Command> + Copy> {
-    runner:                Box<dyn Runner<'a, I>>,
-    hostinfos:             I,
-    commands:              I,
-    repetitions:           usize,
+    runner: Box<dyn Runner<'a, I>>,
+    hostinfos: I,
+    commands: I,
+    repetitions: usize,
     max_parallel_commands: usize,
 }
 
@@ -38,7 +41,9 @@ impl<'a, I: IntoIterator<Item = &'a Command> + Copy> Analysis<'a, I> {
         }
     }
 
-    pub fn with_repetitions(self, repetitions: usize) -> Self { Analysis { repetitions, ..self } }
+    pub fn with_repetitions(self, repetitions: usize) -> Self {
+        Analysis { repetitions, ..self }
+    }
 
     pub fn with_max_parallel_commands(self, max_parallel_commands: usize) -> Self {
         Analysis {
@@ -71,10 +76,7 @@ impl<'a, I: IntoIterator<Item = &'a Command> + Copy> Analysis<'a, I> {
     }
 
     fn run_commands(&self, commands: I) -> Result<Vec<CommandResult>> {
-        let results = self
-            .runner
-            .run(commands, self.max_parallel_commands)
-            ?;
+        let results = self.runner.run(commands, self.max_parallel_commands)?;
 
         Ok(results)
     }
@@ -82,10 +84,10 @@ impl<'a, I: IntoIterator<Item = &'a Command> + Copy> Analysis<'a, I> {
 
 #[derive(Debug, Serialize)]
 pub struct AnalysisReport {
-    pub(crate) context:               Context,
-    pub(crate) hostinfo_results:      Vec<CommandResult>,
-    pub(crate) command_results:       Vec<Vec<CommandResult>>,
-    pub(crate) repetitions:           usize,
+    pub(crate) context: Context,
+    pub(crate) hostinfo_results: Vec<CommandResult>,
+    pub(crate) command_results: Vec<Vec<CommandResult>>,
+    pub(crate) repetitions: usize,
     pub(crate) max_parallel_commands: usize,
 }
 
@@ -106,23 +108,39 @@ impl AnalysisReport {
         }
     }
 
-    pub fn context(&self) -> &Context { &self.context }
+    pub fn context(&self) -> &Context {
+        &self.context
+    }
 
-    pub fn hostinfo_results(&self) -> &[CommandResult] { &self.hostinfo_results }
+    pub fn hostinfo_results(&self) -> &[CommandResult] {
+        &self.hostinfo_results
+    }
 
-    pub fn command_results(&self) -> &[Vec<CommandResult>] { &self.command_results }
+    pub fn command_results(&self) -> &[Vec<CommandResult>] {
+        &self.command_results
+    }
 
-    pub fn repetitions(&self) -> usize { self.repetitions }
+    pub fn repetitions(&self) -> usize {
+        self.repetitions
+    }
 
-    pub fn max_parallel_commands(&self) -> usize { self.max_parallel_commands }
+    pub fn max_parallel_commands(&self) -> usize {
+        self.max_parallel_commands
+    }
 }
 
 #[derive(Debug, Serialize)]
 pub struct Context {
-    pub(crate) hostname:  String,
-    pub(crate) uname:     String,
+    pub(crate) hostname: String,
+    pub(crate) uname: String,
     pub(crate) date_time: DateTime<Local>,
-    pub(crate) more:      HashMap<String, String>,
+    pub(crate) more: HashMap<String, String>,
+}
+
+impl Default for Context {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Context {
@@ -152,11 +170,17 @@ impl Context {
         self
     }
 
-    pub fn hostname(&self) -> &str { &self.hostname }
+    pub fn hostname(&self) -> &str {
+        &self.hostname
+    }
 
-    pub fn uname(&self) -> &str { &self.uname }
+    pub fn uname(&self) -> &str {
+        &self.uname
+    }
 
-    pub fn date_time(&self) -> &DateTime<Local> { &self.date_time }
+    pub fn date_time(&self) -> &DateTime<Local> {
+        &self.date_time
+    }
 }
 
 #[cfg(test)]
@@ -201,15 +225,16 @@ mod tests {
         assert_eq!(report.command_results().len(), 1); // 1 repetition
         assert_eq!(report.command_results()[0].len(), 1);
         assert_that!(report.context().hostname(), not(eq("")));
-        assert_that!(report.hostinfo_results()[0], matches_pattern!(
-            crate::CommandResult::Success { .. }
-        ));
+        assert_that!(
+            report.hostinfo_results()[0],
+            matches_pattern!(crate::CommandResult::Success { .. })
+        );
     }
 
     #[test]
     fn second_runner() {
         #[derive(Debug)]
-        struct MyRunner {};
+        struct MyRunner {}
 
         impl<'a, I: IntoIterator<Item = &'a Command>> Runner<'a, I> for MyRunner {
             fn run(&self, _commands: I, _max_parallel_commands: usize) -> runner::Result<Vec<CommandResult>> {

@@ -1,1 +1,3 @@
-fn main() -> anyhow::Result<()> { usereport::cli::main() }
+fn main() -> anyhow::Result<()> {
+    usereport::cli::main()
+}

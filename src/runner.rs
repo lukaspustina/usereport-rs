@@ -60,7 +60,9 @@ pub mod thread {
     type ChildrenSupervision = (Vec<JoinHandle<()>>, Receiver<ChildResult>);
 
     impl ThreadRunner {
-        pub fn new() -> Self { ThreadRunner::default() }
+        pub fn new() -> Self {
+            ThreadRunner::default()
+        }
 
         pub fn with_progress<T: Into<Option<Sender<usize>>>>(self, progress_tx: T) -> Self {
             ThreadRunner {
@@ -145,17 +147,18 @@ pub mod thread {
 
         #[test]
         fn run_ok() {
-            let mut commands = Vec::new();
             #[cfg(target_os = "macos")]
-            commands.push(Command::new("uname", r#"/usr/bin/uname -a"#));
-            #[cfg(target_os = "macos")]
-            commands.push(Command::new("uname", r#"/usr/bin/uname -a"#));
+            let commands = vec![
+                Command::new("uname", r#"/usr/bin/uname -a"#),
+                Command::new("uname", r#"/usr/bin/uname -a"#),
+            ];
             #[cfg(target_os = "macos")]
             let expected = "Darwin";
             #[cfg(target_os = "linux")]
-            commands.push(Command::new("cat-uname", r#"/bin/cat /proc/version"#));
-            #[cfg(target_os = "linux")]
-            commands.push(Command::new("cat-uname", r#"/bin/cat /proc/version"#));
+            let commands = vec![
+                Command::new("cat-uname", r#"/bin/cat /proc/version"#),
+                Command::new("cat-uname", r#"/bin/cat /proc/version"#),
+            ];
             #[cfg(target_os = "linux")]
             let expected = "Linux";
 
@@ -163,10 +166,13 @@ pub mod thread {
             let results = r.run(&commands, 64).expect("Command run");
 
             assert_eq!(results.len(), 2);
-            assert_that!(results[0], matches_pattern!(CommandResult::Success {
-                stdout: contains_substring(expected),
-                ..
-            }));
+            assert_that!(
+                results[0],
+                matches_pattern!(CommandResult::Success {
+                    stdout: contains_substring(expected),
+                    ..
+                })
+            );
         }
 
         /// Results must come back in the same order as the commands, regardless of which thread
@@ -187,15 +193,27 @@ pub mod thread {
 
             assert_eq!(results.len(), 2);
             // First result must correspond to the slow command
-            assert_that!(results[0], matches_pattern!(CommandResult::Success {
-                command: matches_pattern!(Command { name: eq(&"slow".to_string()), .. }),
-                ..
-            }));
+            assert_that!(
+                results[0],
+                matches_pattern!(CommandResult::Success {
+                    command: matches_pattern!(Command {
+                        name: eq(&"slow".to_string()),
+                        ..
+                    }),
+                    ..
+                })
+            );
             // Second result must correspond to the fast command
-            assert_that!(results[1], matches_pattern!(CommandResult::Success {
-                command: matches_pattern!(Command { name: eq(&"fast".to_string()), .. }),
-                ..
-            }));
+            assert_that!(
+                results[1],
+                matches_pattern!(CommandResult::Success {
+                    command: matches_pattern!(Command {
+                        name: eq(&"fast".to_string()),
+                        ..
+                    }),
+                    ..
+                })
+            );
         }
     }
 }
