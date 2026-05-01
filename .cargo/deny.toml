@@ -4,6 +4,8 @@ unmaintained = "workspace"
 yanked = "deny"
 
 [licenses]
+# Suppress warnings for allowlist entries not used by any current dependency.
+unused-allowed-license = "allow"
 allow = [
     "MIT",
     "Apache-2.0",
@@ -18,6 +20,13 @@ allow = [
 
 [bans]
 multiple-versions = "warn"
+# tempfile 3.x still depends on rustix 0.38.x while we use rustix 1.x directly;
+# these duplicates are transitive and outside our control.
+skip = [
+    { name = "rustix", version = "0.38" },
+    { name = "linux-raw-sys", version = "0.4" },
+    { name = "windows-sys", version = "0.59" },
+]
 
 [sources]
 unknown-registry = "deny"
