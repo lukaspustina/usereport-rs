@@ -1,8 +1,10 @@
 use crate::{
     baseline::BaselineStore,
-    collector::{cpu::CpuCollector, disk::DiskCollector, Collector},
+    collector::{cpu::CpuCollector, disk::DiskCollector, host::HostCollector, Collector},
     diff,
     finding::{Finding, Severity},
+    llm::LlmOutput,
+    redact::Redactor,
     renderer,
     rule::{builtin::builtin_rules, RuleEngine},
     Analysis, AnalysisReport, Command, Config, Context, Renderer, ThreadRunner,
@@ -100,6 +102,12 @@ pub struct Opt {
     /// options
     #[arg(name = "+|-command")]
     filter_commands: Vec<String>,
+    /// Apply HMAC-SHA-256 redaction to `--output llm` output. Redacts
+    /// hostnames, IPv4/IPv6 addresses, and MAC addresses. Uses
+    /// `USEREPORT_REDACT_SALT` env var; falls back to a compile-time constant
+    /// (provides weak privacy — hashes are not secret).
+    #[arg(long)]
+    redact: bool,
     /// Subcommand: `usereport baseline …` or `usereport diff <a.json> <b.json>`.
     #[command(subcommand)]
     pub command: Option<Subcommand>,
@@ -153,6 +161,7 @@ pub enum OutputType {
     Html,
     Json,
     Markdown,
+    Llm,
 }
 
 impl FromStr for OutputType {
@@ -168,6 +177,7 @@ impl FromStr for OutputType {
             "html" => Ok(OutputType::Html),
             "json" => Ok(OutputType::Json),
             "markdown" => Ok(OutputType::Markdown),
+            "llm" => Ok(OutputType::Llm),
             _ => Err(anyhow!("failed to parse {} as output type", s)),
         }
     }
@@ -180,6 +190,7 @@ impl clap::ValueEnum for OutputType {
             OutputType::Html,
             OutputType::Json,
             OutputType::Markdown,
+            OutputType::Llm,
         ]
     }
 
@@ -189,6 +200,7 @@ impl clap::ValueEnum for OutputType {
             OutputType::Html => clap::builder::PossibleValue::new("html"),
             OutputType::Json => clap::builder::PossibleValue::new("json"),
             OutputType::Markdown => clap::builder::PossibleValue::new("markdown"),
+            OutputType::Llm => clap::builder::PossibleValue::new("llm"),
         })
     }
 
@@ -326,6 +338,7 @@ fn show_output_template(opt: &Opt) -> anyhow::Result<()> {
         OutputType::Html => defaults::HTML_TEMPLATE.to_string(),
         OutputType::Json => "".to_string(),
         OutputType::Markdown => defaults::MD_TEMPLATE.to_string(),
+        OutputType::Llm => "".to_string(),
     };
 
     println!("{}", template);
@@ -410,9 +423,13 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> anyhow::Re
     let parallel = opt.parallel.unwrap_or(config.defaults.max_parallel_commands);
     let repetitions = opt.repetitions.unwrap_or(config.defaults.repetitions);
     let progress = is_show_progress(opt);
-    // Create renderer early to detect misconfiguration early
+    // Create renderer early to detect misconfiguration early (skip for LLM path)
     let writer = output_writer(&opt.output_file)?;
-    let renderer = create_renderer::<Box<dyn Write + Send>>(&opt.output, opt.output_template.as_ref())?;
+    let renderer = if opt.output != OutputType::Llm {
+        Some(create_renderer::<Box<dyn Write + Send>>(&opt.output, opt.output_template.as_ref())?)
+    } else {
+        None
+    };
 
     let hostinfo = config.commands_for_hostinfo();
     let commands = create_commands(opt, config, profile_name)?;
@@ -423,7 +440,11 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> anyhow::Re
     // Phase 3: wire direct collectors + built-in rule engine. On hosts
     // without /proc (e.g. macOS) the collectors return empty signals fast,
     // so this is portable.
-    let collectors: Vec<Box<dyn Collector>> = vec![Box::new(CpuCollector::new()), Box::new(DiskCollector::new())];
+    let collectors: Vec<Box<dyn Collector>> = vec![
+        Box::new(HostCollector::new()),
+        Box::new(CpuCollector::new()),
+        Box::new(DiskCollector::new()),
+    ];
     let rule_engine = RuleEngine::new(builtin_rules());
 
     // Phase 4: parse --duration / --interval and thread them into the collector context.
@@ -469,7 +490,19 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> anyhow::Re
         }
     }
 
-    renderer.render(&report, writer).context("failed to render report")?;
+    if opt.output == OutputType::Llm {
+        let mut llm_out = LlmOutput::from_report(&report);
+        if opt.redact {
+            let redactor = Redactor::from_env();
+            llm_out = redactor.redact_output(llm_out);
+        }
+        serde_json::to_writer(writer, &llm_out).context("failed to write LLM JSON")?;
+    } else {
+        renderer
+            .expect("renderer created for non-LLM output")
+            .render(&report, writer)
+            .context("failed to render report")?;
+    }
 
     // Phase 2 §116: every successful run appends one record to the rolling
     // JSONL, pruned to baseline_rolling_n. Failures are logged but do not
@@ -576,6 +609,7 @@ fn create_renderer<W: Write>(
         OutputType::Html => Box::new(renderer::TemplateRenderer::new(defaults::HTML_TEMPLATE).with_html_escape()),
         OutputType::Json => Box::new(renderer::JsonRenderer::new()),
         OutputType::Markdown => Box::new(renderer::TemplateRenderer::new(defaults::MD_TEMPLATE)),
+        OutputType::Llm => unreachable!("LLM output is handled before renderer dispatch"),
     };
 
     Ok(renderer)
@@ -660,6 +694,7 @@ mod tests {
             baseline: None,
             duration: None,
             interval: None,
+            redact: false,
             filter_commands: vec![],
             command: None,
         }

@@ -63,8 +63,10 @@ thiserror = "2"
 subprocess = "0.2"
 tempfile = "3.3"
 toml = "0.8"
+hmac = "0.12"
 regex = "1"
 rustix = { version = "1", features = ["system", "fs"] }
+sha2 = "0.10"
 which = "6"
 
 [dev-dependencies]

@@ -1,0 +1,40 @@
+{
+  "schema_version": "1",
+  "host": {
+    "hostname": "db-02.prod",
+    "kernel": "Linux db-02 6.1.0-18-amd64 #1 SMP PREEMPT_DYNAMIC x86_64 GNU/Linux",
+    "cpu_count": 16,
+    "mem_total_bytes": 68719476736,
+    "load_avg_1m": 4.2
+  },
+  "signals": [
+    {"id": "cpu.usr_pct",    "value": 28.0, "unit": "Pct",  "at": "2024-01-15T10:00:00+00:00"},
+    {"id": "cpu.iowait_pct", "value": 18.5, "unit": "Pct",  "at": "2024-01-15T10:00:00+00:00"},
+    {"id": "mem.free_pct",   "value": 2.1,  "unit": "Pct",  "at": "2024-01-15T10:00:00+00:00"},
+    {"id": "vmstat.r",       "value": 14.0, "unit": "None", "at": "2024-01-15T10:00:00+00:00"},
+    {"id": "dmesg.oom_count","value": 3.0,  "unit": "None", "at": "2024-01-15T10:00:00+00:00"}
+  ],
+  "findings": [
+    {
+      "id": "mem.low_free",
+      "kind": "Rule",
+      "severity": "Crit",
+      "summary": "Free memory below 10% of total.",
+      "evidence": [{"signal_id": "mem.free_pct", "observed": 2.1}],
+      "suggest": ["free -m", "vmstat -s", "ps aux --sort=-%mem | head -20"]
+    },
+    {
+      "id": "dmesg.oom_kill",
+      "kind": "Rule",
+      "severity": "Crit",
+      "summary": "Out-of-memory killer fired since the last log rotate.",
+      "evidence": [{"signal_id": "dmesg.oom_count", "observed": 3.0}],
+      "suggest": ["dmesg -T | grep -i 'killed process'", "journalctl -k --since -1h"]
+    }
+  ],
+  "checked_ok": ["cpu.usr_pct"],
+  "raw_excerpts": [
+    "[ 1234.567] Out of memory: Killed process 9871 (postgres) total-vm:8192000kB",
+    "[ 1289.012] Out of memory: Killed process 9980 (postgres) total-vm:8192000kB"
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "schema_version": "1",
+  "host": {
+    "hostname": "web-01.prod",
+    "kernel": "Linux web-01 6.1.0-18-amd64 #1 SMP PREEMPT_DYNAMIC Debian 6.1.76-1 x86_64 GNU/Linux",
+    "cpu_count": 8,
+    "mem_total_bytes": 17179869184,
+    "load_avg_1m": 0.42
+  },
+  "signals": [
+    {"id": "cpu.usr_pct",      "value": 12.4, "unit": "Pct", "at": "2024-01-15T10:00:00+00:00"},
+    {"id": "cpu.iowait_pct",   "value": 0.3,  "unit": "Pct", "at": "2024-01-15T10:00:00+00:00"},
+    {"id": "cpu.idle_pct",     "value": 85.2, "unit": "Pct", "at": "2024-01-15T10:00:00+00:00"},
+    {"id": "mem.free_pct",     "value": 62.0, "unit": "Pct", "at": "2024-01-15T10:00:00+00:00"},
+    {"id": "vmstat.r",         "value": 1.0,  "unit": "None","at": "2024-01-15T10:00:00+00:00"},
+    {"id": "disk.sda.util_pct","value": 8.5,  "unit": "Pct", "at": "2024-01-15T10:00:00+00:00"},
+    {"id": "net.tw_count",     "value": 320.0,"unit": "None","at": "2024-01-15T10:00:00+00:00"}
+  ],
+  "findings": [],
+  "checked_ok": ["cpu.usr_pct","cpu.iowait_pct","mem.free_pct","vmstat.r","disk.sda.util_pct","net.tw_count"],
+  "raw_excerpts": []
+}

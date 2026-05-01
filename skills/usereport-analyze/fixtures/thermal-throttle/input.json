@@ -1,0 +1,33 @@
+{
+  "schema_version": "1",
+  "host": {
+    "hostname": "laptop-dev-03",
+    "kernel": "Linux laptop-dev-03 6.5.0-14-generic #14-Ubuntu x86_64 GNU/Linux",
+    "cpu_count": 8,
+    "mem_total_bytes": 17179869184,
+    "load_avg_1m": 6.1
+  },
+  "signals": [
+    {"id": "cpu.usr_pct",   "value": 78.4, "unit": "Pct",  "at": "2024-01-15T10:00:00+00:00"},
+    {"id": "cpu.freq_ratio","value": 0.61, "unit": "None", "at": "2024-01-15T10:00:00+00:00"},
+    {"id": "cpu.iowait_pct","value": 0.8,  "unit": "Pct",  "at": "2024-01-15T10:00:00+00:00"},
+    {"id": "vmstat.r",      "value": 9.0,  "unit": "None", "at": "2024-01-15T10:00:00+00:00"},
+    {"id": "mem.free_pct",  "value": 35.0, "unit": "Pct",  "at": "2024-01-15T10:00:00+00:00"}
+  ],
+  "findings": [
+    {
+      "id": "cpu.freq_throttled",
+      "kind": "Rule",
+      "severity": "Warn",
+      "summary": "CPU frequency ratio below 0.8 — thermal throttling likely.",
+      "evidence": [{"signal_id": "cpu.freq_ratio", "observed": 0.61}],
+      "suggest": [
+        "cat /sys/class/thermal/thermal_zone*/temp",
+        "cpupower frequency-info",
+        "turbostat --show Busy,Avg_MHz,Bzy_MHz,PkgTmp 1 5"
+      ]
+    }
+  ],
+  "checked_ok": ["cpu.iowait_pct", "mem.free_pct"],
+  "raw_excerpts": []
+}

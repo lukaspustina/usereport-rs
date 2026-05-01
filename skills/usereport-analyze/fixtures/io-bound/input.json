@@ -1,0 +1,38 @@
+{
+  "schema_version": "1",
+  "host": {
+    "hostname": "storage-01.prod",
+    "kernel": "Linux storage-01 5.15.0-91-generic #101-Ubuntu x86_64 GNU/Linux",
+    "cpu_count": 4,
+    "mem_total_bytes": 8589934592,
+    "load_avg_1m": 3.8
+  },
+  "signals": [
+    {"id": "cpu.iowait_pct",      "value": 42.3,  "unit": "Pct",  "at": "2024-01-15T10:00:00+00:00"},
+    {"id": "cpu.idle_pct",        "value": 35.1,  "unit": "Pct",  "at": "2024-01-15T10:00:00+00:00"},
+    {"id": "disk.sda.util_pct",   "value": 98.2,  "unit": "Pct",  "at": "2024-01-15T10:00:00+00:00"},
+    {"id": "disk.sda.await_ms",   "value": 145.6, "unit": "None", "at": "2024-01-15T10:00:00+00:00"},
+    {"id": "disk.sda.read_iops",  "value": 1820.0,"unit": "None", "at": "2024-01-15T10:00:00+00:00"},
+    {"id": "mem.free_pct",        "value": 48.0,  "unit": "Pct",  "at": "2024-01-15T10:00:00+00:00"}
+  ],
+  "findings": [
+    {
+      "id": "disk.sda.saturated",
+      "kind": "Rule",
+      "severity": "Crit",
+      "summary": "Disk sda utilization above 90%.",
+      "evidence": [{"signal_id": "disk.sda.util_pct", "observed": 98.2}],
+      "suggest": ["iostat -xz 1 10", "iotop -o", "fio --name=test --rw=randread --size=512m"]
+    },
+    {
+      "id": "disk.sda.high_await",
+      "kind": "Rule",
+      "severity": "Warn",
+      "summary": "Disk sda await above 100ms — elevated latency.",
+      "evidence": [{"signal_id": "disk.sda.await_ms", "observed": 145.6}],
+      "suggest": ["iostat -xz 1 10", "smartctl -a /dev/sda"]
+    }
+  ],
+  "checked_ok": ["mem.free_pct", "cpu.idle_pct"],
+  "raw_excerpts": []
+}

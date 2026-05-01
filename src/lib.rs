@@ -27,8 +27,14 @@ pub mod finding;
 /// Reports in HTML, JSON, and Markdown format
 pub mod renderer;
 
+/// Schema-versioned LLM-friendly output (Phase 6+).
+pub mod llm;
+
 /// Multi-signal pattern correlator (Phase 5+).
 pub mod pattern;
+
+/// HMAC-SHA-256 redaction for LLM output (Phase 6+).
+pub mod redact;
 
 /// Declarative rules + predicate DSL (Phase 1+).
 pub mod rule;

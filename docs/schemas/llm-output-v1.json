@@ -1,0 +1,54 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/lukaspustina/usereport-rs/schemas/llm-output-v1.json",
+  "title": "usereport LLM output v1",
+  "description": "Schema-versioned JSON document produced by usereport --output llm",
+  "type": "object",
+  "required": ["schema_version", "host", "signals", "findings", "checked_ok", "raw_excerpts"],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1",
+      "description": "Schema version. Consumers must refuse analysis when this is not '1'."
+    },
+    "host": {
+      "type": "object",
+      "required": ["hostname", "kernel", "cpu_count", "mem_total_bytes", "load_avg_1m"],
+      "properties": {
+        "hostname":        { "type": "string" },
+        "kernel":          { "type": "string" },
+        "cpu_count":       { "type": "integer", "minimum": 0 },
+        "mem_total_bytes": { "type": "integer", "minimum": 0 },
+        "load_avg_1m":     { "type": "number",  "minimum": 0 }
+      }
+    },
+    "signals": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "value", "unit"],
+        "properties": {
+          "id":    { "type": "string" },
+          "unit":  { "type": "string" }
+        }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "kind", "severity", "summary", "evidence", "suggest"],
+        "properties": {
+          "id":       { "type": "string" },
+          "kind":     { "type": "string", "enum": ["Rule", "Pattern"] },
+          "severity": { "type": "string", "enum": ["Info", "Warn", "Crit"] },
+          "summary":  { "type": "string" },
+          "evidence": { "type": "array" },
+          "suggest":  { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "checked_ok":   { "type": "array", "items": { "type": "string" } },
+    "raw_excerpts": { "type": "array", "items": { "type": "string" } }
+  }
+}

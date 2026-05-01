@@ -1,0 +1,44 @@
+{
+  "schema_version": "1",
+  "host": {
+    "hostname": "api-gw-01.prod",
+    "kernel": "Linux api-gw-01 5.15.0-91-generic #101-Ubuntu x86_64 GNU/Linux",
+    "cpu_count": 8,
+    "mem_total_bytes": 17179869184,
+    "load_avg_1m": 2.1
+  },
+  "signals": [
+    {"id": "cpu.usr_pct",          "value": 22.0,  "unit": "Pct",  "at": "2024-01-15T10:00:00+00:00"},
+    {"id": "net.tw_count",         "value": 31200.0,"unit": "None", "at": "2024-01-15T10:00:00+00:00"},
+    {"id": "net.connect_failures", "value": 847.0,  "unit": "None", "at": "2024-01-15T10:00:00+00:00"},
+    {"id": "net.retrans_pct",      "value": 2.4,   "unit": "Pct",  "at": "2024-01-15T10:00:00+00:00"},
+    {"id": "mem.free_pct",         "value": 55.0,  "unit": "Pct",  "at": "2024-01-15T10:00:00+00:00"}
+  ],
+  "findings": [
+    {
+      "id": "time_wait_exhaustion",
+      "kind": "Pattern",
+      "severity": "Crit",
+      "summary": "TIME_WAIT exhaustion likely: high tw_count with active connect failures.",
+      "evidence": [
+        {"signal_id": "net.tw_count",         "observed": 31200.0},
+        {"signal_id": "net.connect_failures", "observed": 847.0}
+      ],
+      "suggest": [
+        "sysctl net.ipv4.tcp_tw_reuse",
+        "sysctl net.ipv4.ip_local_port_range",
+        "ss -s"
+      ]
+    },
+    {
+      "id": "net.high_retrans",
+      "kind": "Rule",
+      "severity": "Warn",
+      "summary": "TCP retransmit rate above 1%.",
+      "evidence": [{"signal_id": "net.retrans_pct", "observed": 2.4}],
+      "suggest": ["ss -tin", "netstat -s | grep retransmit"]
+    }
+  ],
+  "checked_ok": ["mem.free_pct", "cpu.usr_pct"],
+  "raw_excerpts": []
+}
