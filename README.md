@@ -7,7 +7,7 @@
 
 > Your server is on fire. You have 60 seconds. Go.
 
-`usereport` is the tool you reach for when a server misbehaves and you need answers _now_. It runs a curated set of performance analysis commands in parallel, collects kernel signals directly from `/proc` and `/sys`, evaluates a rule engine against everything it finds, and hands you a structured report — in Markdown, HTML, JSON, or a format you define yourself.
+`usereport` is the tool you reach for when a server misbehaves and you need answers _now_. It runs a curated set of performance analysis commands in parallel, reads kernel signals directly from `/proc` and `/sys` on Linux (or uses native commands on macOS), evaluates a rule engine against everything it finds, and hands you a structured report — in Markdown, HTML, JSON, or a format you define yourself.
 
 It follows Brendan Gregg's [USE methodology](http://www.brendangregg.com/usemethod.html): **Utilization, Saturation, Errors** — the fastest path from "something is wrong" to "here is what and why."
 
@@ -26,9 +26,9 @@ $ usereport --profile net --output html -O report.html
 
 While that renders, `usereport` has already:
 
-- Run vmstat, netstat, ss, ethtool, and friends **in parallel**
-- Read `/proc/net/dev`, `/proc/interrupts`, `/proc/net/snmp` directly — no tool required
-- Checked CPU frequency throttling, thermal zones, cgroup memory limits
+- Run vmstat, netstat, ss, ethtool, and friends **in parallel** (vm_stat, netstat, nettop on macOS)
+- Read `/proc/net/dev`, `/proc/interrupts`, `/proc/net/snmp` directly — no tool required _(Linux)_
+- Checked CPU frequency throttling, thermal zones, cgroup memory limits _(Linux)_
 - Correlated signals against 15+ built-in rules (retransmits, TIME_WAIT exhaustion, IRQ imbalance, …)
 - Matched multi-signal patterns (lock contention, thundering herd, socket leak, …)
 - Flagged anomalies against your recorded baseline
@@ -40,9 +40,9 @@ No daemons. No agents. No cloud. One binary, one command.
 
 ## Features
 
-### Direct kernel signal collection
+### Direct kernel signal collection _(Linux)_
 
-`usereport` reads the kernel directly for the signals that matter most, with no tool dependency:
+On Linux, `usereport` reads the kernel directly for the signals that matter most, with no tool dependency:
 
 | Signal | Source |
 |--------|--------|
@@ -109,7 +109,7 @@ usereport --workload java       # GC pressure, heap saturation, thread count
 usereport --workload kubelet    # pod count, evictions, image pull latency
 ```
 
-### eBPF collectors (opt-in)
+### eBPF collectors (opt-in, Linux)
 
 When you need to go deeper:
 
@@ -119,13 +119,13 @@ usereport --bpf   # runqlat, biolatency, tcpretrans, execsnoop, cachestat
 
 Emits histogram signals with full percentile stats. Falls back gracefully — if a tool isn't installed, you get an `info` finding instead of an error.
 
-### CPU flamegraph, inline
+### CPU flamegraph, inline _(Linux)_
 
 ```sh
 usereport --profile-cpu 30s --output html -O report.html
 ```
 
-Runs `perf record` for 30 seconds, folds the stacks with [inferno](https://github.com/jonhoo/inferno), and embeds the SVG directly in the HTML report. No extra steps. No separate files.
+Runs `perf record` for 30 seconds, folds the stacks with [inferno](https://github.com/jonhoo/inferno), and embeds the SVG directly in the HTML report. No extra steps. No separate files. Falls back to an `info` finding when `perf` isn't available.
 
 ### LLM-ready output
 
