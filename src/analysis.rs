@@ -1,8 +1,15 @@
-use crate::{finding::Finding, runner, signal::Signal, Command, CommandResult, Runner};
+use crate::{
+    collector::{CollectCtx, Collector},
+    finding::Finding,
+    rule::RuleEngine,
+    runner,
+    signal::Signal,
+    Command, CommandResult, Runner,
+};
 
 use chrono::{DateTime, Local};
 use serde::Serialize;
-use std::{collections::HashMap, fmt::Debug};
+use std::{collections::HashMap, fmt::Debug, path::PathBuf};
 use thiserror::Error;
 
 /// Error type
@@ -28,6 +35,9 @@ pub struct Analysis<'a, I: IntoIterator<Item = &'a Command> + Copy> {
     commands: I,
     repetitions: usize,
     max_parallel_commands: usize,
+    collectors: Vec<Box<dyn Collector>>,
+    rule_engine: Option<RuleEngine>,
+    cgroup_path: Option<PathBuf>,
 }
 
 impl<'a, I: IntoIterator<Item = &'a Command> + Copy> Analysis<'a, I> {
@@ -38,6 +48,9 @@ impl<'a, I: IntoIterator<Item = &'a Command> + Copy> Analysis<'a, I> {
             runner,
             repetitions: 1,
             max_parallel_commands: 64,
+            collectors: Vec::new(),
+            rule_engine: None,
+            cgroup_path: None,
         }
     }
 
@@ -52,9 +65,32 @@ impl<'a, I: IntoIterator<Item = &'a Command> + Copy> Analysis<'a, I> {
         }
     }
 
+    /// Install a collector set + rule engine. After running the configured
+    /// commands, `Analysis::run()` invokes every collector in order, feeds
+    /// the union of their signals into the rule engine, and stores the
+    /// outputs on the returned `AnalysisReport`. Closes Phase 1's CC5.
+    pub fn with_diagnostics(self, collectors: Vec<Box<dyn Collector>>, rule_engine: RuleEngine) -> Self {
+        Analysis {
+            collectors,
+            rule_engine: Some(rule_engine),
+            ..self
+        }
+    }
+
+    /// Set the cgroup path threaded into `CollectCtx` for the cgroup
+    /// collector (Phase 3 follow-up implements the collector itself).
+    pub fn with_cgroup<P: Into<PathBuf>>(self, path: P) -> Self {
+        Analysis {
+            cgroup_path: Some(path.into()),
+            ..self
+        }
+    }
+
     pub fn run(&self, context: Context) -> Result<AnalysisReport> {
         let hostinfo_results = self.run_commands(self.hostinfos)?;
         let command_results = self.run_commands_rep(self.commands, self.repetitions)?;
+
+        let (signals, findings) = self.run_diagnostics();
 
         Ok(AnalysisReport {
             context,
@@ -62,10 +98,35 @@ impl<'a, I: IntoIterator<Item = &'a Command> + Copy> Analysis<'a, I> {
             command_results,
             repetitions: self.repetitions,
             max_parallel_commands: self.max_parallel_commands,
-            signals: Vec::new(),
-            findings: Vec::new(),
+            signals,
+            findings,
             checked_ok: Vec::new(),
         })
+    }
+
+    fn run_diagnostics(&self) -> (Vec<Signal>, Vec<Finding>) {
+        if self.collectors.is_empty() && self.rule_engine.is_none() {
+            return (Vec::new(), Vec::new());
+        }
+        let ctx = CollectCtx {
+            duration: None,
+            interval: None,
+            cgroup_path: self.cgroup_path.clone(),
+            baseline: None,
+            cpu_count: std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1),
+        };
+        let mut signals: Vec<Signal> = Vec::new();
+        for c in &self.collectors {
+            match c.collect(&ctx) {
+                Ok(mut more) => signals.append(&mut more),
+                Err(e) => log::warn!("collector '{}' failed: {}", c.id(), e),
+            }
+        }
+        let findings = match &self.rule_engine {
+            Some(engine) => engine.run(&signals, &ctx),
+            None => Vec::new(),
+        };
+        (signals, findings)
     }
 
     fn run_commands_rep(&self, commands: I, repetitions: usize) -> Result<Vec<Vec<CommandResult>>> {

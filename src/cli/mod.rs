@@ -1,6 +1,9 @@
 use crate::{
+    collector::{cpu::CpuCollector, disk::DiskCollector, Collector},
     finding::{Finding, Severity},
-    renderer, Analysis, Command, Config, Context, Renderer, ThreadRunner,
+    renderer,
+    rule::{builtin::builtin_rules, RuleEngine},
+    Analysis, Command, Config, Context, Renderer, ThreadRunner,
 };
 use anyhow::{anyhow, Context as _};
 use clap::Parser;
@@ -24,7 +27,7 @@ pub mod config;
     about,
     after_help = "Set RUST_LOG=debug for verbose output, e.g.: RUST_LOG=debug usereport"
 )]
-struct Opt {
+pub struct Opt {
     /// Configuration from file, or default if not present
     #[arg(short, long)]
     config: Option<PathBuf>,
@@ -56,6 +59,10 @@ struct Opt {
     /// Exit-code policy based on the highest-severity finding produced.
     #[arg(long, value_enum, default_value = "never")]
     exit_on: ExitOn,
+    /// Target cgroup path for the cgroup collector (Phase 3 wiring).
+    /// Example: --cgroup /sys/fs/cgroup/system.slice/foo.service
+    #[arg(long)]
+    pub cgroup: Option<PathBuf>,
     /// Set profile to use
     #[arg(short = 'p', long)]
     profile: Option<String>,
@@ -216,12 +223,8 @@ pub fn main() -> anyhow::Result<()> {
         return Ok(());
     }
 
-    generate_report(&opt, &config, profile_name)?;
+    let findings = generate_report(&opt, &config, profile_name)?;
 
-    // Phase 1: the diagnostic pipeline (collectors + rule engine) is not yet
-    // wired into Analysis::run(), so `findings` is always empty here and the
-    // process exits 0. The wiring is in place for Phase 3 when collectors run.
-    let findings: Vec<Finding> = Vec::new();
     let code = compute_exit_code(opt.exit_on, &findings);
     if code != 0 {
         std::process::exit(code);
@@ -284,7 +287,7 @@ fn show_commands(config: &Config) {
     println!("{table}");
 }
 
-fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> anyhow::Result<()> {
+fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> anyhow::Result<Vec<Finding>> {
     let parallel = opt.parallel.unwrap_or(config.defaults.max_parallel_commands);
     let repetitions = opt.repetitions.unwrap_or(config.defaults.repetitions);
     let progress = is_show_progress(opt);
@@ -297,11 +300,22 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> anyhow::Re
     let number_of_commands = hostinfo.len() + repetitions * commands.len();
 
     let (runner, progress_handle) = create_runner(progress, number_of_commands);
-    let analysis = Analysis::new(Box::new(runner), &hostinfo, &commands)
-        .with_max_parallel_commands(parallel)
-        .with_repetitions(repetitions);
-    let context = create_context(opt, config, profile_name);
 
+    // Phase 3: wire direct collectors + built-in rule engine. On hosts
+    // without /proc (e.g. macOS) the collectors return empty signals fast,
+    // so this is portable.
+    let collectors: Vec<Box<dyn Collector>> = vec![Box::new(CpuCollector::new()), Box::new(DiskCollector::new())];
+    let rule_engine = RuleEngine::new(builtin_rules());
+
+    let mut analysis = Analysis::new(Box::new(runner), &hostinfo, &commands)
+        .with_max_parallel_commands(parallel)
+        .with_repetitions(repetitions)
+        .with_diagnostics(collectors, rule_engine);
+    if let Some(cgroup_path) = opt.cgroup.clone() {
+        analysis = analysis.with_cgroup(cgroup_path);
+    }
+
+    let context = create_context(opt, config, profile_name);
     let report = analysis.run(context)?;
 
     if let Some(handle) = progress_handle {
@@ -312,7 +326,7 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> anyhow::Re
 
     renderer.render(&report, writer).context("failed to render report")?;
 
-    Ok(())
+    Ok(report.findings().to_vec())
 }
 
 /// Build a writer for the rendered report. When `output_file` is `Some(path)`,
@@ -474,6 +488,7 @@ mod tests {
             no_progress: false,
             debug: false,
             exit_on: ExitOn::Never,
+            cgroup: None,
             profile: None,
             show_config: false,
             show_output_template: false,
@@ -481,6 +496,20 @@ mod tests {
             show_commands: false,
             filter_commands: vec![],
         }
+    }
+
+    #[test]
+    fn opt_parses_cgroup_flag() {
+        use clap::Parser;
+        let opt = Opt::try_parse_from(["usereport", "--cgroup", "/sys/fs/cgroup/foo"]).expect("parse");
+        assert_eq!(opt.cgroup, Some(PathBuf::from("/sys/fs/cgroup/foo")));
+    }
+
+    #[test]
+    fn opt_cgroup_default_is_none() {
+        use clap::Parser;
+        let opt = Opt::try_parse_from(["usereport"]).expect("parse");
+        assert_eq!(opt.cgroup, None);
     }
 
     #[test]
