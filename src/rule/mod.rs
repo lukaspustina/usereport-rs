@@ -167,8 +167,7 @@ fn resolve_path(path: &[String], signals_index: &SignalIndex<'_>, ctx: &CollectC
                     return match sample_suffix.unwrap() {
                         "p50" => Some(LhsValue::Number(stats.p50)),
                         "p95" => Some(LhsValue::Number(stats.p95)),
-                        "p99" => crate::baseline::stats::percentile(samples, 99.0)
-                            .map(LhsValue::Number),
+                        "p99" => Some(LhsValue::Number(stats.p99)),
                         "min" => Some(LhsValue::Number(stats.min)),
                         "max" => Some(LhsValue::Number(stats.max)),
                         "trend" => {

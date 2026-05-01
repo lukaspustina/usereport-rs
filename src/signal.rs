@@ -58,6 +58,7 @@ pub struct SampleStats {
     pub max: f64,
     pub p50: f64,
     pub p95: f64,
+    pub p99: f64,
     pub trend: Trend,
 }
 

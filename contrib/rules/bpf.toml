@@ -1,0 +1,43 @@
+# BPF tool availability rules.
+# One Info finding per tool that is not installed. These rules are only
+# loaded when the --bpf flag is active.
+
+[[rule]]
+id = "bpf.runqlat.unavailable"
+when = "bpf.runqlat.available == false"
+severity = "info"
+summary = "bpf tool 'runqlat' not found in PATH — run-queue latency histogram unavailable."
+evidence = ["bpf.runqlat.available"]
+suggest = ["apt-get install bpfcc-tools", "yum install bcc-tools"]
+
+[[rule]]
+id = "bpf.biolatency.unavailable"
+when = "bpf.biolatency.available == false"
+severity = "info"
+summary = "bpf tool 'biolatency' not found in PATH — block I/O latency histogram unavailable."
+evidence = ["bpf.biolatency.available"]
+suggest = ["apt-get install bpfcc-tools", "yum install bcc-tools"]
+
+[[rule]]
+id = "bpf.tcpretrans.unavailable"
+when = "bpf.tcpretrans.available == false"
+severity = "info"
+summary = "bpf tool 'tcpretrans' not found in PATH — TCP retransmit tracing unavailable."
+evidence = ["bpf.tcpretrans.available"]
+suggest = ["apt-get install bpfcc-tools", "yum install bcc-tools"]
+
+[[rule]]
+id = "bpf.execsnoop.unavailable"
+when = "bpf.execsnoop.available == false"
+severity = "info"
+summary = "bpf tool 'execsnoop' not found in PATH — exec event tracing unavailable."
+evidence = ["bpf.execsnoop.available"]
+suggest = ["apt-get install bpfcc-tools", "yum install bcc-tools"]
+
+[[rule]]
+id = "bpf.cachestat.unavailable"
+when = "bpf.cachestat.available == false"
+severity = "info"
+summary = "bpf tool 'cachestat' not found in PATH — page cache hit-rate tracing unavailable."
+evidence = ["bpf.cachestat.available"]
+suggest = ["apt-get install bpfcc-tools", "yum install bcc-tools"]

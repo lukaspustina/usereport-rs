@@ -12,6 +12,8 @@ const MEMORY_RULES: &str = include_str!("../../contrib/rules/memory.toml");
 const DISK_RULES: &str = include_str!("../../contrib/rules/disk.toml");
 const NETWORK_RULES: &str = include_str!("../../contrib/rules/network.toml");
 const DMESG_RULES: &str = include_str!("../../contrib/rules/dmesg.toml");
+#[cfg(feature = "bpf")]
+const BPF_RULES: &str = include_str!("../../contrib/rules/bpf.toml");
 
 /// Returns the bundled built-in rule set. Panics if a bundled TOML file fails
 /// to parse — this is a build-time invariant, not a runtime concern, and a
@@ -31,6 +33,15 @@ pub fn builtin_rules() -> Vec<Rule> {
         }
     }
     rules
+}
+
+/// Returns BPF tool-availability rules. Only available with the `bpf` feature.
+#[cfg(feature = "bpf")]
+pub fn bpf_rules() -> Vec<Rule> {
+    match parse_rules_toml(BPF_RULES) {
+        Ok(rules) => rules,
+        Err(e) => panic!("built-in bpf.toml failed to parse: {}", e),
+    }
 }
 
 #[cfg(test)]

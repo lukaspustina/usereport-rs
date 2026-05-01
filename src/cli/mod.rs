@@ -9,6 +9,8 @@ use crate::{
     rule::{builtin::builtin_rules, RuleEngine},
     Analysis, AnalysisReport, Command, Config, Context, Renderer, ThreadRunner,
 };
+#[cfg(feature = "bpf")]
+use crate::{collector::bpf::BpfCollector, rule::builtin::bpf_rules};
 use anyhow::{anyhow, Context as _};
 use clap::Parser;
 use comfy_table::Table;
@@ -108,6 +110,12 @@ pub struct Opt {
     /// (provides weak privacy — hashes are not secret).
     #[arg(long)]
     redact: bool,
+    /// Enable eBPF opt-in collectors (runqlat, biolatency, tcpretrans, execsnoop,
+    /// cachestat). Requires bpf feature. Emits an Info finding per tool not found
+    /// in PATH and exits 0.
+    #[cfg(feature = "bpf")]
+    #[arg(long)]
+    bpf: bool,
     /// Subcommand: `usereport baseline …` or `usereport diff <a.json> <b.json>`.
     #[command(subcommand)]
     pub command: Option<Subcommand>,
@@ -440,12 +448,18 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> anyhow::Re
     // Phase 3: wire direct collectors + built-in rule engine. On hosts
     // without /proc (e.g. macOS) the collectors return empty signals fast,
     // so this is portable.
-    let collectors: Vec<Box<dyn Collector>> = vec![
+    let mut collectors: Vec<Box<dyn Collector>> = vec![
         Box::new(HostCollector::new()),
         Box::new(CpuCollector::new()),
         Box::new(DiskCollector::new()),
     ];
-    let rule_engine = RuleEngine::new(builtin_rules());
+    let mut all_rules = builtin_rules();
+    #[cfg(feature = "bpf")]
+    if opt.bpf {
+        collectors.push(Box::new(BpfCollector::new()));
+        all_rules.extend(bpf_rules());
+    }
+    let rule_engine = RuleEngine::new(all_rules);
 
     // Phase 4: parse --duration / --interval and thread them into the collector context.
     let sample_duration = opt
@@ -695,6 +709,8 @@ mod tests {
             duration: None,
             interval: None,
             redact: false,
+            #[cfg(feature = "bpf")]
+            bpf: false,
             filter_commands: vec![],
             command: None,
         }

@@ -17,6 +17,8 @@ pub mod dmesg;
 pub mod disk;
 pub mod host;
 pub mod memory;
+#[cfg(feature = "bpf")]
+pub mod bpf;
 
 #[derive(Debug, Error)]
 pub enum Error {

@@ -26,6 +26,7 @@ rust-version = "1.74"
 
 [features]
 bin = ["clap", "comfy-table", "env_logger", "anyhow", "human-panic", "indicatif", "humantime"]
+bpf = []
 
 [[bin]]
 name = "usereport"
