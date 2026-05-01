@@ -75,7 +75,14 @@ pub fn sample_stats(values: &[f64]) -> Option<SampleStats> {
     let p95 = percentile(values, 95.0)?;
     let p99 = percentile(values, 99.0)?;
     let trend = linear_trend(values, p50);
-    Some(SampleStats { min, max, p50, p95, p99, trend })
+    Some(SampleStats {
+        min,
+        max,
+        p50,
+        p95,
+        p99,
+        trend,
+    })
 }
 
 fn linear_trend(values: &[f64], p50: f64) -> Trend {

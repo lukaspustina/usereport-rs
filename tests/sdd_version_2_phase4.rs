@@ -176,7 +176,10 @@ fn ac_phase4_4_predicate_trend_does_not_fire_for_wrong_direction() {
     let vals: Vec<f64> = (1..=11).map(|i| i as f64).collect(); // rising, not falling
     let signals = vec![make_sampled_signal("cpu.load", vals)];
     let idx = SignalIndex::build(&signals);
-    assert!(!p.evaluate(&idx, &ctx()), "falling predicate must not fire on rising trend");
+    assert!(
+        !p.evaluate(&idx, &ctx()),
+        "falling predicate must not fire on rising trend"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -193,7 +196,10 @@ fn ac_phase4_5_bare_signal_with_samples_uses_p50() {
     signal.value = SignalValue::F64(1.0); // intentionally low to distinguish
     let signals = vec![signal];
     let idx = SignalIndex::build(&signals);
-    assert!(p.evaluate(&idx, &ctx()), "bare signal with samples should use p50 (6.0 > 5.0)");
+    assert!(
+        p.evaluate(&idx, &ctx()),
+        "bare signal with samples should use p50 (6.0 > 5.0)"
+    );
 }
 
 #[test]
@@ -201,7 +207,10 @@ fn ac_phase4_5_bare_signal_without_samples_uses_value() {
     let p = Predicate::parse("cpu.load > 5.0").expect("parse");
     let signals = vec![make_signal("cpu.load", 7.0)];
     let idx = SignalIndex::build(&signals);
-    assert!(p.evaluate(&idx, &ctx()), "bare signal without samples should use value (7.0 > 5.0)");
+    assert!(
+        p.evaluate(&idx, &ctx()),
+        "bare signal without samples should use value (7.0 > 5.0)"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -323,16 +332,8 @@ fn ac_phase4_10_markdown_shows_trend_for_sampled_signal() {
         baseline: None,
     };
 
-    let report = AnalysisReport::new_with_diagnostics(
-        Context::new(),
-        vec![],
-        vec![],
-        1,
-        64,
-        vec![signal],
-        vec![],
-        vec![],
-    );
+    let report =
+        AnalysisReport::new_with_diagnostics(Context::new(), vec![], vec![], 1, 64, vec![signal], vec![], vec![]);
 
     let renderer = TemplateRenderer::new(MARKDOWN_TEMPLATE);
     let mut out = Vec::new();
@@ -344,11 +345,7 @@ fn ac_phase4_10_markdown_shows_trend_for_sampled_signal() {
         "rendered output should contain Signals section:\n{}",
         s
     );
-    assert!(
-        s.contains("cpu.load"),
-        "rendered output should list signal id:\n{}",
-        s
-    );
+    assert!(s.contains("cpu.load"), "rendered output should list signal id:\n{}", s);
     assert!(
         s.contains("Rising") || s.contains("rising"),
         "rendered output should show trend 'Rising' for linearly increasing samples:\n{}",

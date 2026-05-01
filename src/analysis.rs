@@ -1,12 +1,12 @@
 use crate::{
-    baseline::{annotate, outlier_findings, BaselineRecord},
+    Command, CommandResult, Runner,
+    baseline::{BaselineRecord, annotate, outlier_findings},
     collector::{CollectCtx, Collector},
-    finding::{sort_findings, Finding},
+    finding::{Finding, sort_findings},
     pattern::PatternEngine,
     rule::RuleEngine,
     runner,
     signal::Signal,
-    Command, CommandResult, Runner,
 };
 
 use chrono::{DateTime, Local};

@@ -44,7 +44,11 @@ impl NetworkCollector {
         if let (Some(s1), Some(s2)) = (parse_tcp_snmp(snmp1), parse_tcp_snmp(snmp2)) {
             let out_delta = s2.out_segs.saturating_sub(s1.out_segs) as f64;
             let ret_delta = s2.retrans_segs.saturating_sub(s1.retrans_segs) as f64;
-            let retrans_pct = if out_delta > 0.0 { (ret_delta / out_delta) * 100.0 } else { 0.0 };
+            let retrans_pct = if out_delta > 0.0 {
+                (ret_delta / out_delta) * 100.0
+            } else {
+                0.0
+            };
             push(&mut signals, "net.retrans_pct", retrans_pct, Unit::Pct, now);
         }
 

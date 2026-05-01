@@ -59,7 +59,10 @@ impl PatternEngine {
         let file: File = toml::from_str(text)?;
         let mut patterns = Vec::with_capacity(file.pattern.len());
         for def in file.pattern {
-            let when = Predicate::parse(&def.when).map_err(|e| Error::Predicate { id: def.id.clone(), source: e })?;
+            let when = Predicate::parse(&def.when).map_err(|e| Error::Predicate {
+                id: def.id.clone(),
+                source: e,
+            })?;
             let severity = match def.severity.as_str() {
                 "crit" => Severity::Crit,
                 "warn" => Severity::Warn,

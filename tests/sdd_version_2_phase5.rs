@@ -1,11 +1,11 @@
 //! Integration tests for SDD `specs/sdd/version-2.md` Phase 5 (dmesg miner + pattern catalog).
 #![cfg(feature = "bin")]
 
+use usereport::collector::CollectCtx;
 use usereport::collector::dmesg::DmesgCollector;
 use usereport::finding::FindingKind;
 use usereport::pattern::PatternEngine;
 use usereport::signal::{Signal, SignalValue, Unit};
-use usereport::collector::CollectCtx;
 
 fn ctx() -> CollectCtx {
     CollectCtx {
@@ -70,7 +70,10 @@ const DMESG_IO_ERROR: &str = "\
 #[test]
 fn ac_phase5_1_dmesg_oom_count_from_oom_lines() {
     let signals = DmesgCollector::parse(DMESG_OOM);
-    let sig = signals.iter().find(|s| s.id == "dmesg.oom_count").expect("dmesg.oom_count");
+    let sig = signals
+        .iter()
+        .find(|s| s.id == "dmesg.oom_count")
+        .expect("dmesg.oom_count");
     match sig.value {
         SignalValue::F64(v) => assert!(v > 0.0, "oom_count should be > 0, got {}", v),
         SignalValue::I64(v) => assert!(v > 0, "oom_count should be > 0, got {}", v),
@@ -81,7 +84,10 @@ fn ac_phase5_1_dmesg_oom_count_from_oom_lines() {
 #[test]
 fn ac_phase5_1_dmesg_oom_count_zero_when_no_oom() {
     let signals = DmesgCollector::parse(DMESG_BLOCKED);
-    let sig = signals.iter().find(|s| s.id == "dmesg.oom_count").expect("dmesg.oom_count");
+    let sig = signals
+        .iter()
+        .find(|s| s.id == "dmesg.oom_count")
+        .expect("dmesg.oom_count");
     match sig.value {
         SignalValue::F64(v) => assert_eq!(v as i64, 0, "oom_count should be 0"),
         SignalValue::I64(v) => assert_eq!(v, 0, "oom_count should be 0"),
@@ -235,7 +241,6 @@ fn ac_phase5_8_pattern_catalog_all_files_load() {
         ("thundering_herd", THUNDERING_HERD_TOML),
         ("socket_leak", SOCKET_LEAK_TOML),
     ] {
-        PatternEngine::from_toml(content)
-            .unwrap_or_else(|e| panic!("pattern file '{}' failed to load: {}", name, e));
+        PatternEngine::from_toml(content).unwrap_or_else(|e| panic!("pattern file '{}' failed to load: {}", name, e));
     }
 }

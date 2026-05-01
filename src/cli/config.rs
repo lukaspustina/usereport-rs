@@ -344,10 +344,12 @@ timeout = 1
             ..Defaults::default()
         };
         let profiles = vec![Profile::new("default", &["uname"])];
-        let commands = vec![Command::new("uname", "/usr/bin/uname -a")
-            .with_title("Host OS")
-            .with_description("Basic host OS information")
-            .with_timeout(1)];
+        let commands = vec![
+            Command::new("uname", "/usr/bin/uname -a")
+                .with_title("Host OS")
+                .with_description("Basic host OS information")
+                .with_timeout(1),
+        ];
         let expected = Config {
             defaults,
             hostinfo: None,

@@ -3,7 +3,7 @@
 #![cfg(feature = "bin")]
 
 use usereport::analysis::{Analysis, AnalysisReport, Context};
-use usereport::cli::{compute_exit_code, ExitOn};
+use usereport::cli::{ExitOn, compute_exit_code};
 use usereport::collector::cpu::CpuCollector;
 use usereport::collector::disk::DiskCollector;
 use usereport::collector::{CollectCtx, Collector};

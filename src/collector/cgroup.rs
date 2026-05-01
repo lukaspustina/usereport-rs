@@ -46,9 +46,7 @@ impl Collector for CgroupCollector {
 }
 
 fn is_v2(base: &Path) -> bool {
-    base.join("cgroup.controllers").exists()
-        || base.join("cpu.stat").exists()
-        || base.join("memory.current").exists()
+    base.join("cgroup.controllers").exists() || base.join("cpu.stat").exists() || base.join("memory.current").exists()
 }
 
 /// Auto-detect the current process's cgroup v2 path from /proc/self/cgroup.
@@ -106,7 +104,13 @@ fn collect_v1(base: &Path, signals: &mut Vec<Signal>, now: chrono::DateTime<Loca
     // v1 cpuacct.usage is in nanoseconds; convert to microseconds
     let cpuacct = base.join("cpuacct");
     if let Some(v) = read_u64(cpuacct.join("cpuacct.usage")) {
-        push(signals, "cgroup.cpu_throttled_usec", v as f64 / 1000.0, Unit::Count, now);
+        push(
+            signals,
+            "cgroup.cpu_throttled_usec",
+            v as f64 / 1000.0,
+            Unit::Count,
+            now,
+        );
     }
 }
 
@@ -163,9 +167,17 @@ mod tests {
         std::fs::write(base.join("cgroup.controllers"), "cpu memory pids\n").unwrap();
         std::fs::write(base.join("memory.current"), "104857600\n").unwrap();
         std::fs::write(base.join("memory.max"), "209715200\n").unwrap();
-        std::fs::write(base.join("memory.events"), "low 0\nhigh 0\nmax 0\noom 0\noom_kill 3\noom_group_kill 0\n").unwrap();
+        std::fs::write(
+            base.join("memory.events"),
+            "low 0\nhigh 0\nmax 0\noom 0\noom_kill 3\noom_group_kill 0\n",
+        )
+        .unwrap();
         std::fs::write(base.join("pids.current"), "42\n").unwrap();
-        std::fs::write(base.join("cpu.stat"), "usage_usec 1000\nuser_usec 800\nsystem_usec 200\nnr_throttled 5\nthrottled_usec 500000\n").unwrap();
+        std::fs::write(
+            base.join("cpu.stat"),
+            "usage_usec 1000\nuser_usec 800\nsystem_usec 200\nnr_throttled 5\nthrottled_usec 500000\n",
+        )
+        .unwrap();
 
         let mut signals = Vec::new();
         let now = chrono::Local::now();
@@ -173,10 +185,18 @@ mod tests {
 
         let ids: Vec<_> = signals.iter().map(|s| s.id.as_str()).collect();
         assert!(ids.contains(&"cgroup.memory_bytes"), "missing memory_bytes: {:?}", ids);
-        assert!(ids.contains(&"cgroup.memory_limit_bytes"), "missing memory_limit_bytes: {:?}", ids);
+        assert!(
+            ids.contains(&"cgroup.memory_limit_bytes"),
+            "missing memory_limit_bytes: {:?}",
+            ids
+        );
         assert!(ids.contains(&"cgroup.oom_kills"), "missing oom_kills: {:?}", ids);
         assert!(ids.contains(&"cgroup.pids_current"), "missing pids_current: {:?}", ids);
-        assert!(ids.contains(&"cgroup.cpu_throttled_usec"), "missing cpu_throttled_usec: {:?}", ids);
+        assert!(
+            ids.contains(&"cgroup.cpu_throttled_usec"),
+            "missing cpu_throttled_usec: {:?}",
+            ids
+        );
 
         let mem = signals.iter().find(|s| s.id == "cgroup.memory_bytes").unwrap();
         assert_eq!(mem.value, crate::signal::SignalValue::F64(104857600.0));

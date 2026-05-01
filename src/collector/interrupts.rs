@@ -100,9 +100,23 @@ pub fn max_cpu_irq_pct(content: &str) -> Option<f64> {
 fn is_nic_irq_line(line: &str) -> bool {
     // Network-related keywords in interrupt descriptions.
     const NIC_KEYWORDS: &[&str] = &[
-        "eth", "enp", "ens", "em", "eno", "bond", "vlan",
-        "virtio-net", "virtio0", "mlx", "bnx", "ixgbe", "i40e",
-        "igb", "e1000", "vmxnet", "xen-net",
+        "eth",
+        "enp",
+        "ens",
+        "em",
+        "eno",
+        "bond",
+        "vlan",
+        "virtio-net",
+        "virtio0",
+        "mlx",
+        "bnx",
+        "ixgbe",
+        "i40e",
+        "igb",
+        "e1000",
+        "vmxnet",
+        "xen-net",
     ];
     let lower = line.to_lowercase();
     NIC_KEYWORDS.iter().any(|kw| lower.contains(kw))

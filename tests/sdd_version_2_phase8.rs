@@ -106,9 +106,9 @@ fn ac_phase8_5_postgres_rules_fire_on_fixture_signals() {
 // AC 6 — "none" workload rule set matches the baseline (empty additional rules).
 #[test]
 fn ac_phase8_6_none_workload_same_as_default() {
-    use usereport::rule::builtin::builtin_rules;
-    use usereport::rule::RuleEngine;
     use usereport::collector::CollectCtx;
+    use usereport::rule::RuleEngine;
+    use usereport::rule::builtin::builtin_rules;
 
     let none_rules = load_workload_rules("none").expect("none workload");
     assert!(none_rules.is_empty());

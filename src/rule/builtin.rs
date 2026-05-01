@@ -5,7 +5,7 @@
 //! (e.g. `dmesg.oom_count`) remain inert: the predicate evaluator returns
 //! false on absent signals (SDD §453).
 
-use super::{parse_rules_toml, Rule};
+use super::{Rule, parse_rules_toml};
 
 const CPU_RULES: &str = include_str!("../../contrib/rules/cpu.toml");
 const MEMORY_RULES: &str = include_str!("../../contrib/rules/memory.toml");

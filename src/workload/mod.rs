@@ -5,7 +5,7 @@
 
 use thiserror::Error;
 
-use crate::rule::{parse_rules_toml, Rule};
+use crate::rule::{Rule, parse_rules_toml};
 
 const POSTGRES: &str = include_str!("../../contrib/rules/workloads/postgres.toml");
 const JAVA: &str = include_str!("../../contrib/rules/workloads/java.toml");

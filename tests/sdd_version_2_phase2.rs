@@ -7,7 +7,7 @@ use usereport::analysis::{AnalysisReport, Context};
 use usereport::baseline::stats::{mad, median, z_score};
 use usereport::baseline::store::{BaselineRecord, BaselineStore};
 use usereport::baseline::{annotate, outlier_findings};
-use usereport::diff::{diff, DiffReport};
+use usereport::diff::{DiffReport, diff};
 use usereport::finding::{Finding, FindingKind, Severity};
 use usereport::signal::{Signal, SignalValue, Unit};
 

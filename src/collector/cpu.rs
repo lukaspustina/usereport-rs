@@ -116,7 +116,11 @@ impl CpuCollector {
             };
             for sig in Self::from_proc_stat_snapshots(&prev, &next, elapsed_secs) {
                 if let Some(v) = sig.value.as_f64() {
-                    samples.entry(sig.id.clone()).or_insert_with(|| (sig.unit, Vec::new())).1.push(v);
+                    samples
+                        .entry(sig.id.clone())
+                        .or_insert_with(|| (sig.unit, Vec::new()))
+                        .1
+                        .push(v);
                 }
             }
             prev = next;

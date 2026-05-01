@@ -152,7 +152,7 @@ impl BaselineStore {
                 return Err(Error::Io {
                     path: self.dir.clone(),
                     source: e,
-                })
+                });
             }
         };
         let mut names: Vec<String> = entries

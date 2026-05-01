@@ -49,15 +49,9 @@ impl Redactor {
 
     /// Replace IPv4, IPv6, and MAC address patterns in `text` with their hashes.
     pub fn redact_text(&self, text: &str) -> String {
-        let ipv4 = IPV4_RE.get_or_init(|| {
-            Regex::new(r"\b(?:\d{1,3}\.){3}\d{1,3}\b").unwrap()
-        });
-        let ipv6 = IPV6_RE.get_or_init(|| {
-            Regex::new(r"\b(?:[0-9A-Fa-f]{1,4}:){2,7}[0-9A-Fa-f]{1,4}\b").unwrap()
-        });
-        let mac = MAC_RE.get_or_init(|| {
-            Regex::new(r"\b(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}\b").unwrap()
-        });
+        let ipv4 = IPV4_RE.get_or_init(|| Regex::new(r"\b(?:\d{1,3}\.){3}\d{1,3}\b").unwrap());
+        let ipv6 = IPV6_RE.get_or_init(|| Regex::new(r"\b(?:[0-9A-Fa-f]{1,4}:){2,7}[0-9A-Fa-f]{1,4}\b").unwrap());
+        let mac = MAC_RE.get_or_init(|| Regex::new(r"\b(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}\b").unwrap());
 
         let mut result = text.to_string();
         for re in [ipv4, ipv6, mac] {
@@ -76,7 +70,11 @@ impl Redactor {
     /// and `signals[].value` (Text values).
     pub fn redact_output(&self, mut output: LlmOutput) -> LlmOutput {
         output.host.hostname = self.redact_value(&output.host.hostname);
-        output.raw_excerpts = output.raw_excerpts.into_iter().map(|line| self.redact_text(&line)).collect();
+        output.raw_excerpts = output
+            .raw_excerpts
+            .into_iter()
+            .map(|line| self.redact_text(&line))
+            .collect();
 
         for finding in &mut output.findings {
             finding.summary = self.redact_text(&finding.summary);

@@ -20,7 +20,7 @@ use thiserror::Error;
 
 use crate::baseline::stats::sample_stats;
 use crate::collector::CollectCtx;
-use crate::finding::{sort_findings, Evidence, Finding, FindingKind, Severity};
+use crate::finding::{Evidence, Finding, FindingKind, Severity, sort_findings};
 use crate::signal::{Signal, SignalValue, Trend};
 
 pub mod builtin;
@@ -387,7 +387,7 @@ impl Parser {
                 return Err(Error::Predicate(format!(
                     "expected comparison operator, got {:?}",
                     other
-                )))
+                )));
             }
         };
         let rhs = match self.tokens.get(self.pos).cloned() {
@@ -421,7 +421,7 @@ impl Parser {
                 return Err(Error::Predicate(format!(
                     "expected identifier at start of path, got {:?}",
                     other
-                )))
+                )));
             }
         }
         while matches!(self.tokens.get(self.pos), Some(Tok::Dot)) {
@@ -432,7 +432,7 @@ impl Parser {
                     return Err(Error::Predicate(format!(
                         "expected identifier after '.', got {:?}",
                         other
-                    )))
+                    )));
                 }
             }
         }

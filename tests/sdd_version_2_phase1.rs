@@ -5,13 +5,13 @@
 //! `specs/sdd/version-2.md` Test Scenarios section.
 #![cfg(feature = "bin")]
 
+use usereport::Renderer;
 use usereport::collector::memory::MemoryCollector;
 use usereport::collector::{CollectCtx, Collector};
 use usereport::finding::{Evidence, Finding, FindingKind, Severity};
 use usereport::renderer::JsonRenderer;
 use usereport::rule::{Predicate, Rule, RuleEngine};
 use usereport::signal::{Signal, SignalValue, Unit};
-use usereport::Renderer;
 
 const FREE_OUTPUT_LINUX: &str = "\
               total        used        free      shared  buff/cache   available
@@ -168,7 +168,7 @@ fn ac_3_rule_with_absent_signal_emits_no_finding() {
 
 #[test]
 fn ac_4_exit_code_never_default_returns_zero() {
-    use usereport::cli::{compute_exit_code, ExitOn};
+    use usereport::cli::{ExitOn, compute_exit_code};
     let warn = Finding {
         id: "x".to_string(),
         kind: FindingKind::Rule,
@@ -183,7 +183,7 @@ fn ac_4_exit_code_never_default_returns_zero() {
 
 #[test]
 fn ac_4_exit_code_warn_with_warn_finding_returns_one() {
-    use usereport::cli::{compute_exit_code, ExitOn};
+    use usereport::cli::{ExitOn, compute_exit_code};
     let warn = Finding {
         id: "x".to_string(),
         kind: FindingKind::Rule,
@@ -197,7 +197,7 @@ fn ac_4_exit_code_warn_with_warn_finding_returns_one() {
 
 #[test]
 fn ac_4_exit_code_crit_with_warn_finding_returns_zero() {
-    use usereport::cli::{compute_exit_code, ExitOn};
+    use usereport::cli::{ExitOn, compute_exit_code};
     let warn = Finding {
         id: "x".to_string(),
         kind: FindingKind::Rule,
@@ -211,7 +211,7 @@ fn ac_4_exit_code_crit_with_warn_finding_returns_zero() {
 
 #[test]
 fn ac_4_exit_code_crit_with_crit_finding_returns_two() {
-    use usereport::cli::{compute_exit_code, ExitOn};
+    use usereport::cli::{ExitOn, compute_exit_code};
     let crit = Finding {
         id: "x".to_string(),
         kind: FindingKind::Rule,

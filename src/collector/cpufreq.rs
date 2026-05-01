@@ -68,7 +68,9 @@ fn read_freq_khz() -> (f64, f64, usize) {
     let mut count = 0usize;
 
     let base = std::path::Path::new("/sys/devices/system/cpu");
-    let Ok(entries) = std::fs::read_dir(base) else { return (0.0, 0.0, 0) };
+    let Ok(entries) = std::fs::read_dir(base) else {
+        return (0.0, 0.0, 0);
+    };
 
     for entry in entries.flatten() {
         let name = entry.file_name();
