@@ -1,0 +1,34 @@
+# nginx workload rule pack.
+# Fires on signals from nginx stub_status or crafted fixtures.
+
+[[rule]]
+id = "nginx.active_connections_high"
+when = "nginx.active_connections > 1000"
+severity = "warn"
+summary = "nginx active connections high — worker_connections limit may be approached."
+evidence = ["nginx.active_connections"]
+suggest = ["curl -s http://localhost/nginx_status", "nginx -T | grep worker_connections"]
+
+[[rule]]
+id = "nginx.request_error_rate_high"
+when = "nginx.error_rate_pct > 5"
+severity = "warn"
+summary = "nginx 5xx error rate above 5% — upstream errors or misconfiguration."
+evidence = ["nginx.error_rate_pct"]
+suggest = ["tail -100 /var/log/nginx/error.log", "nginx -t"]
+
+[[rule]]
+id = "nginx.wait_connections_elevated"
+when = "nginx.waiting_connections > 200"
+severity = "warn"
+summary = "nginx waiting (keep-alive) connections elevated — possible upstream backpressure."
+evidence = ["nginx.waiting_connections"]
+suggest = ["curl -s http://localhost/nginx_status", "ss -s"]
+
+[[rule]]
+id = "nginx.worker_queue_full"
+when = "nginx.failed_connections > 0"
+severity = "crit"
+summary = "nginx dropped connections detected — backlog queue full or accept() errors."
+evidence = ["nginx.failed_connections"]
+suggest = ["sysctl net.core.somaxconn", "sysctl net.ipv4.tcp_max_syn_backlog"]

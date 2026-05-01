@@ -1,0 +1,34 @@
+# Java/JVM workload rule pack.
+# Fires on signals from JVM-aware collectors (jstat, jcmd, or crafted fixtures).
+
+[[rule]]
+id = "jvm.gc_time_high"
+when = "jvm.gc_time_pct > 10"
+severity = "warn"
+summary = "JVM GC time exceeds 10% of wall time — garbage collector is a bottleneck."
+evidence = ["jvm.gc_time_pct"]
+suggest = ["jcmd <PID> GC.heap_info", "jstat -gcutil <PID> 1s 5"]
+
+[[rule]]
+id = "jvm.heap_usage_high"
+when = "jvm.heap_used_pct > 85"
+severity = "warn"
+summary = "JVM heap usage above 85% — risk of OutOfMemoryError or full GC storm."
+evidence = ["jvm.heap_used_pct"]
+suggest = ["jmap -histo <PID>", "jcmd <PID> VM.native_memory"]
+
+[[rule]]
+id = "jvm.thread_count_high"
+when = "jvm.thread_count > 500"
+severity = "warn"
+summary = "JVM thread count elevated — possible thread leak or unbounded pool."
+evidence = ["jvm.thread_count"]
+suggest = ["jstack <PID> | grep 'java.lang.Thread.State' | sort | uniq -c"]
+
+[[rule]]
+id = "jvm.metaspace_usage_high"
+when = "jvm.metaspace_used_pct > 90"
+severity = "crit"
+summary = "JVM Metaspace above 90% — risk of OutOfMemoryError: Metaspace."
+evidence = ["jvm.metaspace_used_pct"]
+suggest = ["jcmd <PID> VM.native_memory summary", "consider -XX:MaxMetaspaceSize"]

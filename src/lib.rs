@@ -45,6 +45,9 @@ pub mod runner;
 /// Typed metric values (Phase 1+).
 pub mod signal;
 
+/// Named workload rule packs (Phase 8+).
+pub mod workload;
+
 pub use analysis::{Analysis, AnalysisReport, Context};
 #[cfg(feature = "bin")]
 pub use cli::config::Config;

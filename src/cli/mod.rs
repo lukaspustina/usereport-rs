@@ -7,6 +7,7 @@ use crate::{
     redact::Redactor,
     renderer,
     rule::{builtin::builtin_rules, RuleEngine},
+    workload::load_workload_rules,
     Analysis, AnalysisReport, Command, Config, Context, Renderer, ThreadRunner,
 };
 #[cfg(feature = "bpf")]
@@ -116,6 +117,10 @@ pub struct Opt {
     #[cfg(feature = "bpf")]
     #[arg(long)]
     bpf: bool,
+    /// Load a named workload rule pack and merge it with the base rules.
+    /// Known values: postgres, java, nginx, kubelet, none (default).
+    #[arg(long, value_name = "NAME", default_value = "none")]
+    workload: String,
     /// Subcommand: `usereport baseline …` or `usereport diff <a.json> <b.json>`.
     #[command(subcommand)]
     pub command: Option<Subcommand>,
@@ -459,6 +464,10 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> anyhow::Re
         collectors.push(Box::new(BpfCollector::new()));
         all_rules.extend(bpf_rules());
     }
+    // Phase 8: merge workload-specific rules when --workload is set to a known pack.
+    let workload_rules = load_workload_rules(&opt.workload)
+        .with_context(|| format!("invalid --workload value '{}'", opt.workload))?;
+    all_rules.extend(workload_rules);
     let rule_engine = RuleEngine::new(all_rules);
 
     // Phase 4: parse --duration / --interval and thread them into the collector context.
@@ -711,6 +720,7 @@ mod tests {
             redact: false,
             #[cfg(feature = "bpf")]
             bpf: false,
+            workload: "none".to_string(),
             filter_commands: vec![],
             command: None,
         }

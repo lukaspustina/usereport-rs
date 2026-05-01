@@ -1,0 +1,34 @@
+# kubelet workload rule pack.
+# Fires on signals from kubelet metrics or crafted fixtures.
+
+[[rule]]
+id = "kubelet.pod_count_high"
+when = "kubelet.running_pods > 100"
+severity = "warn"
+summary = "kubelet running pod count high — node may be approaching capacity."
+evidence = ["kubelet.running_pods"]
+suggest = ["kubectl describe node $(hostname)", "kubectl top node"]
+
+[[rule]]
+id = "kubelet.eviction_pressure"
+when = "kubelet.eviction_count > 0"
+severity = "crit"
+summary = "kubelet has evicted pods — memory or disk pressure on this node."
+evidence = ["kubelet.eviction_count"]
+suggest = ["kubectl describe node $(hostname) | grep -A5 Conditions", "kubectl get events --field-selector reason=Evicted"]
+
+[[rule]]
+id = "kubelet.image_pull_failures"
+when = "kubelet.image_pull_errors > 0"
+severity = "warn"
+summary = "kubelet image pull errors — registry unreachable or image not found."
+evidence = ["kubelet.image_pull_errors"]
+suggest = ["kubectl get events | grep 'Failed to pull'", "crictl images"]
+
+[[rule]]
+id = "kubelet.container_runtime_slow"
+when = "kubelet.runtime_ops_latency_ms > 5000"
+severity = "warn"
+summary = "kubelet container runtime operations latency above 5 s — runtime or storage issue."
+evidence = ["kubelet.runtime_ops_latency_ms"]
+suggest = ["systemctl status containerd", "journalctl -u containerd -n 50"]
