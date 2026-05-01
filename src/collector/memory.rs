@@ -94,6 +94,7 @@ fn push(signals: &mut Vec<Signal>, id: &str, v: f64, unit: Unit, at: chrono::Dat
         unit,
         at,
         samples: None,
+        stats: None,
         baseline: None,
     });
 }

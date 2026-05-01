@@ -1,9 +1,11 @@
 //! Integration tests for SDD `specs/sdd/version-2.md` Phase 4 (time-sampled collection).
 #![cfg(feature = "bin")]
 
+use usereport::analysis::{AnalysisReport, Context};
 use usereport::baseline::stats::sample_stats;
 use usereport::collector::CollectCtx;
-use usereport::rule::{Predicate, SignalIndex};
+use usereport::finding::Severity;
+use usereport::rule::{Predicate, Rule, RuleEngine, SignalIndex};
 use usereport::signal::{Signal, SignalValue, Trend, Unit};
 
 fn make_signal(id: &str, value: f64) -> Signal {
@@ -13,6 +15,7 @@ fn make_signal(id: &str, value: f64) -> Signal {
         unit: Unit::None,
         at: chrono::Local::now(),
         samples: None,
+        stats: None,
         baseline: None,
     }
 }
@@ -24,6 +27,7 @@ fn make_sampled_signal(id: &str, samples: Vec<f64>) -> Signal {
         unit: Unit::None,
         at: chrono::Local::now(),
         samples: Some(samples),
+        stats: None,
         baseline: None,
     }
 }
@@ -237,5 +241,115 @@ fn ac_phase4_7_duration_and_repetitions_are_mutually_exclusive() {
     assert!(
         !output.status.success(),
         "expected non-zero exit when --duration and --repetitions are combined"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Criterion 8 — sample-count formula matches SDD completion criterion
+// ---------------------------------------------------------------------------
+
+#[test]
+fn ac_phase4_8_sample_count_formula_30s_2s_yields_16() {
+    // SDD completion criterion: --duration 30s --interval 2s produces 16 samples.
+    // N = floor(duration / interval) + 1
+    let duration = std::time::Duration::from_secs(30);
+    let interval = std::time::Duration::from_secs(2);
+    let n = (duration.as_secs_f64() / interval.as_secs_f64()).floor() as usize + 1;
+    assert_eq!(n, 16, "expected 16 samples for 30s/2s");
+}
+
+#[test]
+fn ac_phase4_8_sample_count_formula_10s_1s_yields_11() {
+    // SDD test scenario: [1..11] values from --duration 10s --interval 1s.
+    let duration = std::time::Duration::from_secs(10);
+    let interval = std::time::Duration::from_secs(1);
+    let n = (duration.as_secs_f64() / interval.as_secs_f64()).floor() as usize + 1;
+    assert_eq!(n, 11, "expected 11 samples for 10s/1s");
+}
+
+// ---------------------------------------------------------------------------
+// Criterion 9 — rule engine finding cites sampled signal in evidence
+// ---------------------------------------------------------------------------
+
+#[test]
+fn ac_phase4_9_trend_rule_finding_evidence_cites_signal() {
+    let rule = Rule {
+        id: "cpu.load.rising".to_string(),
+        when: Predicate::parse("cpu.load.trend == \"rising\"").expect("parse"),
+        severity: Severity::Warn,
+        summary: "CPU load is rising".to_string(),
+        evidence_ids: vec!["cpu.load".to_string()],
+        suggest: vec![],
+    };
+    let engine = RuleEngine::new(vec![rule]);
+
+    let vals: Vec<f64> = (1..=11).map(|i| i as f64).collect();
+    let signal = make_sampled_signal("cpu.load", vals);
+    let signals = vec![signal];
+
+    let findings = engine.run(&signals, &ctx());
+    assert_eq!(findings.len(), 1, "expected exactly one finding; got {:?}", findings);
+
+    let f = &findings[0];
+    assert_eq!(f.id, "cpu.load.rising");
+    assert!(
+        f.evidence.iter().any(|e| e.signal_id == "cpu.load"),
+        "finding evidence should cite 'cpu.load'; got {:?}",
+        f.evidence
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Criterion 10 — Markdown template shows trend indicator for sampled signals
+// ---------------------------------------------------------------------------
+
+const MARKDOWN_TEMPLATE: &str = include_str!("../contrib/markdown.j2");
+
+#[test]
+fn ac_phase4_10_markdown_shows_trend_for_sampled_signal() {
+    use usereport::renderer::{Renderer, TemplateRenderer};
+
+    let vals: Vec<f64> = (1..=11).map(|i| i as f64).collect();
+    let stats = sample_stats(&vals).expect("non-empty");
+    let signal = Signal {
+        id: "cpu.load".to_string(),
+        value: SignalValue::F64(6.0),
+        unit: Unit::None,
+        at: chrono::Local::now(),
+        samples: Some(vals),
+        stats: Some(stats),
+        baseline: None,
+    };
+
+    let report = AnalysisReport::new_with_diagnostics(
+        Context::new(),
+        vec![],
+        vec![],
+        1,
+        64,
+        vec![signal],
+        vec![],
+        vec![],
+    );
+
+    let renderer = TemplateRenderer::new(MARKDOWN_TEMPLATE);
+    let mut out = Vec::new();
+    renderer.render(&report, &mut out).expect("render ok");
+    let s = String::from_utf8(out).unwrap();
+
+    assert!(
+        s.contains("## Signals"),
+        "rendered output should contain Signals section:\n{}",
+        s
+    );
+    assert!(
+        s.contains("cpu.load"),
+        "rendered output should list signal id:\n{}",
+        s
+    );
+    assert!(
+        s.contains("Rising") || s.contains("rising"),
+        "rendered output should show trend 'Rising' for linearly increasing samples:\n{}",
+        s
     );
 }

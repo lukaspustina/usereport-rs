@@ -15,6 +15,10 @@ pub struct Signal {
     pub unit: Unit,
     pub at: DateTime<Local>,
     pub samples: Option<Vec<f64>>,
+    /// Pre-computed statistics for sampled signals. Set by collectors that
+    /// support sampling; `None` for single-shot signals.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stats: Option<SampleStats>,
     pub baseline: Option<BaselineStats>,
 }
 

@@ -10,6 +10,7 @@ use std::time::{Duration, Instant};
 use chrono::Local;
 
 use super::{CollectCtx, Collector, Result};
+use crate::baseline::stats::sample_stats;
 use crate::signal::{Signal, SignalValue, Unit};
 
 /// Default minimum sampling window for the delta engine. The runtime
@@ -128,12 +129,14 @@ impl CpuCollector {
             .into_iter()
             .map(|(id, (unit, vals))| {
                 let value = vals.last().copied().unwrap_or(0.0);
+                let stats = sample_stats(&vals);
                 Signal {
                     id,
                     value: crate::signal::SignalValue::F64(value),
                     unit,
                     at: now,
                     samples: Some(vals),
+                    stats,
                     baseline: None,
                 }
             })
@@ -221,6 +224,7 @@ fn push(signals: &mut Vec<Signal>, id: &str, v: f64, unit: Unit, at: chrono::Dat
         unit,
         at,
         samples: None,
+        stats: None,
         baseline: None,
     });
 }

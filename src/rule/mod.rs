@@ -665,6 +665,7 @@ mod tests {
             unit: Unit::None,
             at: Local::now(),
             samples: None,
+            stats: None,
             baseline: None,
         }
     }

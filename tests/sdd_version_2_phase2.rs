@@ -18,6 +18,7 @@ fn make_signal(id: &str, value: f64) -> Signal {
         unit: Unit::None,
         at: chrono::Local::now(),
         samples: None,
+        stats: None,
         baseline: None,
     }
 }

@@ -34,6 +34,15 @@ Next steps:
 {% endfor %}
 {%- endif %}
 
+{% if signals %}
+## Signals
+
+| ID | Value | Trend |
+|----|-------|-------|
+{% for s in signals -%}
+| `{{ s.id }}` | {{ s.value }} | {{ s.stats.trend if s.stats else "—" }} |
+{% endfor %}
+{% endif %}
 ## Run Configuration
 
 {%- for key, value in context.more | items %}
