@@ -1,94 +1,303 @@
-# USE-Report
+# usereport
 
-[![CI](https://github.com/lukaspustina/usereport-rs/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/lukaspustina/usereport-rs/actions/workflows/ci.yml) [![](https://img.shields.io/crates/v/usereport-rs.svg)](https://crates.io/crates/usereport-rs) [![](https://docs.rs/usereport-rs/badge.svg)](https://docs.rs/crate/usereport-rs/) [![MIT licensed](https://img.shields.io/badge/license-MIT-blue.svg?label=License)](./LICENSE)
+[![CI](https://github.com/lukaspustina/usereport-rs/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/lukaspustina/usereport-rs/actions/workflows/ci.yml)
+[![crates.io](https://img.shields.io/crates/v/usereport-rs.svg)](https://crates.io/crates/usereport-rs)
+[![docs.rs](https://docs.rs/usereport-rs/badge.svg)](https://docs.rs/crate/usereport-rs/)
+[![MIT licensed](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 
-`usereport` gathers system performance statistics on the local host that may be used as the base information for a performance analysis following the [USE methodology](http://www.brendangregg.com/usemethod.html) created by Brendan Gregg. Please see [this blog post](http://techblog.netflix.com/2015/11/linux-performance-analysis-in-60s.html) by Brendan for an introduction to USE and the statistics gathered by this tool. The `usereport` tool is part of my base server installation. I use it everywhere. It allows me to quickly assess several system characteristics in case of performance issues.
+> Your server is on fire. You have 60 seconds. Go.
 
-`usereport` comes with bundled configuration files for Linux and macOS, respectively, that are built into the corresponding binary. The configuration files contain a pre-defined selection of performance measurement and analysis tools. Please see the `contrib` directory for these configuration tools. In case of Linux, several profiles allow for statistics gathering depending on the context of your analysis, i.e., `mem` for virtual memory and `net` for network issues. With `usereport` you do not need to remember the exact tools and their parameters to conduct a performance analysis. Furthermore, each tool configuration contains descriptions of the output to ease interpretation of results, e.g., meaning and metrics of the gathered values, as well as links to further information.
+`usereport` is the tool you reach for when a server misbehaves and you need answers _now_. It runs a curated set of performance analysis commands in parallel, collects kernel signals directly from `/proc` and `/sys`, evaluates a rule engine against everything it finds, and hands you a structured report — in Markdown, HTML, JSON, or a format you define yourself.
 
-The output format of `usereport` is usually Markdown or HTML for convenient reading. JSON output is also available for automatic processing, or you can define your own output format using [Jinja2](https://jinja.palletsprojects.com/) templates rendered by [minijinja](https://github.com/mitsuhiko/minijinja). The following screenshots present parts of the HTML output created by `usereport` running the `net` profile performance analysis on Linux -- see the full report [here](https://htmlpreview.github.io/?https://github.com/lukaspustina/usereport-rs/blob/master/docs/linux-net-usereport.html).
+It follows Brendan Gregg's [USE methodology](http://www.brendangregg.com/usemethod.html): **Utilization, Saturation, Errors** — the fastest path from "something is wrong" to "here is what and why."
 
-<p float="center">
-<center>
-  <a href="docs/linux-net-usereport-html-1.jpg"><img src="https://raw.githubusercontent.com/lukaspustina/usereport-rs/master/docs/linux-net-usereport-html-1.jpg" /></a>
-  <a href="docs/linux-net-usereport-html-2.jpg"><img src="https://raw.githubusercontent.com/lukaspustina/usereport-rs/master/docs/linux-net-usereport-html-2.jpg" /></a>
-</center>
+<p align="center">
+  <a href="docs/linux-net-usereport-html-1.jpg"><img src="https://raw.githubusercontent.com/lukaspustina/usereport-rs/master/docs/linux-net-usereport-html-1.jpg" width="48%" /></a>
+  <a href="docs/linux-net-usereport-html-2.jpg"><img src="https://raw.githubusercontent.com/lukaspustina/usereport-rs/master/docs/linux-net-usereport-html-2.jpg" width="48%" /></a>
 </p>
 
-The main functionality is exposed as a Rust library to be used in your own projects at your convenience.
+---
 
-## Command Line Tool
+## What it does in 60 seconds
 
-### Help
-
-```sh
-usereport 0.1.4
-Lukas Pustina <lukas@pustina.net>
-Collect system information for the first 60 seconds of a performance analysis
-
-Usage: usereport [OPTIONS] [+|-command]...
-
-Arguments:
-  [+|-command]...  Add or remove commands from selected profile by prefixing the command's name with
-                   '+' or '-', respectively, e.g., +uname -dmesg; you may need to use '--' to
-                   signify the end of the options
-
-Options:
-  -c, --config <config>                      Configuration from file, or default if not present
-  -o, --output <output>                      Output format [default: markdown] [possible values: template,
-                                             html, json, markdown]
-      --output-template <output-template>    Set output template if output is set to "template"
-  -O, --output-file <output-file>            Write rendered output to a file (parent directories are
-                                             created automatically); when absent, output goes to stdout
-      --parallel <parallel>                  Set number of commands to run in parallel; overrides
-                                             setting from config file
-      --repetitions <repetitions>            Set number of how many times to run commands in row;
-                                             overrides setting from config file
-      --progress                             Force to show progress bar while waiting for all commands
-                                             to finish
-      --no-progress                          Force to hide progress bar while waiting for all commands
-                                             to finish
-  -d, --debug                               Activate debug mode
-  -p, --profile <profile>                   Set profile to use
-      --show-config                         Show active config
-      --show-output-template                Show active template
-      --show-profiles                       Show available profiles
-      --show-commands                       Show available commands
-  -h, --help                               Print help
-  -V, --version                            Print version
+```
+$ usereport --profile net --output html -O report.html
 ```
 
-### Example on Linux
+While that renders, `usereport` has already:
+
+- Run vmstat, netstat, ss, ethtool, and friends **in parallel**
+- Read `/proc/net/dev`, `/proc/interrupts`, `/proc/net/snmp` directly — no tool required
+- Checked CPU frequency throttling, thermal zones, cgroup memory limits
+- Correlated signals against 15+ built-in rules (retransmits, TIME_WAIT exhaustion, IRQ imbalance, …)
+- Matched multi-signal patterns (lock contention, thundering herd, socket leak, …)
+- Flagged anomalies against your recorded baseline
+- Printed everything in a single self-contained HTML file
+
+No daemons. No agents. No cloud. One binary, one command.
+
+---
+
+## Features
+
+### Direct kernel signal collection
+
+`usereport` reads the kernel directly for the signals that matter most, with no tool dependency:
+
+| Signal | Source |
+|--------|--------|
+| `cpu.usr_pct`, `cpu.iowait_pct`, `cpu.runqueue` | `/proc/stat` |
+| `disk.util_pct`, `disk.await_ms` | `/proc/diskstats` |
+| `net.rx_drops`, `net.retrans_pct`, `net.tw_count` | `/proc/net/dev` + `/proc/net/snmp` + `/proc/net/sockstat` |
+| `net.max_cpu_irq_pct` | `/proc/interrupts` |
+| `cpu.freq_ratio`, `cpu.temp_celsius` | `/sys/devices/system/cpu/*/cpufreq/` + thermal zones |
+| `cgroup.memory_bytes`, `cgroup.oom_kills`, `cgroup.pids_current` | cgroup v1 / v2 auto-detected |
+
+### Rule engine with a predicate DSL
+
+Built-in rules fire findings when signals cross thresholds. Write your own in TOML:
+
+```toml
+[[rule]]
+id        = "net.retrans_high"
+when      = "net.retrans_pct > 1"
+severity  = "warn"
+summary   = "TCP retransmit rate is elevated (> 1%)"
+evidence  = ["net.retrans_pct"]
+suggest   = ["ss -tin", "netstat -s | grep retransmit"]
+description = "Sustained retransmits indicate congestion, packet loss, or a broken path."
+links     = ["https://www.brendangregg.com/perf.html"]
+```
+
+Predicates support percentiles (`.p50`, `.p95`, `.p99`), trends (`.trend == "rising"`), cross-signal comparisons, AND/OR logic, and z-score anomaly detection against baselines.
+
+### Pattern correlator
+
+Single-signal rules are fast. Multi-signal patterns catch the subtle stuff:
+
+| Pattern | Signals it correlates |
+|---------|-----------------------|
+| `time_wait_exhaustion` | `net.tw_count` + `net.connect_failures` |
+| `lock_contention` | CPU saturation + high iowait + run-queue depth |
+| `thundering_herd` | burst of short-lived processes + CPU spikes |
+| `socket_leak` | rising `net.tw_count` without matching traffic |
+| `nfs_stall` | iowait spike + NFS mount activity |
+| `slab_leak` | rising kernel slab usage over time |
+
+### Baselines and drift detection
+
+Record a healthy snapshot. Every future run is compared against it automatically.
 
 ```sh
-usereport --profile mem --progress --repetitions 3 --output html -- +mpstat
+# Capture a baseline on a healthy Tuesday
+usereport --output json | usereport baseline record --name tuesday
+
+# Next Friday at 3am when alerts fire:
+usereport --baseline tuesday --output html -O incident.html
 ```
+
+Signals that deviate more than 3 standard deviations get a `warn` finding. More than 6 get `crit`.
+
+### Workload-aware rules
+
+Load a rule pack tuned for what's actually running:
+
+```sh
+usereport --workload postgres   # connection saturation, cache hit rate, lock waits
+usereport --workload nginx      # connection count, error rate, accept queue depth
+usereport --workload java       # GC pressure, heap saturation, thread count
+usereport --workload kubelet    # pod count, evictions, image pull latency
+```
+
+### eBPF collectors (opt-in)
+
+When you need to go deeper:
+
+```sh
+usereport --bpf   # runqlat, biolatency, tcpretrans, execsnoop, cachestat
+```
+
+Emits histogram signals with full percentile stats. Falls back gracefully — if a tool isn't installed, you get an `info` finding instead of an error.
+
+### CPU flamegraph, inline
+
+```sh
+usereport --profile-cpu 30s --output html -O report.html
+```
+
+Runs `perf record` for 30 seconds, folds the stacks with [inferno](https://github.com/jonhoo/inferno), and embeds the SVG directly in the HTML report. No extra steps. No separate files.
+
+### LLM-ready output
+
+```sh
+usereport --output llm | your-ai-cli "diagnose this"
+```
+
+Produces a compact JSON document — signals, findings, checked-ok list, raw excerpts — structured for feeding to an LLM without token waste. Add `--redact` to HMAC-hash hostnames, IPs, and MACs before they leave the machine.
+
+### `explain` — know what you're looking at
+
+```sh
+$ usereport explain net.retrans_high
+
+ID:       net.retrans_high
+Severity: Warn
+Summary:  TCP retransmit rate is elevated (> 1%)
+
+Sustained retransmits indicate congestion, packet loss, or a broken path.
+
+To investigate:
+  ss -tin
+  netstat -s | grep retransmit
+
+Links:
+  https://www.brendangregg.com/perf.html
+```
+
+No more "what does this finding mean?" moments at 3am.
+
+---
 
 ## Installation
 
-### Linux Binaries [x86_64]
-
-There are pre-built binaries on the GitHub [Release Page](https://github.com/lukaspustina/usereport-rs/releases).
-
-### From crates.io
-
-The fastest path is [`cargo binstall`](https://github.com/cargo-bins/cargo-binstall), which fetches a pre-built binary when one is available and otherwise compiles from source:
+### Pre-built binary (fastest)
 
 ```sh
 cargo binstall usereport-rs
 ```
 
-### From Source
+Or grab a binary from the [Releases page](https://github.com/lukaspustina/usereport-rs/releases).
 
-Please install Rust via [rustup](https://www.rustup.rs) and then run
+### From source
 
 ```sh
 cargo install --all-features usereport-rs
 ```
 
+Requires Rust 1.85+. Install via [rustup](https://rustup.rs) if needed.
+
+---
+
+## Quick start
+
+```sh
+# Run the default profile, get Markdown
+usereport
+
+# Network investigation, HTML output
+usereport --profile net --output html -O net-report.html
+
+# Time-sampled CPU analysis (11 samples over 10s, every 2s after that)
+usereport --duration 10s --interval 2s --output json | jq '.findings'
+
+# Postgres server, with baseline comparison
+usereport --workload postgres --baseline prod-healthy --exit-on warn
+
+# Deep-dive with eBPF + flamegraph (requires root + perf/bpfcc-tools)
+sudo usereport --bpf --profile-cpu 30s --output html -O deep.html
+```
+
+---
+
+## Output formats
+
+| Format | Flag | Use it when |
+|--------|------|-------------|
+| Markdown | `--output markdown` (default) | Terminal reading, pasting into tickets |
+| HTML | `--output html` | Sharing reports, flamegraph embedding |
+| JSON | `--output json` | Automation, dashboards, `jq` pipelines |
+| LLM | `--output llm` | Feeding an AI for diagnosis |
+| Custom | `--output template --output-template my.j2` | Your own Jinja2 template |
+
+---
+
+## Configuration
+
+`usereport` ships with built-in configs for Linux and macOS. Override with `--config`:
+
+```sh
+usereport --config /etc/usereport/custom.toml
+```
+
+### Profiles
+
+Profiles let you run a focused subset of commands. On Linux:
+
+```sh
+usereport --show-profiles        # list available profiles
+usereport --profile mem          # virtual memory focus
+usereport --profile net          # network focus
+usereport --profile cpu          # CPU focus
+usereport +mpstat -vmstat        # add/remove individual commands
+```
+
+### Custom rules
+
+Drop TOML files in `~/.config/usereport/rules.d/`. They merge with the built-ins. A broken file emits a `warn` finding and is skipped — it never breaks the run.
+
+---
+
+## Exit codes
+
+Useful for automation and alerting:
+
+```sh
+usereport --exit-on warn   # exit 1 if any warn or crit findings
+usereport --exit-on crit   # exit 1 only for crit findings
+usereport --exit-on never  # always exit 0 (default)
+```
+
+```sh
+# In a cron job or CI check:
+usereport --exit-on warn && echo "healthy" || pagerduty-alert
+```
+
+---
+
+## Baselines and drift
+
+```sh
+# Record
+usereport baseline record --name prod-$(date +%Y%m%d)
+
+# List
+usereport baseline list
+
+# Compare two JSON reports
+usereport diff before.json after.json
+```
+
+---
+
+## As a library
+
+The core is a published Rust library. Use it to embed signal collection and rule evaluation in your own tools:
+
+```toml
+[dependencies]
+usereport-rs = "0.2"
+```
+
+```rust
+use usereport::{Analysis, Context, collector::cpu::CpuCollector, rule::RuleEngine};
+```
+
+---
+
+## Contributing
+
+Pull requests and issue reports are welcome. Run `make ci` before pushing — it covers fmt, clippy, tests, audit, deny, and unused-dependency checks in one shot.
+
+```sh
+make ci       # full pipeline
+make pre-push # lighter: fmt-check + clippy + test
+```
+
+---
+
 ## Postcardware
 
-You're free to use `usereport`. If you find it useful, I would highly appreciate you sending me a postcard from your hometown mentioning how you use `usereport`. My work address is
+`usereport` is MIT-licensed and free. If it saves your skin during an incident, I'd love a postcard from your city:
 
 ```
 Lukas Pustina
@@ -97,8 +306,3 @@ Rheinwerkallee 3
 53227 Bonn
 Germany
 ```
-
-## Contributing
-
-I'll be happy about suggestions and pull requests.
-
