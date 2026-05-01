@@ -16,6 +16,7 @@ allow = [
     "Unicode-3.0",
     "Unicode-DFS-2016",
     "Zlib",
+    "CDDL-1.0",  # inferno 0.12.6 (flamegraph SVG generation)
 ]
 
 [bans]
@@ -23,9 +24,15 @@ multiple-versions = "warn"
 # tempfile 3.x still depends on rustix 0.38.x while we use rustix 1.x directly;
 # these duplicates are transitive and outside our control.
 skip = [
+    # tempfile 3.x pulls in old rustix; we use rustix 1.x directly.
     { name = "rustix", version = "0.38" },
     { name = "linux-raw-sys", version = "0.4" },
     { name = "windows-sys", version = "0.59" },
+    # inferno's dep chain (ahash) pulls in getrandom 0.3.x; human-panic pulls 0.4.x.
+    { name = "getrandom", version = "0.3" },
+    # inferno and other deps disagree on hashbrown minor versions.
+    { name = "hashbrown", version = "0.14" },
+    { name = "hashbrown", version = "0.15" },
 ]
 
 [sources]
