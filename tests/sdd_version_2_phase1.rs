@@ -415,3 +415,57 @@ fn severity_ordered_findings_crit_first_then_warn_then_info_lex_within() {
     assert_eq!(findings[3].severity, Severity::Info);
     assert_eq!(findings[3].id, "c");
 }
+
+// ---------------------------------------------------------------------------
+// Markdown template SUMMARY + FINDINGS render — runtime verification
+// (closes verifier-flagged gap on contrib/markdown.j2)
+// ---------------------------------------------------------------------------
+
+const MARKDOWN_TEMPLATE: &str = include_str!("../contrib/markdown.j2");
+
+#[test]
+fn markdown_template_renders_summary_and_findings_sections() {
+    use usereport::analysis::{AnalysisReport, Context};
+    use usereport::renderer::TemplateRenderer;
+
+    let finding = Finding {
+        id: "cpu.iowait_high".to_string(),
+        kind: FindingKind::Rule,
+        severity: Severity::Warn,
+        summary: "iowait is elevated".to_string(),
+        evidence: vec![Evidence {
+            signal_id: "cpu.iowait_pct".to_string(),
+            observed: SignalValue::F64(42.0),
+        }],
+        suggest: vec!["iotop -ao".to_string()],
+    };
+
+    let report =
+        AnalysisReport::new_with_diagnostics(Context::new(), vec![], vec![], 1, 64, vec![], vec![finding], vec![]);
+
+    let renderer = TemplateRenderer::new(MARKDOWN_TEMPLATE);
+    let mut out = Vec::new();
+    renderer.render(&report, &mut out).expect("render ok");
+    let s = String::from_utf8(out).unwrap();
+
+    assert!(
+        s.contains("## Summary"),
+        "rendered output missing `## Summary` block:\n{}",
+        s
+    );
+    assert!(
+        s.contains("## Findings"),
+        "rendered output missing `## Findings` block:\n{}",
+        s
+    );
+    assert!(
+        s.contains("cpu.iowait_high"),
+        "rendered output should cite the finding id:\n{}",
+        s
+    );
+    assert!(
+        s.contains("iowait is elevated"),
+        "rendered output should include the finding summary:\n{}",
+        s
+    );
+}

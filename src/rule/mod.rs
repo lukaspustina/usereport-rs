@@ -594,3 +594,94 @@ impl RulesLoader {
         RulesLoadResult { rules, load_findings }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use chrono::Local;
+
+    use super::*;
+    use crate::signal::{Signal, SignalValue, Unit};
+
+    fn ctx() -> CollectCtx {
+        CollectCtx {
+            duration: None,
+            interval: None,
+            cgroup_path: None,
+            baseline: None,
+            cpu_count: 4,
+        }
+    }
+
+    fn signal(id: &str, v: f64) -> Signal {
+        Signal {
+            id: id.to_string(),
+            value: SignalValue::F64(v),
+            unit: Unit::None,
+            at: Local::now(),
+            samples: None,
+            baseline: None,
+        }
+    }
+
+    #[test]
+    fn predicate_and_both_terms_true_evaluates_true() {
+        let p = Predicate::parse("a > 1 AND b > 2").expect("parse");
+        let signals = vec![signal("a", 5.0), signal("b", 5.0)];
+        let idx = SignalIndex::build(&signals);
+        assert!(p.evaluate(&idx, &ctx()));
+    }
+
+    #[test]
+    fn predicate_and_one_false_evaluates_false() {
+        let p = Predicate::parse("a > 1 AND b > 2").expect("parse");
+        let signals = vec![signal("a", 5.0), signal("b", 1.0)];
+        let idx = SignalIndex::build(&signals);
+        assert!(!p.evaluate(&idx, &ctx()));
+    }
+
+    #[test]
+    fn predicate_or_one_true_evaluates_true() {
+        let p = Predicate::parse("a > 100 OR b > 2").expect("parse");
+        let signals = vec![signal("a", 5.0), signal("b", 5.0)];
+        let idx = SignalIndex::build(&signals);
+        assert!(p.evaluate(&idx, &ctx()));
+    }
+
+    #[test]
+    fn predicate_or_both_false_evaluates_false() {
+        let p = Predicate::parse("a > 100 OR b > 100").expect("parse");
+        let signals = vec![signal("a", 5.0), signal("b", 5.0)];
+        let idx = SignalIndex::build(&signals);
+        assert!(!p.evaluate(&idx, &ctx()));
+    }
+
+    #[test]
+    fn predicate_and_or_chained_left_associative() {
+        // Per SDD §333: expr ::= term (("AND" | "OR") term)* — left-associative.
+        // `a > 1 AND b > 1 OR c > 100` parses as `(a > 1 AND b > 1) OR c > 100`.
+        // a=5, b=5, c=5 → (true AND true) OR false = true.
+        let p = Predicate::parse("a > 1 AND b > 1 OR c > 100").expect("parse");
+        let signals = vec![signal("a", 5.0), signal("b", 5.0), signal("c", 5.0)];
+        let idx = SignalIndex::build(&signals);
+        assert!(p.evaluate(&idx, &ctx()));
+    }
+
+    #[test]
+    fn rule_engine_fires_compound_and_predicate() {
+        // End-to-end: a Rule with an AND predicate produces a Finding when
+        // both terms are true.
+        let rule = Rule {
+            id: "compound.test".to_string(),
+            when: Predicate::parse("a > 1 AND b > 1").expect("parse"),
+            severity: Severity::Warn,
+            summary: "compound rule fired".to_string(),
+            evidence_ids: vec!["a".to_string(), "b".to_string()],
+            suggest: vec![],
+        };
+        let signals = vec![signal("a", 5.0), signal("b", 5.0)];
+        let engine = RuleEngine::new(vec![rule]);
+        let findings = engine.run(&signals, &ctx());
+        assert_eq!(findings.len(), 1);
+        assert_eq!(findings[0].id, "compound.test");
+    }
+}
