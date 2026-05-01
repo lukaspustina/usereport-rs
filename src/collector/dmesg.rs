@@ -12,7 +12,7 @@ use std::sync::OnceLock;
 use crate::collector::{CollectCtx, Result};
 use crate::signal::{Signal, SignalValue, Unit};
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct DmesgCollector;
 
 impl DmesgCollector {

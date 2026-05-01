@@ -6,7 +6,7 @@
 
 #[test]
 fn ac_r9_network_collector_returns_ok() {
-    use usereport::collector::{network::NetworkCollector, CollectCtx, Collector as _};
+    use usereport::collector::{CollectCtx, Collector as _, network::NetworkCollector};
     let c = NetworkCollector::new();
     let ctx = CollectCtx::default();
     let result = c.collect(&ctx);
@@ -32,7 +32,7 @@ fn ac_r9_network_snapshot_emits_rx_drops_and_retrans() {
 
 #[test]
 fn ac_r10_cgroup_collector_returns_ok_without_cgroup() {
-    use usereport::collector::{cgroup::CgroupCollector, CollectCtx, Collector as _};
+    use usereport::collector::{CollectCtx, Collector as _, cgroup::CgroupCollector};
     let c = CgroupCollector::new();
     let ctx = CollectCtx::default(); // no cgroup_path set
     let result = c.collect(&ctx);
@@ -41,7 +41,7 @@ fn ac_r10_cgroup_collector_returns_ok_without_cgroup() {
 
 #[test]
 fn ac_r10_cgroup_v2_reads_memory_and_pids() {
-    use usereport::collector::{cgroup::CgroupCollector, CollectCtx, Collector as _};
+    use usereport::collector::{CollectCtx, Collector as _, cgroup::CgroupCollector};
 
     let dir = tempfile::tempdir().expect("tempdir");
     let base = dir.path();
@@ -49,17 +49,27 @@ fn ac_r10_cgroup_v2_reads_memory_and_pids() {
     std::fs::write(base.join("cgroup.controllers"), "cpu memory pids\n").unwrap();
     std::fs::write(base.join("memory.current"), "10485760\n").unwrap();
     std::fs::write(base.join("memory.max"), "max\n").unwrap();
-    std::fs::write(base.join("memory.events"), "low 0\nhigh 0\nmax 0\noom 0\noom_kill 2\noom_group_kill 0\n").unwrap();
+    std::fs::write(
+        base.join("memory.events"),
+        "low 0\nhigh 0\nmax 0\noom 0\noom_kill 2\noom_group_kill 0\n",
+    )
+    .unwrap();
     std::fs::write(base.join("pids.current"), "7\n").unwrap();
     std::fs::write(base.join("cpu.stat"), "usage_usec 0\nthrottled_usec 0\n").unwrap();
 
     let c = CgroupCollector::new();
-    let mut ctx = CollectCtx::default();
-    ctx.cgroup_path = Some(base.to_path_buf());
+    let ctx = CollectCtx {
+        cgroup_path: Some(base.to_path_buf()),
+        ..Default::default()
+    };
     let signals = c.collect(&ctx).expect("collect");
     let ids: Vec<_> = signals.iter().map(|s| s.id.as_str()).collect();
     assert!(ids.contains(&"cgroup.memory_bytes"), "missing memory_bytes: {:?}", ids);
-    assert!(ids.contains(&"cgroup.memory_limit_bytes"), "missing memory_limit_bytes: {:?}", ids);
+    assert!(
+        ids.contains(&"cgroup.memory_limit_bytes"),
+        "missing memory_limit_bytes: {:?}",
+        ids
+    );
     assert!(ids.contains(&"cgroup.oom_kills"), "missing oom_kills: {:?}", ids);
     assert!(ids.contains(&"cgroup.pids_current"), "missing pids_current: {:?}", ids);
 
@@ -76,7 +86,7 @@ fn ac_r10_cgroup_v2_reads_memory_and_pids() {
 
 #[test]
 fn ac_r11_cpufreq_collector_returns_ok() {
-    use usereport::collector::{cpufreq::CpuFreqCollector, CollectCtx, Collector as _};
+    use usereport::collector::{CollectCtx, Collector as _, cpufreq::CpuFreqCollector};
     let c = CpuFreqCollector::new();
     let ctx = CollectCtx::default();
     let result = c.collect(&ctx);
@@ -87,7 +97,7 @@ fn ac_r11_cpufreq_collector_returns_ok() {
 
 #[test]
 fn ac_r12_interrupts_collector_returns_ok() {
-    use usereport::collector::{interrupts::InterruptsCollector, CollectCtx, Collector as _};
+    use usereport::collector::{CollectCtx, Collector as _, interrupts::InterruptsCollector};
     let c = InterruptsCollector::new();
     let ctx = CollectCtx::default();
     let result = c.collect(&ctx);

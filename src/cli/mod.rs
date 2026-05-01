@@ -1,22 +1,21 @@
 use crate::{
+    Analysis, AnalysisReport, Command, Config, Context, Renderer, ThreadRunner,
     baseline::BaselineStore,
     collector::{
-        cgroup::CgroupCollector, cpu::CpuCollector, cpufreq::CpuFreqCollector,
-        disk::DiskCollector, host::HostCollector, interrupts::InterruptsCollector,
-        network::NetworkCollector, Collector,
+        Collector, cgroup::CgroupCollector, cpu::CpuCollector, cpufreq::CpuFreqCollector, disk::DiskCollector,
+        host::HostCollector, interrupts::InterruptsCollector, network::NetworkCollector,
     },
     diff,
     finding::{Finding, Severity},
     llm::LlmOutput,
     redact::Redactor,
     renderer,
-    rule::{builtin::builtin_rules, RuleEngine},
+    rule::{RuleEngine, builtin::builtin_rules},
     workload::load_workload_rules,
-    Analysis, AnalysisReport, Command, Config, Context, Renderer, ThreadRunner,
 };
 #[cfg(feature = "bpf")]
 use crate::{collector::bpf::BpfCollector, rule::builtin::bpf_rules};
-use anyhow::{anyhow, Context as _};
+use anyhow::{Context as _, anyhow};
 use clap::Parser;
 use comfy_table::Table;
 use indicatif::{ProgressBar, ProgressStyle};
@@ -152,9 +151,7 @@ pub enum Subcommand {
     },
     /// Print the definition, what raises it, what to investigate, and links for a rule or signal ID.
     /// When the ID is unknown, lists all known rule IDs.
-    Explain {
-        id: String,
-    },
+    Explain { id: String },
 }
 
 #[derive(Debug, clap::Subcommand)]
@@ -528,8 +525,8 @@ fn generate_flamegraph(duration_secs: u64, use_bpf: bool) -> anyhow::Result<Opti
 }
 
 fn generate_svg_from_perf_script(perf_output: &[u8]) -> anyhow::Result<Option<String>> {
-    use inferno::collapse::perf::{Folder, Options as CollapseOpts};
     use inferno::collapse::Collapse;
+    use inferno::collapse::perf::{Folder, Options as CollapseOpts};
     use inferno::flamegraph;
 
     let mut collapsed = Vec::new();
@@ -545,7 +542,7 @@ fn generate_svg_from_perf_script(perf_output: &[u8]) -> anyhow::Result<Option<St
     }
 
     let mut svg = Vec::new();
-    flamegraph::from_lines(&mut flamegraph::Options::default(), lines.into_iter(), &mut svg)
+    flamegraph::from_lines(&mut flamegraph::Options::default(), lines, &mut svg)
         .context("inferno flamegraph failed")?;
     Ok(Some(String::from_utf8(svg)?))
 }
@@ -557,7 +554,10 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> anyhow::Re
     // Create renderer early to detect misconfiguration early (skip for LLM path)
     let writer = output_writer(&opt.output_file)?;
     let renderer = if opt.output != OutputType::Llm {
-        Some(create_renderer::<Box<dyn Write + Send>>(&opt.output, opt.output_template.as_ref())?)
+        Some(create_renderer::<Box<dyn Write + Send>>(
+            &opt.output,
+            opt.output_template.as_ref(),
+        )?)
     } else {
         None
     };
@@ -587,8 +587,8 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> anyhow::Re
         all_rules.extend(bpf_rules());
     }
     // Phase 8: merge workload-specific rules when --workload is set to a known pack.
-    let workload_rules = load_workload_rules(&opt.workload)
-        .with_context(|| format!("invalid --workload value '{}'", opt.workload))?;
+    let workload_rules =
+        load_workload_rules(&opt.workload).with_context(|| format!("invalid --workload value '{}'", opt.workload))?;
     all_rules.extend(workload_rules);
     let rule_engine = RuleEngine::new(all_rules);
 

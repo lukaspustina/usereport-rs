@@ -15,7 +15,7 @@ use crate::signal::{Signal, SignalValue, Unit};
 /// Histogram-producing tools and event-tracing tools bundled as a single collector.
 pub const TOOLS: &[&str] = &["runqlat", "biolatency", "tcpretrans", "execsnoop", "cachestat"];
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct BpfCollector;
 
 impl BpfCollector {
@@ -66,10 +66,7 @@ fn run_histogram_tool(tool: &str, now: chrono::DateTime<Local>) -> Option<Signal
         _ => return None, // tcpretrans, execsnoop — event-based, no histogram
     };
 
-    let output = std::process::Command::new(tool)
-        .args(args)
-        .output()
-        .ok()?;
+    let output = std::process::Command::new(tool).args(args).output().ok()?;
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     let samples = parse_histogram_usecs(&stdout)?;
@@ -100,11 +97,17 @@ pub fn parse_histogram_usecs(output: &str) -> Option<Vec<f64>> {
     for line in output.lines() {
         // Skip non-bucket lines (header, blank, distribution bar-only).
         let Some(arrow) = line.find("->") else { continue };
-        let Some(colon_off) = line[arrow..].find(':') else { continue };
+        let Some(colon_off) = line[arrow..].find(':') else {
+            continue;
+        };
         let colon = arrow + colon_off;
 
-        let Ok(lo) = line[..arrow].trim().parse::<f64>() else { continue };
-        let Ok(hi) = line[arrow + 2..colon].trim().parse::<f64>() else { continue };
+        let Ok(lo) = line[..arrow].trim().parse::<f64>() else {
+            continue;
+        };
+        let Ok(hi) = line[arrow + 2..colon].trim().parse::<f64>() else {
+            continue;
+        };
         let count_str = line[colon + 1..].split('|').next().map(str::trim).unwrap_or("");
         let Ok(count) = count_str.parse::<u64>() else { continue };
 

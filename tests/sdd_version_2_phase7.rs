@@ -42,7 +42,7 @@ fn ac_phase7_4b_sample_stats_p99_consistent() {
 fn ac_phase7_4c_rule_p99_suffix_fires() {
     use usereport::collector::CollectCtx;
     use usereport::finding::Severity;
-    use usereport::rule::{parse_rules_toml, RuleEngine};
+    use usereport::rule::{RuleEngine, parse_rules_toml};
 
     let toml = r#"
 [[rule]]
@@ -68,7 +68,7 @@ suggest = []
 #[test]
 fn ac_phase7_4d_rule_p99_suffix_no_fire_when_below() {
     use usereport::collector::CollectCtx;
-    use usereport::rule::{parse_rules_toml, RuleEngine};
+    use usereport::rule::{RuleEngine, parse_rules_toml};
 
     let toml = r#"
 [[rule]]
@@ -91,9 +91,9 @@ suggest = []
 // findings for missing tools. These tests only compile with feature "bpf".
 #[cfg(feature = "bpf")]
 mod bpf_tests {
-    use usereport::collector::{bpf::BpfCollector, CollectCtx, Collector};
+    use usereport::collector::{CollectCtx, bpf::BpfCollector};
     use usereport::finding::Severity;
-    use usereport::rule::{builtin::bpf_rules, RuleEngine};
+    use usereport::rule::{RuleEngine, builtin::bpf_rules};
     use usereport::signal::SignalValue;
 
     // AC 2 — BpfCollector produces bpf.<tool>.available = false for all tools
@@ -107,10 +107,7 @@ mod bpf_tests {
 
         // At least some signals — may be mix of true/false depending on host.
         // On CI (macOS/Linux without bpftrace) all should be false.
-        let availability: Vec<_> = signals
-            .iter()
-            .filter(|s| s.id.ends_with(".available"))
-            .collect();
+        let availability: Vec<_> = signals.iter().filter(|s| s.id.ends_with(".available")).collect();
         assert_eq!(
             availability.len(),
             5,
@@ -131,8 +128,8 @@ mod bpf_tests {
     // AC 3 — bpf_rules() + missing availability signals → one Info finding per tool.
     #[test]
     fn ac_phase7_3_bpf_rules_produce_info_findings_for_missing_tools() {
-        use usereport::collector::CollectCtx;
         use chrono::Local;
+        use usereport::collector::CollectCtx;
 
         let tools = ["runqlat", "biolatency", "tcpretrans", "execsnoop", "cachestat"];
 

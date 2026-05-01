@@ -8,7 +8,7 @@ use chrono::Local;
 use crate::collector::{CollectCtx, Result};
 use crate::signal::{Signal, SignalValue, Unit};
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct HostCollector;
 
 impl HostCollector {
