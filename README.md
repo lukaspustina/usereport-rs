@@ -17,9 +17,15 @@ It follows Brendan Gregg's [USE methodology](http://www.brendangregg.com/usemeth
 </p>
 
 ```sh
-cargo binstall usereport-rs                          # install
-usereport                                            # structured report to stdout
-usereport --output llm --redact | your-ai "diagnose" # pipe redacted context to any LLM
+cargo binstall usereport-rs                                        # install
+
+# On the burning server — capture everything in 60 seconds
+usereport --output json -O incident.json                           # structured snapshot
+
+# Back at your desk — render and diagnose without touching the server again
+usereport convert incident.json --output html -O report.html       # share with your team
+usereport convert incident.json --output llm --redact \
+  | your-ai "diagnose this and suggest fixes"                      # let the LLM drive
 ```
 
 ---
@@ -73,6 +79,7 @@ The core insight: a `cpu.freq_ratio` of 0.41 only looks wrong if you know it's u
 - [Platform support](#platform-support)
 - [Installation](#installation)
 - [Output formats](#output-formats)
+- [Convert: re-render a saved report](#convert-re-render-a-saved-report)
 - [Configuration](#configuration)
 - [Exit codes](#exit-codes)
 - [Baselines and drift](#baselines-and-drift)
@@ -677,13 +684,52 @@ macOS support focuses on the signals available without root via native commands.
 
 ## Installation
 
-### Pre-built binary (fastest)
+### Homebrew (macOS and Linux)
+
+```sh
+brew tap lukaspustina/usereport-rs https://github.com/lukaspustina/usereport-rs
+brew install lukaspustina/usereport-rs/usereport-rs
+```
+
+The formula lives in the `Formula/` directory of the main repository (not a separate `homebrew-` repo), so Homebrew needs the explicit URL on the first tap. Updated automatically on every release.
+
+### Debian / Ubuntu (amd64 and arm64)
+
+`.deb` packages are attached to every [GitHub Release](https://github.com/lukaspustina/usereport-rs/releases). The filename includes the version, so the easiest way to grab the latest is:
+
+```sh
+# amd64
+curl -s https://api.github.com/repos/lukaspustina/usereport-rs/releases/latest \
+  | grep browser_download_url \
+  | grep amd64.deb \
+  | cut -d'"' -f4 \
+  | xargs curl -LO
+sudo dpkg -i usereport-rs_*_amd64.deb
+
+# arm64
+curl -s https://api.github.com/repos/lukaspustina/usereport-rs/releases/latest \
+  | grep browser_download_url \
+  | grep arm64.deb \
+  | cut -d'"' -f4 \
+  | xargs curl -LO
+sudo dpkg -i usereport-rs_*_arm64.deb
+```
+
+Or pin a specific version directly:
+
+```sh
+VERSION=0.2.0
+curl -LO https://github.com/lukaspustina/usereport-rs/releases/download/v${VERSION}/usereport-rs_${VERSION}_amd64.deb
+sudo dpkg -i usereport-rs_${VERSION}_amd64.deb
+```
+
+### cargo binstall
 
 ```sh
 cargo binstall usereport-rs
 ```
 
-Or grab a binary for your platform from the [Releases page](https://github.com/lukaspustina/usereport-rs/releases). Packages for Linux (`x86_64-musl`, `aarch64-musl`) and macOS (`aarch64`) are built on every release. A Homebrew tap and `.deb` package are also available.
+Fetches the pre-built binary for your platform without compiling. Requires [cargo-binstall](https://github.com/cargo-bins/cargo-binstall).
 
 ### From source
 
@@ -727,6 +773,38 @@ Write the output to a file with `-O <path>`:
 ```sh
 usereport --output html -O /tmp/$(hostname)-$(date +%s).html
 ```
+
+---
+
+## Convert: re-render a saved report
+
+`usereport convert` reads a JSON report produced by `--output json` and re-renders it in any format — without re-running a single command.
+
+**When to use it:**
+
+- You captured JSON during an incident but want HTML to share with your team now.
+- You ran `usereport` on an air-gapped server and want to pipe the LLM output on your laptop.
+- A cron job archives JSON snapshots nightly; you want to render them on demand.
+- The server is already back to normal — but you still have the raw data.
+
+```sh
+# Capture the data once, on the server (or in a cron job)
+usereport --output json -O /var/log/usereport/$(date +%Y%m%dT%H%M%S).json
+
+# Later — render as HTML to share with your team
+usereport convert /var/log/usereport/20260502T031500.json --output html -O report.html
+
+# Or feed it to an LLM on a different machine
+usereport convert incident.json --output llm --redact | your-ai-cli "diagnose this"
+
+# Or pipe between tools (reads stdin when no file is given)
+cat incident.json | usereport convert --output markdown
+
+# Or re-render with your own template
+usereport convert incident.json --output template --output-template custom.j2 -O custom.html
+```
+
+All formats are available: `markdown`, `html`, `json`, `llm`, `template`. The `--redact` flag only applies when `--output llm` — it HMAC-hashes hostnames, IPs, and MACs before output.
 
 ---
 
