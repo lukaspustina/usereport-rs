@@ -15,7 +15,10 @@ use crate::{
 };
 #[cfg(feature = "bpf")]
 use crate::{collector::bpf::BpfCollector, rule::builtin::bpf_rules};
-use clap::Parser;
+use clap::{
+    Parser,
+    builder::styling::{AnsiColor, Effects, Styles},
+};
 use comfy_table::Table;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use miette::{Context as _, IntoDiagnostic as _, miette};
@@ -32,11 +35,21 @@ use termimad;
 
 pub mod config;
 
+const HELP_STYLES: Styles = Styles::styled()
+    .header(AnsiColor::BrightGreen.on_default().effects(Effects::BOLD))
+    .usage(AnsiColor::BrightGreen.on_default().effects(Effects::BOLD))
+    .literal(AnsiColor::BrightCyan.on_default().effects(Effects::BOLD))
+    .placeholder(AnsiColor::BrightCyan.on_default())
+    .error(AnsiColor::BrightRed.on_default().effects(Effects::BOLD))
+    .valid(AnsiColor::BrightGreen.on_default())
+    .invalid(AnsiColor::BrightYellow.on_default());
+
 #[derive(Debug, Parser)]
 #[command(
     author,
     about,
-    after_help = "Set RUST_LOG=debug for verbose output, e.g.: RUST_LOG=debug usereport"
+    after_help = "Set RUST_LOG=debug for verbose output, e.g.: RUST_LOG=debug usereport",
+    styles = HELP_STYLES,
 )]
 pub struct Opt {
     /// Configuration from file, or default if not present
@@ -467,9 +480,12 @@ fn run_check(config: &Config, profile_filter: Option<&str>) -> miette::Result<()
         checks.push(("collectors".into(), "vm_stat".into(), "vm_stat".into()));
     }
 
-    // CPU profiling tools (--profile-cpu)
-    checks.push(("profiling".into(), "perf".into(), "perf".into()));
-    checks.push(("profiling".into(), "bpftrace".into(), "bpftrace".into()));
+    // CPU profiling tools — Linux only
+    #[cfg(target_os = "linux")]
+    {
+        checks.push(("profiling".into(), "perf".into(), "perf".into()));
+        checks.push(("profiling".into(), "bpftrace".into(), "bpftrace".into()));
+    }
 
     // eBPF tools (--bpf)
     #[cfg(feature = "bpf")]
@@ -513,19 +529,10 @@ pub fn run_check_inner(
     let mut last_category = String::new();
     for (category, name, binary) in checks {
         let found = which::which(binary).is_ok() || std::path::Path::new(binary.as_str()).exists();
-        let status_cell = if is_tty {
-            if found {
-                Cell::new("\x1b[32mok\x1b[0m")
-            } else {
-                missing += 1;
-                Cell::new("\x1b[31mMISSING\x1b[0m")
-            }
-        } else if found {
-            Cell::new("ok")
-        } else {
+        if !found {
             missing += 1;
-            Cell::new("MISSING")
-        };
+        }
+        let status_str = if found { "ok" } else { "MISSING" };
         // Show category only on the first row of each group
         let category_cell = if *category != last_category {
             last_category.clone_from(category);
@@ -535,9 +542,18 @@ pub fn run_check_inner(
         };
         // Omit binary when it's identical to the command name
         let binary_cell = if binary == name { Cell::new("") } else { Cell::new(binary) };
-        table.add_row(vec![category_cell, Cell::new(name), binary_cell, status_cell]);
+        table.add_row(vec![category_cell, Cell::new(name), binary_cell, Cell::new(status_str)]);
     }
-    writeln!(out, "{table}").into_diagnostic()?;
+    // comfy_table measures raw bytes for column widths, so ANSI in cell content inflates the
+    // status column. Render plain, then inject color codes in a post-processing pass.
+    let rendered = format!("{table}");
+    let rendered = if is_tty {
+        let colored = regex::Regex::new(r"\bok\b( +│)").unwrap().replace_all(&rendered, "\x1b[32mok\x1b[0m$1").into_owned();
+        regex::Regex::new(r"\bMISSING\b( *│)").unwrap().replace_all(&colored, "\x1b[31mMISSING\x1b[0m$1").into_owned()
+    } else {
+        rendered
+    };
+    writeln!(out, "{rendered}").into_diagnostic()?;
     Ok(missing)
 }
 
