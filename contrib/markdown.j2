@@ -6,6 +6,10 @@
 *{{ key }}:* {{ value }}
 {% endfor -%}
 *Repetitions:* {{ repetitions }} · *Parallelism:* {{ max_parallel_commands }}
+{%- if findings %}
+
+> **{{ findings[0].severity }}** — {{ findings[0].summary }}
+{%- endif %}
 
 ## Host Information
 
