@@ -38,6 +38,41 @@ No daemons. No agents. No cloud. One binary, one command.
 
 ---
 
+## Contents
+
+- [Demo](#demo)
+  - [Findings in Markdown](#findings-in-markdown-default-output)
+  - [Signals and findings as JSON](#signals-and-findings-as-json)
+  - [Exit code in CI](#exit-code-in-ci)
+  - [Explain any finding or signal](#explain-any-finding-or-signal)
+  - [LLM-ready output with redaction](#llm-ready-output-with-redaction)
+  - [Baseline comparison](#baseline-comparison)
+  - [Diff two runs](#diff-two-runs)
+- [Real-world scenarios](#real-world-scenarios)
+  - [Scenario A — TIME_WAIT exhaustion on a busy API gateway](#scenario-a--time_wait-exhaustion-on-a-busy-api-gateway)
+  - [Scenario B — OOM kills taking down a Java service](#scenario-b--oom-kills-taking-down-a-java-service)
+  - [Scenario C — CPU thermal throttling silently killing a batch job](#scenario-c--cpu-thermal-throttling-silently-killing-a-batch-job)
+- [Features](#features)
+  - [Direct kernel signal collection](#direct-kernel-signal-collection-_linux_)
+  - [Rule engine with a predicate DSL](#rule-engine-with-a-predicate-dsl)
+  - [Pattern correlator](#pattern-correlator)
+  - [Baselines and drift detection](#baselines-and-drift-detection)
+  - [Workload-aware rules](#workload-aware-rules)
+  - [eBPF collectors](#ebpf-collectors-opt-in-linux)
+  - [CPU flamegraph, inline](#cpu-flamegraph-inline-_linux_)
+  - [LLM-ready output](#llm-ready-output)
+  - [`explain`](#explain--know-what-youre-looking-at)
+- [Installation](#installation)
+- [Quick start](#quick-start)
+- [Output formats](#output-formats)
+- [Configuration](#configuration)
+- [Exit codes](#exit-codes)
+- [Baselines and drift](#baselines-and-drift)
+- [As a library](#as-a-library)
+- [Contributing](#contributing)
+
+---
+
 ## Demo
 
 ### Findings in Markdown (default output)
