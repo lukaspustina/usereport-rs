@@ -29,8 +29,5 @@ commands = ["vmstat"]
     let result = config.validate();
     assert!(result.is_err(), "validate must fail for missing (?P<val>...)");
     let err = result.unwrap_err().to_string();
-    assert!(
-        err.contains("vmstat"),
-        "error must mention command 'vmstat': {err}"
-    );
+    assert!(err.contains("vmstat"), "error must mention command 'vmstat': {err}");
 }

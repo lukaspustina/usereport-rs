@@ -5,11 +5,11 @@
 //! THEN the output contains href="#cmd-iostat" and does not contain the bare string
 //!   "iostat -x 1 5" outside an anchor tag.
 
+use usereport::Renderer;
 use usereport::analysis::{AnalysisReport, Context};
 use usereport::command::{Command, CommandResult};
 use usereport::finding::{Finding, FindingKind, Severity};
 use usereport::renderer::TemplateRenderer;
-use usereport::Renderer;
 
 const HTML: &str = include_str!("../contrib/html.j2");
 

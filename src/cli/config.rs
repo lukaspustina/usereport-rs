@@ -30,7 +30,11 @@ pub enum Error {
     InvalidConfig { reason: &'static str },
     /// An extract pattern in a command definition is invalid
     #[error("command '{command}': invalid extract pattern '{pattern}': {reason}")]
-    InvalidExtractPattern { command: String, pattern: String, reason: String },
+    InvalidExtractPattern {
+        command: String,
+        pattern: String,
+        reason: String,
+    },
 }
 
 /// Result type
@@ -178,9 +182,7 @@ impl Config {
                         });
                     }
                     Ok(_) => {
-                        if extract.aggregate != Aggregate::Count
-                            && !extract.pattern.contains("(?P<val>")
-                        {
+                        if extract.aggregate != Aggregate::Count && !extract.pattern.contains("(?P<val>") {
                             return Err(Error::InvalidExtractPattern {
                                 command: cmd.name().to_string(),
                                 pattern: extract.pattern.clone(),

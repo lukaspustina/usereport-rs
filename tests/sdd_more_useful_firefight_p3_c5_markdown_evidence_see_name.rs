@@ -3,11 +3,11 @@
 //! WHEN the template renders
 //! THEN the evidence line contains the substring "(see: iostat)".
 
+use usereport::Renderer;
 use usereport::analysis::{AnalysisReport, Context};
 use usereport::finding::{Evidence, Finding, FindingKind, Severity};
 use usereport::renderer::TemplateRenderer;
 use usereport::signal::SignalValue;
-use usereport::Renderer;
 
 const MARKDOWN: &str = include_str!("../contrib/markdown.j2");
 
@@ -25,16 +25,8 @@ fn markdown_evidence_appends_see_source_command_name() {
         }],
         suggest: vec![],
     };
-    let report = AnalysisReport::new_with_diagnostics(
-        Context::new(),
-        vec![],
-        vec![],
-        1,
-        64,
-        vec![],
-        vec![finding],
-        vec![],
-    );
+    let report =
+        AnalysisReport::new_with_diagnostics(Context::new(), vec![], vec![], 1, 64, vec![], vec![finding], vec![]);
     let renderer = TemplateRenderer::new(MARKDOWN);
     let mut out = Vec::new();
     renderer.render(&report, &mut out).expect("render ok");

@@ -3,9 +3,9 @@
 //! WHEN the HTML report renders
 //! THEN the output contains "Healthy" and "cpu.iowait_pct".
 
+use usereport::Renderer;
 use usereport::analysis::{AnalysisReport, Context};
 use usereport::renderer::TemplateRenderer;
-use usereport::Renderer;
 
 const HTML: &str = include_str!("../contrib/html.j2");
 

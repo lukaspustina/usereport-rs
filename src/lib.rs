@@ -58,9 +58,9 @@ pub use analysis::{Analysis, AnalysisReport, Context};
 #[cfg(feature = "bin")]
 pub use cli::config::Config;
 pub use command::{Command, CommandResult};
-pub use report_context::UseDimension;
 pub use finding::{Evidence, Finding, FindingKind, Severity, ThresholdInfo};
 pub use renderer::{JsonRenderer, Renderer, TemplateRenderer};
+pub use report_context::UseDimension;
 pub use runner::{Runner, ThreadRunner};
 pub use signal::{Signal, SignalValue, Unit};
 

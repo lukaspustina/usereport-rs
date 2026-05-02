@@ -4,11 +4,11 @@
 //! THEN the threshold column row for cpu.iowait_pct contains "20" and "warn".
 
 use std::collections::HashMap;
+use usereport::Renderer;
 use usereport::analysis::{AnalysisReport, Context, ThresholdInfo};
 use usereport::finding::Severity;
 use usereport::renderer::TemplateRenderer;
 use usereport::signal::{Signal, SignalValue, Unit};
-use usereport::Renderer;
 
 const HTML: &str = include_str!("../contrib/html.j2");
 

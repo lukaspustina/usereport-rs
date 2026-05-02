@@ -3,24 +3,15 @@
 //! WHEN the HTML report renders
 //! THEN the output does NOT contain the string "usereport diff".
 
+use usereport::Renderer;
 use usereport::analysis::{AnalysisReport, Context};
 use usereport::renderer::TemplateRenderer;
-use usereport::Renderer;
 
 const HTML: &str = include_str!("../contrib/html.j2");
 
 #[test]
 fn no_diff_tip_in_html_when_findings_empty() {
-    let report = AnalysisReport::new_with_diagnostics(
-        Context::new(),
-        vec![],
-        vec![],
-        1,
-        64,
-        vec![],
-        vec![],
-        vec![],
-    );
+    let report = AnalysisReport::new_with_diagnostics(Context::new(), vec![], vec![], 1, 64, vec![], vec![], vec![]);
     let renderer = TemplateRenderer::new(HTML);
     let mut out = Vec::new();
     renderer.render(&report, &mut out).expect("render ok");

@@ -3,9 +3,9 @@
 //! WHEN use_coverage is computed
 //! THEN all 3 entries with resource = Network have covered = false.
 
+use usereport::UseDimension;
 use usereport::analysis::compute_use_coverage;
 use usereport::command::{Command, CommandResult};
-use usereport::UseDimension;
 
 fn skipped_with_dim(name: &str, resource: &str, aspect: &str) -> CommandResult {
     let cmd = Command::new(name, name).with_use_dimension(UseDimension {
@@ -26,10 +26,7 @@ fn use_coverage_network_all_skipped_is_not_covered() {
         skipped_with_dim("sar_edev", "network", "errors"),
     ];
     let coverage = compute_use_coverage(&results);
-    let net_entries: Vec<_> = coverage
-        .iter()
-        .filter(|e| e.resource == "network")
-        .collect();
+    let net_entries: Vec<_> = coverage.iter().filter(|e| e.resource == "network").collect();
     assert_eq!(net_entries.len(), 3, "must have 3 network entries");
     for e in net_entries {
         assert!(

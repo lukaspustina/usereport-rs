@@ -445,8 +445,7 @@ fn run_subcommand(cmd: &Subcommand) -> miette::Result<()> {
         Subcommand::Baseline { action } => run_baseline(action),
         Subcommand::Diff { a, b, output } => run_diff(a, b, output),
         Subcommand::Explain { id } => {
-            let config = Config::from_str(defaults::CONFIG)
-                .expect("builtin default config is always valid");
+            let config = Config::from_str(defaults::CONFIG).expect("builtin default config is always valid");
             run_explain(id, &config)
         }
         Subcommand::Check { .. } => unreachable!("Check is handled before run_subcommand"),
@@ -684,7 +683,12 @@ pub fn run_explain_command(cmd: &crate::command::Command, _is_tty: bool, out: &m
     }
     for extract in cmd.extract() {
         writeln!(out).into_diagnostic()?;
-        writeln!(out, "Extract: {} ({:?} {:?}) pattern={}", extract.signal_id, extract.aggregate, extract.unit, extract.pattern).into_diagnostic()?;
+        writeln!(
+            out,
+            "Extract: {} ({:?} {:?}) pattern={}",
+            extract.signal_id, extract.aggregate, extract.unit, extract.pattern
+        )
+        .into_diagnostic()?;
     }
     if let Some(links) = cmd.links.as_deref() {
         if !links.is_empty() {
@@ -933,11 +937,7 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> miette::Re
     drop(analysis);
 
     // Compute at-a-glance overview fields.
-    let first_results: Vec<_> = report
-        .command_results()
-        .first()
-        .map(|v| v.to_vec())
-        .unwrap_or_default();
+    let first_results: Vec<_> = report.command_results().first().map(|v| v.to_vec()).unwrap_or_default();
     report.vital_signs = compute_vital_signs(report.signals(), report.findings());
     report.use_coverage = compute_use_coverage(&first_results);
     if let Ok(profile) = config.profile(profile_name) {

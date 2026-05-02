@@ -5,12 +5,12 @@
 //! THEN the iostat and sar_dev sections appear before the <details> block,
 //!   and df and free appear inside <details>.
 
+use usereport::Renderer;
 use usereport::analysis::{AnalysisReport, Context};
 use usereport::command::{Command, CommandResult};
 use usereport::finding::{Evidence, Finding, FindingKind, Severity};
 use usereport::renderer::TemplateRenderer;
 use usereport::signal::SignalValue;
-use usereport::Renderer;
 
 const HTML: &str = include_str!("../contrib/html.j2");
 

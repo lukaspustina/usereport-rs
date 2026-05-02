@@ -4,9 +4,9 @@
 //! THEN findings contains one entry and checked_ok does NOT contain "cpu.iowait_pct".
 
 use std::collections::HashMap;
-use usereport::rule::{Op, Predicate, Rhs, Rule, RuleEngine, Value};
 use usereport::collector::CollectCtx;
 use usereport::finding::Severity;
+use usereport::rule::{Op, Predicate, Rhs, Rule, RuleEngine, Value};
 use usereport::signal::{Signal, SignalValue, Unit};
 
 fn make_signal(id: &str, value: f64) -> Signal {

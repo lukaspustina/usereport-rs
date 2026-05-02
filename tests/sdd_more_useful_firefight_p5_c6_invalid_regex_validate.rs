@@ -29,9 +29,6 @@ commands = ["vmstat"]
     let result = config.validate();
     assert!(result.is_err(), "validate must fail for invalid regex");
     let err = result.unwrap_err().to_string();
-    assert!(
-        err.contains("vmstat"),
-        "error must mention command 'vmstat': {err}"
-    );
+    assert!(err.contains("vmstat"), "error must mention command 'vmstat': {err}");
     assert!(err.contains('['), "error must mention pattern '[': {err}");
 }

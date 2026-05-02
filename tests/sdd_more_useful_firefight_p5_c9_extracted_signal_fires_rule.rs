@@ -5,10 +5,10 @@
 
 use std::collections::HashMap;
 use usereport::cli::config::{Aggregate, CommandExtract};
-use usereport::extract::extract_signals;
-use usereport::rule::{Op, Predicate, Rhs, Rule, RuleEngine, Value};
 use usereport::collector::CollectCtx;
+use usereport::extract::extract_signals;
 use usereport::finding::Severity;
+use usereport::rule::{Op, Predicate, Rhs, Rule, RuleEngine, Value};
 use usereport::signal::Unit;
 
 #[test]

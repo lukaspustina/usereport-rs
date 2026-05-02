@@ -3,11 +3,11 @@
 //! WHEN the HTML template renders the finding
 //! THEN the evidence line contains href="#cmd-iostat".
 
+use usereport::Renderer;
 use usereport::analysis::{AnalysisReport, Context};
 use usereport::finding::{Evidence, Finding, FindingKind, Severity};
 use usereport::renderer::TemplateRenderer;
 use usereport::signal::SignalValue;
-use usereport::Renderer;
 
 const HTML: &str = include_str!("../contrib/html.j2");
 
@@ -25,16 +25,8 @@ fn html_evidence_renders_href_to_command() {
         }],
         suggest: vec![],
     };
-    let report = AnalysisReport::new_with_diagnostics(
-        Context::new(),
-        vec![],
-        vec![],
-        1,
-        64,
-        vec![],
-        vec![finding],
-        vec![],
-    );
+    let report =
+        AnalysisReport::new_with_diagnostics(Context::new(), vec![], vec![], 1, 64, vec![], vec![finding], vec![]);
     let renderer = TemplateRenderer::new(HTML);
     let mut out = Vec::new();
     renderer.render(&report, &mut out).expect("render ok");

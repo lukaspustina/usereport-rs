@@ -4,9 +4,9 @@
 //! THEN finding.evidence[0].source_commands equals ["sar_cpu"].
 
 use std::collections::HashMap;
-use usereport::rule::{Op, Predicate, Rhs, Rule, RuleEngine, Value};
 use usereport::collector::CollectCtx;
 use usereport::finding::Severity;
+use usereport::rule::{Op, Predicate, Rhs, Rule, RuleEngine, Value};
 use usereport::signal::{Signal, SignalValue, Unit};
 
 fn make_signal(id: &str, value: f64) -> Signal {

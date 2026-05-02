@@ -3,10 +3,10 @@
 //! WHEN the HTML template renders the command section heading
 //! THEN the heading element contains id="cmd-iostat".
 
+use usereport::Renderer;
 use usereport::analysis::{AnalysisReport, Context};
 use usereport::command::{Command, CommandResult};
 use usereport::renderer::TemplateRenderer;
-use usereport::Renderer;
 
 const HTML: &str = include_str!("../contrib/html.j2");
 

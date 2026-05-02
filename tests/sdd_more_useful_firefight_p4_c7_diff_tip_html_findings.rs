@@ -3,10 +3,10 @@
 //! WHEN the HTML report renders
 //! THEN the output contains the string "usereport diff".
 
+use usereport::Renderer;
 use usereport::analysis::{AnalysisReport, Context};
 use usereport::finding::{Finding, FindingKind, Severity};
 use usereport::renderer::TemplateRenderer;
-use usereport::Renderer;
 
 const HTML: &str = include_str!("../contrib/html.j2");
 
@@ -20,16 +20,8 @@ fn diff_tip_in_html_when_findings_non_empty() {
         evidence: vec![],
         suggest: vec![],
     };
-    let report = AnalysisReport::new_with_diagnostics(
-        Context::new(),
-        vec![],
-        vec![],
-        1,
-        64,
-        vec![],
-        vec![finding],
-        vec![],
-    );
+    let report =
+        AnalysisReport::new_with_diagnostics(Context::new(), vec![], vec![], 1, 64, vec![], vec![finding], vec![]);
     let renderer = TemplateRenderer::new(HTML);
     let mut out = Vec::new();
     renderer.render(&report, &mut out).expect("render ok");

@@ -3,10 +3,10 @@
 //! WHEN the HTML Coverage Gaps section renders
 //! THEN the output contains the string "findings may be incomplete".
 
+use usereport::Renderer;
 use usereport::analysis::{AnalysisReport, Context};
 use usereport::command::{Command, CommandResult};
 use usereport::renderer::TemplateRenderer;
-use usereport::Renderer;
 
 const HTML: &str = include_str!("../contrib/html.j2");
 

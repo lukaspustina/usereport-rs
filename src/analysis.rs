@@ -10,7 +10,9 @@ use crate::{
 };
 
 pub use crate::finding::ThresholdInfo;
-pub use crate::report_context::{CpuVitalSigns, DiskVitalSigns, MemoryVitalSigns, NetworkVitalSigns, ProfileFollowup, UseCoverageEntry, VitalSigns};
+pub use crate::report_context::{
+    CpuVitalSigns, DiskVitalSigns, MemoryVitalSigns, NetworkVitalSigns, ProfileFollowup, UseCoverageEntry, VitalSigns,
+};
 
 use chrono::{DateTime, Local};
 use serde::{Deserialize, Serialize};

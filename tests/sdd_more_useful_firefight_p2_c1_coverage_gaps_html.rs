@@ -3,10 +3,10 @@
 //! WHEN a report is generated with HTML output
 //! THEN the rendered output contains "Coverage Gaps" and "sar_cpu".
 
+use usereport::Renderer;
 use usereport::analysis::{AnalysisReport, Context};
 use usereport::command::{Command, CommandResult};
 use usereport::renderer::TemplateRenderer;
-use usereport::Renderer;
 
 const HTML: &str = include_str!("../contrib/html.j2");
 

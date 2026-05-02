@@ -3,9 +3,9 @@
 //! WHEN use_coverage is computed
 //! THEN the entry {Network, Saturation} has covered = true.
 
+use usereport::UseDimension;
 use usereport::analysis::compute_use_coverage;
 use usereport::command::{Command, CommandResult};
-use usereport::UseDimension;
 
 #[test]
 fn use_coverage_network_saturation_covered_when_sar_tcp_succeeded() {

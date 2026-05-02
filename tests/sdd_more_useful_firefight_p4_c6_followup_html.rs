@@ -4,10 +4,10 @@
 //! WHEN the HTML report renders
 //! THEN a section appears containing "mem" and "iowait often driven by memory pressure".
 
+use usereport::Renderer;
 use usereport::analysis::{AnalysisReport, Context, ProfileFollowup};
 use usereport::finding::{Finding, FindingKind, Severity};
 use usereport::renderer::TemplateRenderer;
-use usereport::Renderer;
 
 const HTML: &str = include_str!("../contrib/html.j2");
 
@@ -21,16 +21,8 @@ fn followup_recommendation_rendered_in_html() {
         evidence: vec![],
         suggest: vec![],
     };
-    let mut report = AnalysisReport::new_with_diagnostics(
-        Context::new(),
-        vec![],
-        vec![],
-        1,
-        64,
-        vec![],
-        vec![finding],
-        vec![],
-    );
+    let mut report =
+        AnalysisReport::new_with_diagnostics(Context::new(), vec![], vec![], 1, 64, vec![], vec![finding], vec![]);
     report.followup_recommendations = vec![ProfileFollowup {
         finding: "cpu.iowait_elevated".to_string(),
         recommend: "mem".to_string(),

@@ -3,25 +3,17 @@
 //! WHEN the HTML report renders
 //! THEN the CPU vital signs line contains "23" and "WARN".
 
+use usereport::Renderer;
 use usereport::analysis::{AnalysisReport, Context, CpuVitalSigns, VitalSigns};
 use usereport::finding::Severity;
 use usereport::renderer::TemplateRenderer;
-use usereport::Renderer;
 
 const HTML: &str = include_str!("../contrib/html.j2");
 
 #[test]
 fn vital_signs_cpu_rendered_in_html() {
-    let mut report = AnalysisReport::new_with_diagnostics(
-        Context::new(),
-        vec![],
-        vec![],
-        1,
-        64,
-        vec![],
-        vec![],
-        vec![],
-    );
+    let mut report =
+        AnalysisReport::new_with_diagnostics(Context::new(), vec![], vec![], 1, 64, vec![], vec![], vec![]);
     report.vital_signs = VitalSigns {
         cpu: CpuVitalSigns {
             iowait_pct: Some(23.4),

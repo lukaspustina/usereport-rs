@@ -3,24 +3,15 @@
 //! WHEN the HTML report renders the Network vital signs line
 //! THEN the line contains "[not profiled]".
 
+use usereport::Renderer;
 use usereport::analysis::{AnalysisReport, Context};
 use usereport::renderer::TemplateRenderer;
-use usereport::Renderer;
 
 const HTML: &str = include_str!("../contrib/html.j2");
 
 #[test]
 fn html_network_vital_signs_not_profiled_when_no_data() {
-    let report = AnalysisReport::new_with_diagnostics(
-        Context::new(),
-        vec![],
-        vec![],
-        1,
-        64,
-        vec![],
-        vec![],
-        vec![],
-    );
+    let report = AnalysisReport::new_with_diagnostics(Context::new(), vec![], vec![], 1, 64, vec![], vec![], vec![]);
     // vital_signs defaults to all-None, so network shows [not profiled]
     let renderer = TemplateRenderer::new(HTML);
     let mut out = Vec::new();
