@@ -60,7 +60,7 @@
 {% if f.evidence -%}
 **Evidence**
 {% for e in f.evidence -%}
-- `{{ e.signal_id }}` = `{{ e.observed }}`
+- `{{ e.signal_id }}` = `{{ e.observed }}`{% for sc in e.source_commands %} (see: {{ sc }}){% endfor %}
 {% endfor %}
 {% endif -%}
 {% if f.suggest -%}

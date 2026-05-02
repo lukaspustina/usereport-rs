@@ -108,6 +108,16 @@ impl Collector for NetworkCollector {
         "network"
     }
 
+    #[cfg(target_os = "linux")]
+    fn source_commands(&self) -> &[&str] {
+        &["sar_dev", "sar_tcp", "sar_edev", "ss_all_tcp", "netstat_tcp_s"]
+    }
+
+    #[cfg(target_os = "macos")]
+    fn source_commands(&self) -> &[&str] {
+        &["sar_dev", "netstat_i", "nettop_snapshot"]
+    }
+
     fn collect(&self, _ctx: &CollectCtx) -> Result<Vec<Signal>> {
         let s1 = match read_net_snapshot() {
             Some(s) => s,

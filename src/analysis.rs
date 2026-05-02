@@ -164,9 +164,16 @@ impl<'a, I: IntoIterator<Item = &'a Command> + Copy> Analysis<'a, I> {
             cpu_count: std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1),
         };
         let mut signals: Vec<Signal> = Vec::new();
+        let mut source_map: HashMap<String, Vec<String>> = HashMap::new();
         for c in &self.collectors {
             match c.collect(&ctx) {
-                Ok(mut more) => signals.append(&mut more),
+                Ok(more) => {
+                    let cmds: Vec<String> = c.source_commands().iter().map(|s| s.to_string()).collect();
+                    for sig in &more {
+                        source_map.entry(sig.id.clone()).or_insert_with(|| cmds.clone());
+                    }
+                    signals.extend(more);
+                }
                 Err(e) => log::warn!("collector '{}' failed: {}", c.id(), e),
             }
         }
@@ -174,7 +181,7 @@ impl<'a, I: IntoIterator<Item = &'a Command> + Copy> Analysis<'a, I> {
             annotate(&mut signals, &self.baseline_records);
         }
         let (mut findings, checked_ok) = match &self.rule_engine {
-            Some(engine) => engine.run(&signals, &ctx, &HashMap::new()),
+            Some(engine) => engine.run(&signals, &ctx, &source_map),
             None => (Vec::new(), Vec::new()),
         };
         if let Some(pe) = &self.pattern_engine {

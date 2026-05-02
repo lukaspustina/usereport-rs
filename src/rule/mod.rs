@@ -467,7 +467,7 @@ impl RuleEngine {
         &self,
         signals: &[Signal],
         ctx: &CollectCtx,
-        _source_map: &HashMap<String, Vec<String>>,
+        source_map: &HashMap<String, Vec<String>>,
     ) -> (Vec<Finding>, Vec<String>) {
         let index = SignalIndex::build(signals);
         let mut findings = Vec::new();
@@ -477,7 +477,7 @@ impl RuleEngine {
                 let evidence = rule
                     .evidence_ids
                     .iter()
-                    .filter_map(|sid| evidence_for(sid, &index, ctx))
+                    .filter_map(|sid| evidence_for(sid, &index, ctx, source_map))
                     .collect();
                 findings.push(Finding {
                     id: rule.id.clone(),
@@ -542,17 +542,25 @@ fn op_to_str(op: Op) -> &'static str {
 /// Look up the observed value for an `evidence_ids` entry. Resolves both
 /// signal IDs and `host.*` paths (which come from `CollectCtx`). Entries that
 /// resolve to nothing are silently skipped.
-fn evidence_for(id: &str, index: &SignalIndex<'_>, ctx: &CollectCtx) -> Option<Evidence> {
+fn evidence_for(
+    id: &str,
+    index: &SignalIndex<'_>,
+    ctx: &CollectCtx,
+    source_map: &HashMap<String, Vec<String>>,
+) -> Option<Evidence> {
+    let source_commands = source_map.get(id).cloned().unwrap_or_default();
     if let Some(signal) = index.get(id) {
         return Some(Evidence {
             signal_id: id.to_string(),
             observed: signal.value.clone(),
+            source_commands,
         });
     }
     if id == "host.cpu_count" {
         return Some(Evidence {
             signal_id: id.to_string(),
             observed: SignalValue::I64(ctx.cpu_count as i64),
+            source_commands,
         });
     }
     None

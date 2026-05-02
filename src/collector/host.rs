@@ -19,6 +19,10 @@ impl super::Collector for HostCollector {
         "host"
     }
 
+    fn source_commands(&self) -> &[&str] {
+        &["uptime"]
+    }
+
     fn collect(&self, _ctx: &CollectCtx) -> Result<Vec<Signal>> {
         let now = Local::now();
         let cpu_count;

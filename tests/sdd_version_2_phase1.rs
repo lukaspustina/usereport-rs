@@ -330,6 +330,7 @@ fn ac_10_json_renderer_includes_signals_findings_checked_ok() {
         evidence: vec![Evidence {
             signal_id: "cpu.iowait_pct".to_string(),
             observed: SignalValue::F64(25.0),
+            source_commands: Vec::new(),
         }],
         suggest: vec!["iotop -ao".to_string()],
     };
@@ -449,6 +450,7 @@ fn markdown_template_renders_summary_and_findings_sections() {
         evidence: vec![Evidence {
             signal_id: "cpu.iowait_pct".to_string(),
             observed: SignalValue::F64(42.0),
+            source_commands: Vec::new(),
         }],
         suggest: vec!["iotop -ao".to_string()],
     };

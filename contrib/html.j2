@@ -45,6 +45,16 @@
         {% endif %}
     </ul>
 
+    {%- set ns_ev = namespace(evidence_cmds=[]) %}
+    {%- for f in findings %}
+    {%- for ev in f.evidence %}
+    {%- for cmd_name in ev.source_commands %}
+    {%- if cmd_name not in ns_ev.evidence_cmds %}
+    {%- set ns_ev.evidence_cmds = ns_ev.evidence_cmds + [cmd_name] %}
+    {%- endif %}
+    {%- endfor %}
+    {%- endfor %}
+    {%- endfor %}
     {% if findings %}
     <h2>Findings</h2>
     <ul class="list-group">
@@ -61,14 +71,29 @@
             {% if f.evidence %}
             <p><small>Evidence:
                 {% for e in f.evidence %}
-                <code>{{ e.signal_id | e }}</code> = {{ e.observed }}{% if not loop.last %}, {% endif %}
+                <code>{{ e.signal_id | e }}</code> = {{ e.observed }}
+                {%- for sc in e.source_commands %} <a href="#cmd-{{ sc | e }}">[{{ sc | e }}]</a>{%- endfor -%}
+                {%- if not loop.last %}, {% endif %}
                 {% endfor %}
             </small></p>
             {% endif %}
             {% if f.suggest %}
             <p><small>Next steps:
                 {% for cmd in f.suggest %}
-                <code>{{ cmd | e }}</code>{% if not loop.last %} · {% endif %}
+                {%- set ns_s = namespace(found_name="") %}
+                {%- for run in command_results %}
+                {%- for result in run %}
+                {%- if result.Success is defined and result.Success.command.command == cmd %}
+                {%- set ns_s.found_name = result.Success.command.name %}
+                {%- endif %}
+                {%- endfor %}
+                {%- endfor %}
+                {%- if ns_s.found_name %}
+                <a href="#cmd-{{ ns_s.found_name | e }}">{{ cmd | e }} ↓</a>
+                {%- else %}
+                <code>{{ cmd | e }}</code>
+                {%- endif %}
+                {%- if not loop.last %} · {% endif %}
                 {% endfor %}
             </small></p>
             {% endif %}
@@ -160,13 +185,32 @@
     <hr/>
 
     {% for run in command_results %}
-        <h2>Command Results - Run {{ loop.index }}</h2>
+        <h2>Command Results{% if command_results | length > 1 %} - Run {{ loop.index }}{% endif %}</h2>
+        {# Evidence commands rendered first (before details), then non-evidence in <details> #}
         <ul class="list-group">
-            {% for result in run %}
+        {% for result in run %}
+        {%- if result.Success is defined and result.Success.command.name in ns_ev.evidence_cmds %}
+            {% set s = result.Success %}
+            <li class="list-group-item" id="cmd-{{ s.command.name | e }}">
+                <h3>{% if s.command.title %}{{ s.command.title | e }}{% else %}{{ s.command.name | e }}{% endif %}</h3>
+                <div class="border border-secondary rounded"><pre>{{ s.stdout }}</pre></div>
+                <p><small>
+                    {% if s.command.description %}<p>{{ s.command.description | e | replace("\n", "<br/>") | safe }}</p>{% endif %}
+                    Command: <code>{{ s.command.command | e }}</code> [{{ s.run_time_ms }} ms]<br/>
+                    {% for link in s.command.links or [] %}[<a href="{{ link.url | e }}">{{ link.name | e }}</a>] {% endfor %}
+                </small></p>
+            </li>
+        {%- endif %}
+        {% endfor %}
+        </ul>
+        <details><summary>Full output ({{ run | length }} commands)</summary>
+        <ul class="list-group">
+        {% for result in run %}
+        {%- if not (result.Success is defined and result.Success.command.name in ns_ev.evidence_cmds) %}
                 <li class="list-group-item">
                     {% if result.Success is defined %}
                         {% set s = result.Success %}
-                        <h3>{% if s.command.title %}{{ s.command.title }}{% else %}{{ s.command.name }}{% endif %}</h3>
+                        <h3 id="cmd-{{ s.command.name | e }}">{% if s.command.title %}{{ s.command.title | e }}{% else %}{{ s.command.name | e }}{% endif %}</h3>
                         <div class="border border-secondary rounded">
                             <pre>{{ s.stdout }}</pre>
                         </div>
@@ -175,15 +219,15 @@
                             {% if s.command.description %}
                                 <p>{{ s.command.description | e | replace("\n", "<br/>") | safe }}</p>
                             {% endif %}
-                            Command: <code>{{ s.command.command }}</code> [{{ s.run_time_ms }} ms]<br/>
-                            {% for link in s.command.links %}[<a href="{{ link.url }}">{{ link.name }}</a>] {% endfor %}
+                            Command: <code>{{ s.command.command | e }}</code> [{{ s.run_time_ms }} ms]<br/>
+                            {% for link in s.command.links or [] %}[<a href="{{ link.url | e }}">{{ link.name | e }}</a>] {% endfor %}
                         </small>
                         </p>
                     {% endif %}
 
                     {% if result.Failed is defined %}
                         {% set s = result.Failed %}
-                        <h3 class="text-warning">{% if s.command.title %}{{ s.command.title }}{% else %}{{ s.command.name }}{% endif %}: Failed</h3>
+                        <h3 id="cmd-{{ s.command.name | e }}" class="text-warning">{% if s.command.title %}{{ s.command.title | e }}{% else %}{{ s.command.name | e }}{% endif %}: Failed</h3>
                         <div class="border border-secondary rounded">
                             <pre>{{ s.stdout }}</pre>
                         </div>
@@ -192,40 +236,37 @@
                             {% if s.command.description %}
                                 <p>{{ s.command.description | e | replace("\n", "<br/>") | safe }}</p>
                             {% endif %}
-                            Command: <code>{{ s.command.command }}</code> [{{ s.run_time_ms }} ms]<br/>
-                            {% for link in s.command.links %}[<a href="{{ link.url }}">{{ link.name }}</a>] {% endfor %}
+                            Command: <code>{{ s.command.command | e }}</code> [{{ s.run_time_ms }} ms]<br/>
+                            {% for link in s.command.links or [] %}[<a href="{{ link.url | e }}">{{ link.name | e }}</a>] {% endfor %}
                         </small>
                         </p>
                     {% endif %}
 
                     {% if result.Timeout is defined %}
                         {% set s = result.Timeout %}
-                        <h3 class="text-danger">{% if s.command.title %}{{ s.command.title }}{% else %}{{ s.command.name }}{% endif %}: Timed out</h3>
+                        <h3 id="cmd-{{ s.command.name | e }}" class="text-danger">{% if s.command.title %}{{ s.command.title | e }}{% else %}{{ s.command.name | e }}{% endif %}: Timed out</h3>
                         <p>
                             <small>
-                                Command: <code>{{ s.command.command }}</code> [{{ s.run_time_ms }} ms]<br/>
+                                Command: <code>{{ s.command.command | e }}</code> [{{ s.run_time_ms }} ms]<br/>
                             </small>
                         </p>
                     {% endif %}
 
                     {% if result.Error is defined %}
                         {% set s = result.Error %}
-                        <h3 class="text-danger">{% if s.command.title %}{{ s.command.title }}{% else %}{{ s.command.name }}{% endif %}: Error</h3>
+                        <h3 id="cmd-{{ s.command.name | e }}" class="text-danger">{% if s.command.title %}{{ s.command.title | e }}{% else %}{{ s.command.name | e }}{% endif %}: Error</h3>
                         <p>
-                            Reason: {{ s.reason }}<br/>
+                            Reason: {{ s.reason | e }}<br/>
                             <small>
-                                Command: <code>{{ s.command.command }}</code> [{{ s.run_time_ms }} ms]<br/>
+                                Command: <code>{{ s.command.command | e }}</code> [{{ s.run_time_ms }} ms]<br/>
                             </small>
                         </p>
                     {% endif %}
-
-                    {# SkippedMissing is intentionally not rendered here:
-                       per SDD §27 the command's section is omitted from
-                       Markdown/HTML output entirely. A future info finding
-                       (Phase 1+) names the missing binary. #}
                 </li>
-            {% endfor %}
+        {%- endif %}
+        {% endfor %}
         </ul>
+        </details>
     {% endfor %}
 
     {% if flamegraph_svg %}

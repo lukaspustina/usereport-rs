@@ -53,4 +53,7 @@ pub trait Collector: std::fmt::Debug + Send + Sync {
     fn supports_sampling(&self) -> bool {
         false
     }
+    fn source_commands(&self) -> &[&str] {
+        &[]
+    }
 }

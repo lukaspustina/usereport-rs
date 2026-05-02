@@ -98,6 +98,16 @@ impl Collector for CpuCollector {
         true
     }
 
+    #[cfg(target_os = "linux")]
+    fn source_commands(&self) -> &[&str] {
+        &["sar_cpu", "mpstat", "iostat"]
+    }
+
+    #[cfg(target_os = "macos")]
+    fn source_commands(&self) -> &[&str] {
+        &["vm_stat", "iostat"]
+    }
+
     fn collect(&self, ctx: &CollectCtx) -> Result<Vec<Signal>> {
         if let (Some(duration), Some(interval)) = (ctx.duration, ctx.interval) {
             return self.collect_sampled(duration, interval);

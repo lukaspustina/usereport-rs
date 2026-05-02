@@ -74,6 +74,7 @@ pub fn outlier_findings(signals: &[Signal]) -> Vec<Finding> {
         let evidence = vec![Evidence {
             signal_id: sig.id.clone(),
             observed: sig.value.clone(),
+            source_commands: Vec::new(),
         }];
         findings.push(Finding {
             id: format!("baseline.outlier.{}", sig.id),

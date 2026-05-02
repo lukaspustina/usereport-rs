@@ -35,6 +35,8 @@ pub enum Severity {
 pub struct Evidence {
     pub signal_id: String,
     pub observed: SignalValue,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub source_commands: Vec<String>,
 }
 
 impl Severity {

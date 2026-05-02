@@ -183,6 +183,10 @@ impl Collector for DiskCollector {
         "disk"
     }
 
+    fn source_commands(&self) -> &[&str] {
+        &["iostat", "df"]
+    }
+
     fn collect(&self, _ctx: &CollectCtx) -> Result<Vec<Signal>> {
         let s1 = read_disk_snapshots();
         if s1.is_empty() {

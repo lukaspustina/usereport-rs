@@ -64,6 +64,16 @@ impl Collector for MemoryCollector {
         "memory"
     }
 
+    #[cfg(target_os = "linux")]
+    fn source_commands(&self) -> &[&str] {
+        &["free", "vmstat"]
+    }
+
+    #[cfg(target_os = "macos")]
+    fn source_commands(&self) -> &[&str] {
+        &["vm_stat", "memory_pressure"]
+    }
+
     fn collect(&self, _ctx: &CollectCtx) -> Result<Vec<Signal>> {
         // Legacy test path: use pre-captured stdout.
         if let Some(ref s) = self.stdout {

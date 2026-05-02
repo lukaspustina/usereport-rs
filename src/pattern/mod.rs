@@ -106,6 +106,7 @@ fn collect_evidence(signals: &[Signal]) -> Vec<Evidence> {
         .map(|s| Evidence {
             signal_id: s.id.clone(),
             observed: s.value.clone(),
+            source_commands: Vec::new(),
         })
         .collect()
 }
