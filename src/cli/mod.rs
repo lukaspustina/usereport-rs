@@ -874,6 +874,9 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> miette::Re
 
     let context = create_context(opt, config, profile_name);
     let mut report = analysis.run(context).into_diagnostic()?;
+    // analysis holds the last clone of progress_tx; drop it now so the progress
+    // thread's channel closes and handle.join() below does not deadlock.
+    drop(analysis);
 
     // --profile-cpu: generate flamegraph and attach to report.
     if let Some(profile_dur) = &opt.profile_cpu {
