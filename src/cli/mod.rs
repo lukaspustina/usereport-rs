@@ -443,7 +443,11 @@ fn run_subcommand(cmd: &Subcommand) -> miette::Result<()> {
     match cmd {
         Subcommand::Baseline { action } => run_baseline(action),
         Subcommand::Diff { a, b, output } => run_diff(a, b, output),
-        Subcommand::Explain { id } => run_explain(id),
+        Subcommand::Explain { id } => {
+            let config = Config::from_str(defaults::CONFIG)
+                .expect("builtin default config is always valid");
+            run_explain(id, &config)
+        }
         Subcommand::Check { .. } => unreachable!("Check is handled before run_subcommand"),
     }
 }
@@ -636,22 +640,55 @@ fn run_diff(a_path: &PathBuf, b_path: &PathBuf, output: &str) -> miette::Result<
     Ok(())
 }
 
-fn run_explain(id: &str) -> miette::Result<()> {
+pub fn run_explain(id: &str, config: &Config) -> miette::Result<()> {
+    let is_tty = std::io::stdout().is_terminal();
+    let stdout = std::io::stdout();
+    let mut handle = stdout.lock();
+
+    // Check commands in config first
+    if let Some(cmd) = config.commands.iter().find(|c| c.name() == id) {
+        return run_explain_command(cmd, is_tty, &mut handle);
+    }
+
     let all_rules = builtin_rules();
     if let Some(rule) = all_rules.iter().find(|r| r.id == id) {
-        let is_tty = std::io::stdout().is_terminal();
-        let stdout = std::io::stdout();
-        let mut handle = stdout.lock();
         run_explain_inner(rule, is_tty, &mut handle)
     } else {
         eprintln!("Unknown topic '{}'.", id);
         eprintln!();
-        eprintln!("Known rule IDs:");
+        eprintln!("Known topics:");
+        for c in &config.commands {
+            eprintln!("  {} (command)", c.name());
+        }
         for r in &all_rules {
-            eprintln!("  {}", r.id);
+            eprintln!("  {} (rule)", r.id);
         }
         std::process::exit(1);
     }
+}
+
+fn run_explain_command(cmd: &crate::command::Command, _is_tty: bool, out: &mut dyn Write) -> miette::Result<()> {
+    writeln!(out, "Command: {}", cmd.name()).into_diagnostic()?;
+    if let Some(title) = cmd.title() {
+        writeln!(out, "Title: {title}").into_diagnostic()?;
+    }
+    if let Some(description) = cmd.description() {
+        writeln!(out).into_diagnostic()?;
+        writeln!(out, "{description}").into_diagnostic()?;
+    }
+    if let Some(wtlf) = cmd.what_to_look_for() {
+        writeln!(out).into_diagnostic()?;
+        writeln!(out, "What to look for:").into_diagnostic()?;
+        writeln!(out, "{wtlf}").into_diagnostic()?;
+    }
+    for extract in cmd.extract() {
+        writeln!(out).into_diagnostic()?;
+        writeln!(out, "Extract: {} ({:?} {:?}) pattern={}", extract.signal_id, extract.aggregate, extract.unit, extract.pattern).into_diagnostic()?;
+    }
+    if let Some(links) = None::<Vec<()>> {
+        let _ = links;
+    }
+    Ok(())
 }
 
 fn run_explain_inner(rule: &Rule, is_tty: bool, out: &mut dyn Write) -> miette::Result<()> {

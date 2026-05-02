@@ -33,9 +33,13 @@ pub enum SignalValue {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Unit {
+    #[serde(alias = "pct")]
     Pct,
+    #[serde(alias = "ms")]
     MillisPerOp,
+    #[serde(alias = "bytes")]
     BytesPerSec,
+    #[serde(alias = "count")]
     Count,
     Iops,
     Microseconds,

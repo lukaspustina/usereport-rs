@@ -51,6 +51,9 @@ pub mod workload;
 /// Shared report context types (Phase 4+).
 pub mod report_context;
 
+/// Extract signals from command stdout via regex (Phase 5+).
+pub mod extract;
+
 pub use analysis::{Analysis, AnalysisReport, Context};
 #[cfg(feature = "bin")]
 pub use cli::config::Config;

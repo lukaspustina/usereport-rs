@@ -28,10 +28,33 @@ pub enum Error {
     /// Configuration is invalid
     #[error("configuration is invalid because {reason}")]
     InvalidConfig { reason: &'static str },
+    /// An extract pattern in a command definition is invalid
+    #[error("command '{command}': invalid extract pattern '{pattern}': {reason}")]
+    InvalidExtractPattern { command: String, pattern: String, reason: String },
 }
 
 /// Result type
 pub type Result<T, E = Error> = std::result::Result<T, E>;
+
+/// Aggregation method for extract signals
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum Aggregate {
+    Count,
+    Last,
+    Max,
+    Min,
+    Avg,
+}
+
+/// Extracts a signal from a command's stdout via regex
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+pub struct CommandExtract {
+    pub pattern: String,
+    pub signal_id: String,
+    pub unit: crate::signal::Unit,
+    pub aggregate: Aggregate,
+}
 
 /// Top-level configuration loaded from a TOML file.
 ///
@@ -136,6 +159,38 @@ impl Config {
         self.validate_host_info()?;
         self.validate_default_profile()?;
         self.validate_profiles_commands()?;
+        self.validate_extract_patterns()?;
+
+        Ok(())
+    }
+
+    fn validate_extract_patterns(&self) -> Result<()> {
+        use regex::Regex;
+
+        for cmd in &self.commands {
+            for extract in cmd.extract() {
+                match Regex::new(&extract.pattern) {
+                    Err(e) => {
+                        return Err(Error::InvalidExtractPattern {
+                            command: cmd.name().to_string(),
+                            pattern: extract.pattern.clone(),
+                            reason: e.to_string(),
+                        });
+                    }
+                    Ok(_) => {
+                        if extract.aggregate != Aggregate::Count
+                            && !extract.pattern.contains("(?P<val>")
+                        {
+                            return Err(Error::InvalidExtractPattern {
+                                command: cmd.name().to_string(),
+                                pattern: extract.pattern.clone(),
+                                reason: "must contain a named group (?P<val>...)".to_string(),
+                            });
+                        }
+                    }
+                }
+            }
+        }
 
         Ok(())
     }

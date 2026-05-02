@@ -132,7 +132,8 @@ impl<'a, I: IntoIterator<Item = &'a Command> + Copy> Analysis<'a, I> {
         let hostinfo_results = self.run_commands(self.hostinfos)?;
         let command_results = self.run_commands_rep(self.commands, self.repetitions)?;
 
-        let (signals, findings, checked_ok) = self.run_diagnostics();
+        let first_rep = command_results.first().map(|v| v.as_slice()).unwrap_or(&[]);
+        let (signals, findings, checked_ok) = self.run_diagnostics(first_rep);
         let signal_thresholds = self
             .rule_engine
             .as_ref()
@@ -156,7 +157,7 @@ impl<'a, I: IntoIterator<Item = &'a Command> + Copy> Analysis<'a, I> {
         })
     }
 
-    fn run_diagnostics(&self) -> (Vec<Signal>, Vec<Finding>, Vec<String>) {
+    fn run_diagnostics(&self, command_results: &[CommandResult]) -> (Vec<Signal>, Vec<Finding>, Vec<String>) {
         if self.collectors.is_empty() && self.rule_engine.is_none() && self.baseline_records.is_empty() {
             return (Vec::new(), Vec::new(), Vec::new());
         }
@@ -168,6 +169,14 @@ impl<'a, I: IntoIterator<Item = &'a Command> + Copy> Analysis<'a, I> {
             cpu_count: std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1),
         };
         let mut signals: Vec<Signal> = Vec::new();
+
+        // Extract signals from command stdout (Phase 5)
+        for result in command_results {
+            if let CommandResult::Success { command, stdout, .. } = result {
+                let extracted = crate::extract::extract_signals(command.name(), stdout, command.extract());
+                signals.extend(extracted);
+            }
+        }
         let mut source_map: HashMap<String, Vec<String>> = HashMap::new();
         for c in &self.collectors {
             match c.collect(&ctx) {

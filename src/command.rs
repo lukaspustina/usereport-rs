@@ -64,6 +64,8 @@ pub struct Command {
     pub(crate) what_to_look_for: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) use_dimension: Option<UseDimension>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub(crate) extract: Vec<crate::cli::config::CommandExtract>,
 }
 
 impl Command {
@@ -79,6 +81,7 @@ impl Command {
             install_hint: None,
             what_to_look_for: None,
             use_dimension: None,
+            extract: Vec::new(),
         }
     }
 
@@ -169,6 +172,10 @@ impl Command {
             use_dimension: Some(v),
             ..self
         }
+    }
+
+    pub fn extract(&self) -> &[crate::cli::config::CommandExtract] {
+        &self.extract
     }
 
     /// Execute this command; may panic
