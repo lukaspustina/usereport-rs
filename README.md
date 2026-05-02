@@ -48,6 +48,7 @@ No daemons. No agents. No cloud. One binary, one command.
   - [LLM-ready output with redaction](#llm-ready-output-with-redaction)
   - [Baseline comparison](#baseline-comparison)
   - [Diff two runs](#diff-two-runs)
+  - [Check tool availability](#check-tool-availability)
 - [Real-world scenarios](#real-world-scenarios)
   - [Scenario A — TIME_WAIT exhaustion on a busy API gateway](#scenario-a--time_wait-exhaustion-on-a-busy-api-gateway)
   - [Scenario B — OOM kills taking down a Java service](#scenario-b--oom-kills-taking-down-a-java-service)
@@ -180,6 +181,36 @@ $ usereport --output json > before.json
 $ usereport --output json > after.json
 $ usereport diff before.json after.json
 ```
+
+### Check tool availability
+
+```sh
+$ usereport check
+```
+
+```
++------------+-------------+------------------+--------+
+| Category   | Name        | Binary           | Status |
++=====================================================+
+| default    | mpstat      | mpstat           | ok     |
+|------------+-------------+------------------+--------|
+| default    | iostat      | iostat           | ok     |
+|------------+-------------+------------------+--------|
+| collectors | dmesg       | dmesg            | ok     |
+|------------+-------------+------------------+--------|
+| collectors | free        | free             | ok     |
+|------------+-------------+------------------+--------|
+| profiling  | perf        | perf             | ok     |
+|------------+-------------+------------------+--------|
+| profiling  | bpftrace    | bpftrace         | ok     |
+|------------+-------------+------------------+--------|
+| bpf        | runqlat     | runqlat-bpfcc    | ok     |
+|------------+-------------+------------------+--------|
+| bpf        | biolatency  | biolatency-bpfcc | ok     |
++------------+-------------+------------------+--------+
+```
+
+Covers every binary `usereport` might invoke: profile commands, built-in collectors, profiling tools, and eBPF tools. Exits 1 if anything is missing. Use it after first install or when setting up a new host.
 
 ---
 
@@ -644,8 +675,11 @@ usereport --duration 10s --interval 2s --output json | jq '.findings'
 # Postgres server, with baseline comparison
 usereport --workload postgres --baseline prod-healthy --exit-on warn
 
-# Deep-dive with eBPF + flamegraph (requires root + perf/bpfcc-tools)
+# Deep-dive with eBPF + flamegraph (requires root; see Dependencies section for packages)
 sudo usereport --bpf --profile-cpu 30s --output html -O deep.html
+
+# Verify all required tools are installed
+usereport check
 ```
 
 ---
