@@ -93,7 +93,7 @@ targets = [
 ]
 features = ["bin"]      # binary requires --features bin to compile
 installers = ["shell", "homebrew"]
-tap = "lukaspustina/homebrew-usereport-rs"
+tap = "lukaspustina/usereport-rs"
 publish-jobs = ["homebrew"]
 allow-dirty = ["ci"]
 
