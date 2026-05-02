@@ -81,6 +81,11 @@ googletest = "0.14"
 
 # ── Release ──────────────────────────────────────────────────────────────────
 
+# The profile that 'cargo dist' will build with.
+[profile.dist]
+inherits = "release"
+lto = "thin"
+
 [workspace]
 # Single-crate workspace declaration — required by cargo-dist.
 
