@@ -7,9 +7,9 @@
 | Phase | Title | Status | Commit |
 |-------|-------|--------|--------|
 | 1 | Terminal Markdown Rendering (termimad) | shipped | 3dd2112 |
-| 2 | Colored Diagnostics (owo-colors) | shipped | 57bfa79 |
+| 2 | Colored Diagnostics (owo-colors) | shipped | 57bfa79 (impl), d3e2149 (tests) |
 | 3 | Rich Progress (MultiProgress) | shipped | dab0d20 |
-| 4 | Miette Error Reporting | shipped | efb5825 |
+| 4 | Miette Error Reporting | shipped | efb5825 (impl), d27eb94 (tests) |
 
 ---
 
