@@ -82,6 +82,10 @@ impl NetworkCollector {
         let fail_delta = b.tcp_attempt_fails.saturating_sub(a.tcp_attempt_fails);
         push(&mut signals, "net.connect_failures", fail_delta as f64, Unit::Count, now);
 
+        // estab_resets — delta of cumulative EstabResets counter
+        let reset_delta = b.tcp_estab_resets.saturating_sub(a.tcp_estab_resets);
+        push(&mut signals, "net.estab_resets", reset_delta as f64, Unit::Count, now);
+
         signals
     }
 }
@@ -225,6 +229,7 @@ mod tests {
             tcp_out_segs: 0,
             tcp_retrans_segs: 0,
             tcp_attempt_fails: 10,
+            tcp_estab_resets: 5,
             tcp_tw_count: None,
         };
         let b = NetSnapshot {
@@ -232,11 +237,14 @@ mod tests {
             tcp_out_segs: 0,
             tcp_retrans_segs: 0,
             tcp_attempt_fails: 13,
+            tcp_estab_resets: 8,
             tcp_tw_count: None,
         };
         let signals = NetworkCollector::from_net_snapshots(&a, &b, 1.0);
         let fail = signals.iter().find(|s| s.id == "net.connect_failures").unwrap();
         assert_eq!(fail.value, SignalValue::F64(3.0));
+        let resets = signals.iter().find(|s| s.id == "net.estab_resets").unwrap();
+        assert_eq!(resets.value, SignalValue::F64(3.0));
     }
 
     #[test]

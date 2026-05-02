@@ -68,12 +68,20 @@ pub fn read_net_snapshot() -> Option<NetSnapshot> {
     let rx_drops = parse_rx_drops(&dev);
 
     let snmp = std::fs::read_to_string("/proc/net/snmp").unwrap_or_default();
-    let (tcp_out_segs, tcp_retrans_segs, tcp_attempt_fails) = parse_tcp_snmp(&snmp);
+    let (tcp_out_segs, tcp_retrans_segs, tcp_attempt_fails, tcp_estab_resets) =
+        parse_tcp_snmp(&snmp);
 
     let sockstat = std::fs::read_to_string("/proc/net/sockstat").unwrap_or_default();
     let tcp_tw_count = parse_tw_count(&sockstat);
 
-    Some(NetSnapshot { rx_drops, tcp_out_segs, tcp_retrans_segs, tcp_attempt_fails, tcp_tw_count })
+    Some(NetSnapshot {
+        rx_drops,
+        tcp_out_segs,
+        tcp_retrans_segs,
+        tcp_attempt_fails,
+        tcp_estab_resets,
+        tcp_tw_count,
+    })
 }
 
 fn parse_rx_drops(s: &str) -> HashMap<String, u64> {
@@ -96,7 +104,7 @@ fn parse_rx_drops(s: &str) -> HashMap<String, u64> {
     map
 }
 
-fn parse_tcp_snmp(s: &str) -> (u64, u64, u64) {
+fn parse_tcp_snmp(s: &str) -> (u64, u64, u64, u64) {
     let mut header: Vec<&str> = Vec::new();
     let mut values: Vec<&str> = Vec::new();
     for line in s.lines() {
@@ -110,7 +118,7 @@ fn parse_tcp_snmp(s: &str) -> (u64, u64, u64) {
         }
     }
     if header.is_empty() || values.len() != header.len() {
-        return (0, 0, 0);
+        return (0, 0, 0, 0);
     }
     let get = |name: &str| -> u64 {
         header
@@ -120,7 +128,7 @@ fn parse_tcp_snmp(s: &str) -> (u64, u64, u64) {
             .and_then(|v| v.parse().ok())
             .unwrap_or(0)
     };
-    (get("OutSegs"), get("RetransSegs"), get("AttemptFails"))
+    (get("OutSegs"), get("RetransSegs"), get("AttemptFails"), get("EstabResets"))
 }
 
 fn parse_tw_count(s: &str) -> Option<u64> {
@@ -363,12 +371,13 @@ mod tests {
     }
 
     #[test]
-    fn parse_tcp_snmp_extracts_attempt_fails() {
+    fn parse_tcp_snmp_extracts_attempt_fails_and_estab_resets() {
         let s = "Tcp: RtoAlgorithm RtoMin RtoMax MaxConn ActiveOpens PassiveOpens AttemptFails EstabResets CurrEstab InSegs OutSegs RetransSegs InErrs OutRsts InCsumErrors\nTcp: 1 200 120000 -1 161783 8 161547 9 21 2397185 7073859 446 0 161597 0\n";
-        let (out, retrans, fails) = parse_tcp_snmp(s);
+        let (out, retrans, fails, resets) = parse_tcp_snmp(s);
         assert_eq!(out, 7073859);
         assert_eq!(retrans, 446);
         assert_eq!(fails, 161547);
+        assert_eq!(resets, 9);
     }
 
     #[test]

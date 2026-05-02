@@ -156,6 +156,7 @@ fn p5_from_net_snapshots_emits_retrans_and_drops() {
         tcp_out_segs: 1000,
         tcp_retrans_segs: 10,
         tcp_attempt_fails: 0,
+        tcp_estab_resets: 0,
         tcp_tw_count: None,
     };
     let b = NetSnapshot {
@@ -163,6 +164,7 @@ fn p5_from_net_snapshots_emits_retrans_and_drops() {
         tcp_out_segs: 1100,
         tcp_retrans_segs: 16,
         tcp_attempt_fails: 0,
+        tcp_estab_resets: 0,
         tcp_tw_count: Some(50),
     };
 

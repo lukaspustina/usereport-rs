@@ -49,6 +49,10 @@ pub struct NetSnapshot {
     /// `bad connection attempt` count on macOS). Used as a delta between two
     /// snapshots to emit `net.connect_failures`.
     pub tcp_attempt_fails: u64,
+    /// Cumulative resets sent from ESTABLISHED or CLOSE_WAIT (`Tcp: EstabResets`
+    /// on Linux). Used as a delta to emit `net.estab_resets`. Always 0 on macOS
+    /// (no equivalent counter in `netstat -s -p tcp`).
+    pub tcp_estab_resets: u64,
     /// `None` when unavailable (macOS: parse failure only; Linux: sockstat missing).
     pub tcp_tw_count: Option<u64>,
 }

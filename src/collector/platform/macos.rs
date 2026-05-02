@@ -133,7 +133,14 @@ pub fn read_net_snapshot() -> Option<NetSnapshot> {
     let (tcp_out_segs, tcp_retrans_segs, tcp_attempt_fails, tcp_tw_count) =
         parse_netstat_tcp_stats(&netstat_s);
 
-    Some(NetSnapshot { rx_drops, tcp_out_segs, tcp_retrans_segs, tcp_attempt_fails, tcp_tw_count })
+    Some(NetSnapshot {
+        rx_drops,
+        tcp_out_segs,
+        tcp_retrans_segs,
+        tcp_attempt_fails,
+        tcp_estab_resets: 0, // no equivalent counter in netstat -s -p tcp output
+        tcp_tw_count,
+    })
 }
 
 /// Parse `netstat -i -b -n`: skip header lines, skip lo0, take last field as Idrop.

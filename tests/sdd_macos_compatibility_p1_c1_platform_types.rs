@@ -85,6 +85,7 @@ fn platform_snapshot_types_clone_and_debug() {
         tcp_out_segs: 1000,
         tcp_retrans_segs: 10,
         tcp_attempt_fails: 0,
+        tcp_estab_resets: 0,
         tcp_tw_count: Some(50),
     };
     let _cloned_net = net.clone();
