@@ -232,7 +232,7 @@
     <hr/>
     <h2>CPU Flamegraph</h2>
     <div style="overflow-x:auto;">
-        {{ flamegraph_svg }}
+        {{ flamegraph_svg | safe }}
     </div>
     {% endif %}
 
