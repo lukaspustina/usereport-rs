@@ -376,7 +376,7 @@ jobs:
             git add "Formula/${filename}"
             git commit -m "${name} ${version}"
           done
-          git push
+          git push origin HEAD:master
 
   announce:
     needs:
