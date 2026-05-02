@@ -29,6 +29,15 @@ pub enum Error {
     /// Configuration is invalid
     #[error("configuration is invalid because {reason}")]
     InvalidConfig { reason: &'static str },
+    /// Profile not found
+    #[error("no such profile '{name}'")]
+    NoSuchProfile { name: String },
+    /// Profile references a command that does not exist in the commands list
+    #[error("profile '{profile}': command '{command}' not found in config commands list")]
+    ProfileCommandNotFound { profile: String, command: String },
+    /// Hostinfo references a command that does not exist in the commands list
+    #[error("hostinfo command '{command}' not found in config commands list")]
+    HostinfoCommandNotFound { command: String },
     /// An extract pattern in a command definition is invalid
     #[error("command '{command}': invalid extract pattern '{pattern}': {reason}")]
     InvalidExtractPattern {
@@ -141,11 +150,10 @@ impl Config {
     }
 
     pub fn profile(&self, profile_name: &str) -> Result<&Profile> {
-        self.profiles.iter().find(|x| x.name == profile_name).ok_or({
-            Error::InvalidConfig {
-                reason: "no such profile",
-            }
-        })
+        self.profiles
+            .iter()
+            .find(|x| x.name == profile_name)
+            .ok_or_else(|| Error::NoSuchProfile { name: profile_name.to_string() })
     }
 
     pub fn commands_for_hostinfo(&self) -> Vec<Command> {
@@ -215,11 +223,9 @@ impl Config {
 
         if let Some(ref hostinfo) = self.hostinfo {
             for c in &hostinfo.commands {
-                command_names.get(c).ok_or({
-                    Error::InvalidConfig {
-                        reason: "hostinfo command not found",
-                    }
-                })?;
+                command_names
+                    .get(c)
+                    .ok_or_else(|| Error::HostinfoCommandNotFound { command: c.clone() })?;
             }
         }
 
@@ -236,10 +242,9 @@ impl Config {
 
         for p in &self.profiles {
             for c in &p.commands {
-                command_names.get(c).ok_or({
-                    Error::InvalidConfig {
-                        reason: "profile command not found",
-                    }
+                command_names.get(c).ok_or_else(|| Error::ProfileCommandNotFound {
+                    profile: p.name.clone(),
+                    command: c.clone(),
                 })?;
             }
         }

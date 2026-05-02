@@ -114,7 +114,7 @@ fn signal_to_f64(v: &SignalValue) -> Option<f64> {
 }
 
 /// Render the diff in plain-text form.
-pub fn render_text<W: std::io::Write>(d: &DiffReport, mut w: W) -> std::io::Result<()> {
+pub fn render_text<W: std::io::Write>(d: &DiffReport, label_a: &str, label_b: &str, mut w: W) -> std::io::Result<()> {
     writeln!(w, "## Signal deltas")?;
     if d.signal_deltas.is_empty() {
         writeln!(w, "(none)")?;
@@ -127,7 +127,7 @@ pub fn render_text<W: std::io::Write>(d: &DiffReport, mut w: W) -> std::io::Resu
             )?;
         }
     }
-    writeln!(w, "## Signals only in A")?;
+    writeln!(w, "## Signals only in {}", label_a)?;
     if d.signals_only_in_a.is_empty() {
         writeln!(w, "(none)")?;
     } else {
@@ -135,7 +135,7 @@ pub fn render_text<W: std::io::Write>(d: &DiffReport, mut w: W) -> std::io::Resu
             writeln!(w, "  {}", id)?;
         }
     }
-    writeln!(w, "## Signals only in B")?;
+    writeln!(w, "## Signals only in {}", label_b)?;
     if d.signals_only_in_b.is_empty() {
         writeln!(w, "(none)")?;
     } else {
@@ -143,7 +143,7 @@ pub fn render_text<W: std::io::Write>(d: &DiffReport, mut w: W) -> std::io::Resu
             writeln!(w, "  {}", id)?;
         }
     }
-    writeln!(w, "## Findings only in A")?;
+    writeln!(w, "## Findings only in {}", label_a)?;
     if d.findings_only_in_a.is_empty() {
         writeln!(w, "(none)")?;
     } else {
@@ -151,7 +151,7 @@ pub fn render_text<W: std::io::Write>(d: &DiffReport, mut w: W) -> std::io::Resu
             writeln!(w, "  [{:?}] {}: {}", f.severity, f.id, f.summary)?;
         }
     }
-    writeln!(w, "## Findings only in B")?;
+    writeln!(w, "## Findings only in {}", label_b)?;
     if d.findings_only_in_b.is_empty() {
         writeln!(w, "(none)")?;
     } else {

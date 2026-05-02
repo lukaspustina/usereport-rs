@@ -161,7 +161,7 @@ pub enum Subcommand {
         a: PathBuf,
         b: PathBuf,
         /// Output format: `text` (default) or `json`.
-        #[arg(long, default_value = "text", value_parser = clap::value_parser!(OutputType))]
+        #[arg(long, default_value = "text", value_parser = |s: &str| s.parse::<OutputType>().map_err(|e| e.to_string()))]
         output: OutputType,
     },
     /// Print the definition, what raises it, what to investigate, and links for a rule or signal ID.
@@ -213,7 +213,9 @@ impl Opt {
         if self.output == OutputType::Template && self.output_template.is_none() {
             return Err(miette!("Output template requires --output-template <PATH>"));
         }
-
+        if self.redact && self.output != OutputType::Llm {
+            eprintln!("warning: --redact has no effect unless --output llm is also set");
+        }
         Ok(self)
     }
 }
@@ -558,7 +560,7 @@ fn run_check(config: &Config, profile_filter: Option<&str>) -> miette::Result<()
     let missing = run_check_inner(&checks, is_tty, &mut handle)?;
 
     if missing > 0 {
-        eprintln!("{} binary/binaries not found", missing);
+        eprintln!("{} {} not found", missing, if missing == 1 { "binary" } else { "binaries" });
         std::process::exit(1);
     }
     Ok(())
@@ -660,8 +662,13 @@ fn run_baseline(action: &BaselineAction) -> miette::Result<()> {
             );
         }
         BaselineAction::List => {
-            for name in store.list().into_diagnostic().context("list baselines")? {
-                println!("{}", name);
+            let names = store.list().into_diagnostic().context("list baselines")?;
+            if names.is_empty() {
+                println!("No baselines recorded.");
+            } else {
+                for name in names {
+                    println!("{}", name);
+                }
             }
         }
         BaselineAction::Show { name } => match store
@@ -705,7 +712,13 @@ fn run_diff(a_path: &PathBuf, b_path: &PathBuf, output: &OutputType) -> miette::
             writeln!(handle).into_diagnostic()?;
         }
         OutputType::Text => {
-            diff::render_text(&report, &mut handle).into_diagnostic()?;
+            diff::render_text(
+                &report,
+                &a_path.display().to_string(),
+                &b_path.display().to_string(),
+                &mut handle,
+            )
+            .into_diagnostic()?;
         }
         _ => return Err(miette!("output type not supported for diff; valid values: text, json")),
     }
@@ -719,6 +732,9 @@ fn run_convert(
     output_file: Option<&Path>,
     redact: bool,
 ) -> miette::Result<()> {
+    if redact && *output != OutputType::Llm {
+        eprintln!("warning: --redact has no effect unless --output llm is also set");
+    }
     let report: AnalysisReport = match input {
         Some(path) => {
             let bytes = std::fs::read(path)
