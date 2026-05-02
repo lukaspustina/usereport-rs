@@ -25,7 +25,7 @@ rust-version = "1.85"
 [badges]
 
 [features]
-bin = ["clap", "comfy-table", "env_logger", "anyhow", "human-panic", "indicatif", "humantime", "inferno", "termimad"]
+bin = ["clap", "comfy-table", "env_logger", "anyhow", "human-panic", "indicatif", "humantime", "inferno", "termimad", "owo-colors"]
 bpf = []
 
 [[bin]]
@@ -71,6 +71,7 @@ sha2 = "0.10"
 which = "8"
 inferno = { version = "0.12", optional = true }
 termimad = { version = "0.34", optional = true }
+owo-colors = { version = "4", optional = true }
 
 [dev-dependencies]
 env_logger = "0.11"

@@ -10,7 +10,7 @@ use crate::{
     llm::LlmOutput,
     redact::Redactor,
     renderer,
-    rule::{RuleEngine, builtin::builtin_rules},
+    rule::{Rule, RuleEngine, builtin::builtin_rules},
     workload::load_workload_rules,
 };
 #[cfg(feature = "bpf")]
@@ -352,8 +352,13 @@ fn show_config(config: &Config) {
 }
 
 fn show_profiles(config: &Config) {
+    use comfy_table::{Attribute, Cell};
     let mut table = Table::new();
-    table.set_header(vec!["Name", "Commands", "Description"]);
+    table.set_header(vec![
+        Cell::new("Name").add_attribute(Attribute::Bold),
+        Cell::new("Commands").add_attribute(Attribute::Bold),
+        Cell::new("Description").add_attribute(Attribute::Bold),
+    ]);
     for p in &config.profiles {
         table.add_row(vec![
             p.name.clone(),
@@ -389,8 +394,14 @@ fn show_output_template(opt: &Opt) -> anyhow::Result<()> {
 }
 
 fn show_commands(config: &Config) {
+    use comfy_table::{Attribute, Cell};
     let mut table = Table::new();
-    table.set_header(vec!["Name", "Command", "Title", "Description"]);
+    table.set_header(vec![
+        Cell::new("Name").add_attribute(Attribute::Bold),
+        Cell::new("Command").add_attribute(Attribute::Bold),
+        Cell::new("Title").add_attribute(Attribute::Bold),
+        Cell::new("Description").add_attribute(Attribute::Bold),
+    ]);
     for c in &config.commands {
         table.add_row(vec![
             c.name().to_string(),
@@ -456,14 +467,35 @@ fn run_check(config: &Config, profile_filter: Option<&str>) -> anyhow::Result<()
         checks.push(("bpf".into(), (*tool).into(), binary));
     }
 
+    use comfy_table::{Attribute, Cell, Color};
     let mut table = Table::new();
-    table.set_header(vec!["Category", "Name", "Binary", "Status"]);
+    table.set_header(vec![
+        Cell::new("Category").add_attribute(Attribute::Bold),
+        Cell::new("Name").add_attribute(Attribute::Bold),
+        Cell::new("Binary").add_attribute(Attribute::Bold),
+        Cell::new("Status").add_attribute(Attribute::Bold),
+    ]);
 
+    let is_tty = std::io::stdout().is_terminal();
     let mut missing = 0usize;
     for (category, name, binary) in &checks {
         let found = which::which(binary).is_ok() || std::path::Path::new(binary.as_str()).exists();
-        let status = if found { "ok" } else { missing += 1; "MISSING" };
-        table.add_row(vec![category.clone(), name.clone(), binary.clone(), status.to_string()]);
+        let status_str = if found { "ok" } else { missing += 1; "MISSING" };
+        let status_cell = if is_tty {
+            if found {
+                Cell::new(status_str).fg(Color::Green)
+            } else {
+                Cell::new(status_str).fg(Color::Red)
+            }
+        } else {
+            Cell::new(status_str)
+        };
+        table.add_row(vec![
+            Cell::new(category),
+            Cell::new(name),
+            Cell::new(binary),
+            status_cell,
+        ]);
     }
     println!("{table}");
 
@@ -530,28 +562,10 @@ fn run_diff(a_path: &PathBuf, b_path: &PathBuf, output: &str) -> anyhow::Result<
 fn run_explain(id: &str) -> anyhow::Result<()> {
     let all_rules = builtin_rules();
     if let Some(rule) = all_rules.iter().find(|r| r.id == id) {
-        println!("ID:       {}", rule.id);
-        println!("Severity: {:?}", rule.severity);
-        println!("Summary:  {}", rule.summary);
-        if let Some(desc) = &rule.description {
-            println!();
-            println!("{}", desc);
-        }
-        if !rule.suggest.is_empty() {
-            println!();
-            println!("To investigate:");
-            for s in &rule.suggest {
-                println!("  {}", s);
-            }
-        }
-        if !rule.links.is_empty() {
-            println!();
-            println!("Links:");
-            for l in &rule.links {
-                println!("  {}", l);
-            }
-        }
-        Ok(())
+        let is_tty = std::io::stdout().is_terminal();
+        let stdout = std::io::stdout();
+        let mut handle = stdout.lock();
+        run_explain_inner(rule, is_tty, &mut handle)
     } else {
         eprintln!("Unknown topic '{}'.", id);
         eprintln!();
@@ -561,6 +575,43 @@ fn run_explain(id: &str) -> anyhow::Result<()> {
         }
         std::process::exit(1);
     }
+}
+
+fn run_explain_inner(rule: &Rule, is_tty: bool, out: &mut dyn Write) -> anyhow::Result<()> {
+    let label = format!("{:?}", rule.severity);
+    let severity_str = if is_tty {
+        use owo_colors::OwoColorize as _;
+        match rule.severity {
+            Severity::Crit => label.red().to_string(),
+            Severity::Warn => label.yellow().to_string(),
+            Severity::Info => label.blue().to_string(),
+        }
+    } else {
+        label
+    };
+
+    writeln!(out, "ID:       {}", rule.id)?;
+    writeln!(out, "Severity: {}", severity_str)?;
+    writeln!(out, "Summary:  {}", rule.summary)?;
+    if let Some(desc) = &rule.description {
+        writeln!(out)?;
+        writeln!(out, "{}", desc)?;
+    }
+    if !rule.suggest.is_empty() {
+        writeln!(out)?;
+        writeln!(out, "To investigate:")?;
+        for s in &rule.suggest {
+            writeln!(out, "  {}", s)?;
+        }
+    }
+    if !rule.links.is_empty() {
+        writeln!(out)?;
+        writeln!(out, "Links:")?;
+        for l in &rule.links {
+            writeln!(out, "  {}", l)?;
+        }
+    }
+    Ok(())
 }
 
 /// Run CPU profiling for `duration_secs` seconds using perf (or bpftrace when
@@ -1133,5 +1184,53 @@ mod tests {
         let mut buf: Vec<u8> = Vec::new();
         let result = render_for_output(input, &mut buf, true, &OutputType::Markdown);
         assert!(result.is_ok());
+    }
+
+    fn make_rule(severity: Severity) -> Rule {
+        use crate::rule::{Predicate, Op, Rhs, Value};
+        Rule {
+            id: "test.rule".to_string(),
+            when: Predicate::Cmp {
+                path: vec!["host".to_string(), "uptime_secs".to_string()],
+                op: Op::Gt,
+                rhs: Rhs::Value(Value::Number(0.0)),
+            },
+            severity,
+            summary: "test summary".to_string(),
+            description: None,
+            evidence_ids: vec![],
+            suggest: vec!["check something".to_string()],
+            links: vec![],
+        }
+    }
+
+    #[test]
+    fn run_explain_inner_tty_warn_contains_ansi() {
+        let rule = make_rule(Severity::Warn);
+        let mut buf: Vec<u8> = Vec::new();
+        run_explain_inner(&rule, true, &mut buf).unwrap();
+        let output = String::from_utf8(buf).unwrap();
+        assert!(output.contains('\x1b'), "expected ANSI escape in tty output, got: {:?}", output);
+        assert!(output.contains("Warn"), "expected 'Warn' token in output");
+    }
+
+    #[test]
+    fn run_explain_inner_tty_info_contains_ansi() {
+        let rule = make_rule(Severity::Info);
+        let mut buf: Vec<u8> = Vec::new();
+        run_explain_inner(&rule, true, &mut buf).unwrap();
+        let output = String::from_utf8(buf).unwrap();
+        assert!(output.contains('\x1b'), "expected ANSI escape in tty output, got: {:?}", output);
+        assert!(output.contains("Info"), "expected 'Info' token in output");
+    }
+
+    #[test]
+    fn run_explain_inner_no_tty_no_ansi() {
+        let rule = make_rule(Severity::Crit);
+        let mut buf: Vec<u8> = Vec::new();
+        run_explain_inner(&rule, false, &mut buf).unwrap();
+        let output = String::from_utf8(buf).unwrap();
+        assert!(!output.contains('\x1b'), "expected no ANSI escape in non-tty output, got: {:?}", output);
+        assert!(output.contains("Crit"), "expected 'Crit' token in output");
     }
 }
