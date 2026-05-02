@@ -55,6 +55,61 @@
     {%- endfor %}
     {%- endfor %}
     {%- endfor %}
+
+    <h2>Vital Signs</h2>
+    <table style="border-collapse:collapse;width:100%;margin-bottom:1rem;">
+        <thead><tr><th style="text-align:left;padding:0.4rem 0.8rem;border-bottom:2px solid #dee2e6;">Resource</th><th style="text-align:left;padding:0.4rem 0.8rem;border-bottom:2px solid #dee2e6;">Value</th><th style="text-align:left;padding:0.4rem 0.8rem;border-bottom:2px solid #dee2e6;">Severity</th></tr></thead>
+        <tbody>
+        {%- set cpu_profiled = vital_signs.cpu.iowait_pct is not none or vital_signs.cpu.severity is not none %}
+        <tr><td style="padding:0.4rem 0.8rem;">CPU</td><td style="padding:0.4rem 0.8rem;">{% if vital_signs.cpu.iowait_pct is not none %}iowait {{ vital_signs.cpu.iowait_pct | round(1) }}%{% elif cpu_profiled %}—{% else %}[not profiled]{% endif %}</td><td style="padding:0.4rem 0.8rem;">{% if vital_signs.cpu.severity == "Crit" %}<span class="text-danger">CRIT</span>{% elif vital_signs.cpu.severity == "Warn" %}<span class="text-warning">WARN</span>{% elif cpu_profiled %}—{% else %}[not profiled]{% endif %}</td></tr>
+        {%- set mem_profiled = vital_signs.memory.used_pct is not none or vital_signs.memory.severity is not none %}
+        <tr><td style="padding:0.4rem 0.8rem;">Memory</td><td style="padding:0.4rem 0.8rem;">{% if vital_signs.memory.used_pct is not none %}used {{ vital_signs.memory.used_pct | round(1) }}%{% elif mem_profiled %}—{% else %}[not profiled]{% endif %}</td><td style="padding:0.4rem 0.8rem;">{% if vital_signs.memory.severity == "Crit" %}<span class="text-danger">CRIT</span>{% elif vital_signs.memory.severity == "Warn" %}<span class="text-warning">WARN</span>{% elif mem_profiled %}—{% else %}[not profiled]{% endif %}</td></tr>
+        {%- set disk_profiled = vital_signs.disk.util_pct is not none or vital_signs.disk.severity is not none %}
+        <tr><td style="padding:0.4rem 0.8rem;">Disk</td><td style="padding:0.4rem 0.8rem;">{% if vital_signs.disk.util_pct is not none %}util {{ vital_signs.disk.util_pct | round(1) }}%{% elif disk_profiled %}—{% else %}[not profiled]{% endif %}</td><td style="padding:0.4rem 0.8rem;">{% if vital_signs.disk.severity == "Crit" %}<span class="text-danger">CRIT</span>{% elif vital_signs.disk.severity == "Warn" %}<span class="text-warning">WARN</span>{% elif disk_profiled %}—{% else %}[not profiled]{% endif %}</td></tr>
+        {%- set net_profiled = vital_signs.network.util_pct is not none or vital_signs.network.severity is not none %}
+        <tr><td style="padding:0.4rem 0.8rem;">Network</td><td style="padding:0.4rem 0.8rem;">{% if vital_signs.network.util_pct is not none %}util {{ vital_signs.network.util_pct | round(1) }}%{% elif net_profiled %}—{% else %}[not profiled]{% endif %}</td><td style="padding:0.4rem 0.8rem;">{% if vital_signs.network.severity == "Crit" %}<span class="text-danger">CRIT</span>{% elif vital_signs.network.severity == "Warn" %}<span class="text-warning">WARN</span>{% elif net_profiled %}—{% else %}[not profiled]{% endif %}</td></tr>
+        </tbody>
+    </table>
+
+    {%- if use_coverage %}
+    <h2>USE Coverage</h2>
+    <table style="border-collapse:collapse;width:100%;margin-bottom:1rem;">
+        <thead><tr><th style="padding:0.4rem 0.8rem;border-bottom:2px solid #dee2e6;">Resource</th><th style="padding:0.4rem 0.8rem;border-bottom:2px solid #dee2e6;">Utilization</th><th style="padding:0.4rem 0.8rem;border-bottom:2px solid #dee2e6;">Saturation</th><th style="padding:0.4rem 0.8rem;border-bottom:2px solid #dee2e6;">Errors</th></tr></thead>
+        <tbody>
+        {%- for resource in ["cpu", "memory", "disk", "network"] %}
+        {%- set util = use_coverage | selectattr("resource", "equalto", resource) | selectattr("aspect", "equalto", "utilization") | first %}
+        {%- set sat  = use_coverage | selectattr("resource", "equalto", resource) | selectattr("aspect", "equalto", "saturation") | first %}
+        {%- set err  = use_coverage | selectattr("resource", "equalto", resource) | selectattr("aspect", "equalto", "errors") | first %}
+        <tr><td style="padding:0.4rem 0.8rem;">{{ resource }}</td><td style="padding:0.4rem 0.8rem;">{{ "✓" if util and util.covered else "✗" }}</td><td style="padding:0.4rem 0.8rem;">{{ "✓" if sat and sat.covered else "✗" }}</td><td style="padding:0.4rem 0.8rem;">{{ "✓" if err and err.covered else "✗" }}</td></tr>
+        {%- endfor %}
+        </tbody>
+    </table>
+    {%- endif %}
+
+    {%- set ns_sk = namespace(has_skipped=false) %}
+    {%- for run in command_results %}
+    {%- for result in run %}
+    {%- if result.SkippedMissing %}{% set ns_sk.has_skipped = true %}{% endif %}
+    {%- endfor %}
+    {%- endfor %}
+    {%- if ns_sk.has_skipped %}
+    <h2>Coverage Gaps</h2>
+    <p><em>findings may be incomplete</em> — the following tools were not found on PATH</p>
+    <table style="border-collapse:collapse;width:100%;margin-bottom:1rem;">
+        <thead><tr><th style="padding:0.4rem 0.8rem;border-bottom:2px solid #dee2e6;">Command</th><th style="padding:0.4rem 0.8rem;border-bottom:2px solid #dee2e6;">Missing Binary</th><th style="padding:0.4rem 0.8rem;border-bottom:2px solid #dee2e6;">Install</th></tr></thead>
+        <tbody>
+        {%- for run in command_results %}
+        {%- for result in run %}
+        {%- if result.SkippedMissing %}
+        {%- set s = result.SkippedMissing %}
+        <tr><td style="padding:0.4rem 0.8rem;"><code>{{ s.command.name | e }}</code></td><td style="padding:0.4rem 0.8rem;"><code>{{ s.binary | e }}</code></td><td style="padding:0.4rem 0.8rem;">{{ s.command.install_hint | e if s.command.install_hint else "—" }}</td></tr>
+        {%- endif %}
+        {%- endfor %}
+        {%- endfor %}
+        </tbody>
+    </table>
+    {%- endif %}
+
     {% if findings %}
     <h2>Findings</h2>
     <ul class="list-group">
@@ -101,6 +156,27 @@
         {% endfor %}
     </ul>
     {% endif %}
+
+    {%- set fired_ids = findings | map(attribute="id") | list %}
+    {%- set active_followups = followup_recommendations | selectattr("finding", "in", fired_ids) | list %}
+    {%- if active_followups %}
+    <h2>Where to investigate next</h2>
+    <ul class="list-group">
+    {%- for fu in active_followups %}
+        <li class="list-group-item"><strong>{{ fu.recommend | e }}</strong> — {{ fu.reason | e }}</li>
+    {%- endfor %}
+    </ul>
+    {%- endif %}
+
+    {%- if checked_ok %}
+    <h2>Healthy</h2>
+    <p>The following signals were evaluated and found within normal thresholds:</p>
+    <ul class="list-group">
+    {%- for id in checked_ok %}
+        <li class="list-group-item"><code>{{ id | e }}</code></li>
+    {%- endfor %}
+    </ul>
+    {%- endif %}
 
     <h2>Run Configuration</h2>
     <p>
@@ -191,8 +267,17 @@
         {% for result in run %}
         {%- if result.Success is defined and result.Success.command.name in ns_ev.evidence_cmds %}
             {% set s = result.Success %}
+            {%- set ns_badge = namespace(ids=[]) %}
+            {%- for f in findings %}
+            {%- for ev in f.evidence %}
+            {%- if s.command.name in ev.source_commands %}
+            {%- set ns_badge.ids = ns_badge.ids + [f.id] %}
+            {%- endif %}
+            {%- endfor %}
+            {%- endfor %}
             <li class="list-group-item" id="cmd-{{ s.command.name | e }}">
                 <h3>{% if s.command.title %}{{ s.command.title | e }}{% else %}{{ s.command.name | e }}{% endif %}</h3>
+                {% if ns_badge.ids %}<p><strong>Evidence for: {{ ns_badge.ids | join(", ") | e }}</strong></p>{% endif %}
                 <div class="border border-secondary rounded"><pre>{{ s.stdout }}</pre></div>
                 <p><small>
                     {% if s.command.description %}<p>{{ s.command.description | e | replace("\n", "<br/>") | safe }}</p>{% endif %}
@@ -277,11 +362,38 @@
     </div>
     {% endif %}
 
+    {%- if signals %}
+    <hr/>
+    <h2>Signals</h2>
+    <table style="border-collapse:collapse;width:100%;margin-bottom:1rem;">
+        <thead><tr>
+            <th style="padding:0.4rem 0.8rem;border-bottom:2px solid #dee2e6;">ID</th>
+            <th style="padding:0.4rem 0.8rem;border-bottom:2px solid #dee2e6;">Value</th>
+            <th style="padding:0.4rem 0.8rem;border-bottom:2px solid #dee2e6;">Trend</th>
+            <th style="padding:0.4rem 0.8rem;border-bottom:2px solid #dee2e6;">Threshold</th>
+        </tr></thead>
+        <tbody>
+        {%- for s in signals %}
+        {%- set thr = signal_thresholds[s.id] %}
+        <tr>
+            <td style="padding:0.4rem 0.8rem;"><code>{{ s.id | e }}</code></td>
+            <td style="padding:0.4rem 0.8rem;">{{ s.value }}</td>
+            <td style="padding:0.4rem 0.8rem;">{{ s.stats.trend if s.stats else "—" }}</td>
+            <td style="padding:0.4rem 0.8rem;">{% if thr %}{{ thr.op | e }} {{ thr.value }} ({{ thr.severity | e }}){% else %}—{% endif %}</td>
+        </tr>
+        {%- endfor %}
+        </tbody>
+    </table>
+    {%- endif %}
+
     <hr/>
 
     <small>Please see <a
             href="https://medium.com/netflix-techblog/linux-performance-analysis-in-60-000-milliseconds-accc10403c55">Linux
         Performance Analysis in 60,000 Milliseconds</a> for details about the individual reports.</small>
+    {%- if findings %}
+    <p><strong>Tip:</strong> run <code>usereport diff &lt;before.json&gt; &lt;after.json&gt;</code> to compare two reports after remediating findings.</p>
+    {%- endif %}
 </div>
 </body>
 </html>

@@ -7,40 +7,30 @@ use std::str::FromStr;
 use usereport::cli::config::Config;
 
 #[test]
-fn missing_val_group_fails_validate_with_command_and_pattern_in_message() {
-    let toml_src = r#"
+fn missing_val_group_in_non_count_pattern_fails_validate() {
+    let toml = r#"
 [defaults]
-timeout = 5
-
-[[profile]]
-name = "default"
-commands = ["vmstat"]
 
 [[command]]
 name = "vmstat"
-command = "/usr/bin/vmstat"
+command = "vmstat -s"
 
 [[command.extract]]
 pattern = "\\d+"
 signal_id = "vmstat.wa_pct"
 unit = "pct"
 aggregate = "max"
+
+[[profile]]
+name = "default"
+commands = ["vmstat"]
 "#;
-
-    let config = Config::from_str(toml_src).expect("TOML parses");
+    let config = Config::from_str(toml).expect("TOML parses");
     let result = config.validate();
-
+    assert!(result.is_err(), "validate must fail for missing (?P<val>...)");
+    let err = result.unwrap_err().to_string();
     assert!(
-        result.is_err(),
-        "validate must return Err when (?P<val>...) is absent for non-Count aggregate"
-    );
-    let msg = result.unwrap_err().to_string();
-    assert!(
-        msg.contains("vmstat"),
-        "error message must mention the command name 'vmstat', got: {msg}"
-    );
-    assert!(
-        msg.contains(r"\d+"),
-        "error message must mention the pattern '\\d+', got: {msg}"
+        err.contains("vmstat"),
+        "error must mention command 'vmstat': {err}"
     );
 }

@@ -1,23 +1,28 @@
-//! SDD more-useful-firefight Phase 4, C7.
-//! GIVEN findings is non-empty
-//! WHEN the report renders
-//! THEN the output contains the string "usereport diff".
+//! SDD more-useful-firefight Phase 3, C5.
+//! GIVEN Markdown output and evidence[0].source_commands = ["iostat"]
+//! WHEN the template renders
+//! THEN the evidence line contains the substring "(see: iostat)".
 
 use usereport::analysis::{AnalysisReport, Context};
-use usereport::finding::{Finding, FindingKind, Severity};
+use usereport::finding::{Evidence, Finding, FindingKind, Severity};
 use usereport::renderer::TemplateRenderer;
+use usereport::signal::SignalValue;
 use usereport::Renderer;
 
 const MARKDOWN: &str = include_str!("../contrib/markdown.j2");
 
 #[test]
-fn diff_tip_present_when_findings_non_empty() {
+fn markdown_evidence_appends_see_source_command_name() {
     let finding = Finding {
-        id: "cpu.iowait_elevated".to_string(),
+        id: "cpu.iowait_high".to_string(),
         kind: FindingKind::Rule,
         severity: Severity::Warn,
         summary: "iowait elevated".to_string(),
-        evidence: vec![],
+        evidence: vec![Evidence {
+            signal_id: "cpu.iowait_pct".to_string(),
+            observed: SignalValue::F64(25.0),
+            source_commands: vec!["iostat".to_string()],
+        }],
         suggest: vec![],
     };
     let report = AnalysisReport::new_with_diagnostics(
@@ -35,8 +40,8 @@ fn diff_tip_present_when_findings_non_empty() {
     renderer.render(&report, &mut out).expect("render ok");
     let s = String::from_utf8(out).unwrap();
     assert!(
-        s.contains("usereport diff"),
-        "output must contain 'usereport diff' when findings non-empty:\n{}",
+        s.contains("(see: iostat)"),
+        "Markdown evidence must contain '(see: iostat)':\n{}",
         s
     );
 }

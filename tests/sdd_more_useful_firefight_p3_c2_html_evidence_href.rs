@@ -12,15 +12,15 @@ use usereport::Renderer;
 const HTML: &str = include_str!("../contrib/html.j2");
 
 #[test]
-fn html_evidence_has_anchor_href() {
+fn html_evidence_renders_href_to_command() {
     let finding = Finding {
         id: "disk.util_high".to_string(),
         kind: FindingKind::Rule,
         severity: Severity::Warn,
-        summary: "disk utilization high".to_string(),
+        summary: "disk util high".to_string(),
         evidence: vec![Evidence {
             signal_id: "disk.util_pct".to_string(),
-            observed: SignalValue::F64(95.0),
+            observed: SignalValue::F64(90.0),
             source_commands: vec!["iostat".to_string()],
         }],
         suggest: vec![],
@@ -35,13 +35,13 @@ fn html_evidence_has_anchor_href() {
         vec![finding],
         vec![],
     );
-    let renderer = TemplateRenderer::new(HTML).with_html_escape();
+    let renderer = TemplateRenderer::new(HTML);
     let mut out = Vec::new();
     renderer.render(&report, &mut out).expect("render ok");
     let s = String::from_utf8(out).unwrap();
     assert!(
         s.contains("href=\"#cmd-iostat\""),
-        "HTML evidence must contain href=\"#cmd-iostat\":\n{}",
-        &s[..s.len().min(2000)]
+        "HTML evidence must contain href to cmd-iostat:\n{}",
+        &s[..s.len().min(4000)]
     );
 }

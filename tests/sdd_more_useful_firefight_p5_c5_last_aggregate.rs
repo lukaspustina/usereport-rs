@@ -8,15 +8,15 @@ use usereport::extract::extract_signals;
 use usereport::signal::{SignalValue, Unit};
 
 #[test]
-fn last_aggregate_returns_f64_of_last_capture() {
-    let stdout = "value=10\nvalue=20\nvalue=30\n";
+fn last_aggregate_returns_final_value() {
     let extracts = vec![CommandExtract {
-        pattern: r"value=(?P<val>\d+)".to_string(),
-        signal_id: "test.last_signal".to_string(),
+        pattern: r"val=(?P<val>\d+)".to_string(),
+        signal_id: "test.metric".to_string(),
         unit: Unit::None,
         aggregate: Aggregate::Last,
     }];
+    let stdout = "val=10\nval=20\nval=30\n";
     let signals = extract_signals("test_cmd", stdout, &extracts);
-    assert_eq!(signals.len(), 1, "expected exactly one signal");
+    assert_eq!(signals.len(), 1);
     assert_eq!(signals[0].value, SignalValue::F64(30.0));
 }

@@ -1,39 +1,41 @@
 //! SDD more-useful-firefight Phase 4, C3.
 //! GIVEN all commands with use_dimension.resource = "network" returned SkippedMissing
 //! WHEN use_coverage is computed
-//! THEN all 3 entries with resource = "network" have covered = false.
+//! THEN all 3 entries with resource = Network have covered = false.
 
 use usereport::analysis::compute_use_coverage;
-use usereport::command::{Command, CommandResult, UseDimension};
+use usereport::command::{Command, CommandResult};
+use usereport::UseDimension;
 
-fn make_skipped_network(name: &str, cmd: &str, aspect: &str) -> CommandResult {
+fn skipped_with_dim(name: &str, resource: &str, aspect: &str) -> CommandResult {
+    let cmd = Command::new(name, name).with_use_dimension(UseDimension {
+        resource: resource.to_string(),
+        aspect: aspect.to_string(),
+    });
     CommandResult::SkippedMissing {
-        command: Command::new(name, cmd).with_use_dimension(UseDimension {
-            resource: "network".to_string(),
-            aspect: aspect.to_string(),
-        }),
-        binary: cmd.to_string(),
+        command: cmd,
+        binary: name.to_string(),
     }
 }
 
 #[test]
-fn use_coverage_network_all_false_when_skipped() {
+fn use_coverage_network_all_skipped_is_not_covered() {
     let results = vec![
-        make_skipped_network("sar_dev", "sar -n DEV 1 1", "utilization"),
-        make_skipped_network("sar_tcp", "sar -n TCP 1 1", "saturation"),
-        make_skipped_network("sar_edev", "sar -n EDEV 1 1", "errors"),
+        skipped_with_dim("sar_dev", "network", "utilization"),
+        skipped_with_dim("sar_tcp", "network", "saturation"),
+        skipped_with_dim("sar_edev", "network", "errors"),
     ];
     let coverage = compute_use_coverage(&results);
-    let network_entries: Vec<_> = coverage.iter().filter(|e| e.resource == "network").collect();
-    assert!(
-        !network_entries.is_empty(),
-        "use_coverage must contain network entries"
-    );
-    for entry in &network_entries {
+    let net_entries: Vec<_> = coverage
+        .iter()
+        .filter(|e| e.resource == "network")
+        .collect();
+    assert_eq!(net_entries.len(), 3, "must have 3 network entries");
+    for e in net_entries {
         assert!(
-            !entry.covered,
-            "network entry {:?} must have covered=false when all skipped",
-            entry.aspect
+            !e.covered,
+            "network {} must be uncovered when only SkippedMissing results",
+            e.aspect
         );
     }
 }

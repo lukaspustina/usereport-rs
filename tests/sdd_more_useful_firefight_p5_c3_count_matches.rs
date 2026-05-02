@@ -8,15 +8,15 @@ use usereport::extract::extract_signals;
 use usereport::signal::{SignalValue, Unit};
 
 #[test]
-fn count_aggregate_returns_i64_3() {
-    let stdout = "value=5\nvalue=18\nvalue=12\n";
+fn count_aggregate_counts_matching_lines() {
     let extracts = vec![CommandExtract {
-        pattern: r"value=(?P<val>\d+)".to_string(),
-        signal_id: "test.count_signal".to_string(),
+        pattern: "ERROR".to_string(),
+        signal_id: "test.error_count".to_string(),
         unit: Unit::Count,
         aggregate: Aggregate::Count,
     }];
+    let stdout = "INFO: ok\nERROR: bad\nERROR: worse\nERROR: bad again\n";
     let signals = extract_signals("test_cmd", stdout, &extracts);
-    assert_eq!(signals.len(), 1, "expected exactly one signal");
+    assert_eq!(signals.len(), 1);
     assert_eq!(signals[0].value, SignalValue::I64(3));
 }

@@ -92,7 +92,13 @@
 {% if f.suggest -%}
 **Next steps**
 {% for cmd in f.suggest -%}
-- `{{ cmd }}`
+{%- set ns_s = namespace(found=false) %}
+{%- for run in command_results %}
+{%- for result in run %}
+{%- if result.Success is defined and result.Success.command.command == cmd %}{% set ns_s.found = true %}{% endif %}
+{%- endfor %}
+{%- endfor %}
+- `{{ cmd }}`{% if ns_s.found %} (see above){% endif %}
 {% endfor %}
 {% endif %}
 {% endfor -%}

@@ -1,5 +1,6 @@
 use crate::{
     Analysis, AnalysisReport, Command, Config, Context, Renderer, ThreadRunner,
+    analysis::{compute_use_coverage, compute_vital_signs},
     baseline::BaselineStore,
     collector::{
         Collector, cgroup::CgroupCollector, cpu::CpuCollector, cpufreq::CpuFreqCollector, disk::DiskCollector,
@@ -667,7 +668,7 @@ pub fn run_explain(id: &str, config: &Config) -> miette::Result<()> {
     }
 }
 
-fn run_explain_command(cmd: &crate::command::Command, _is_tty: bool, out: &mut dyn Write) -> miette::Result<()> {
+pub fn run_explain_command(cmd: &crate::command::Command, _is_tty: bool, out: &mut dyn Write) -> miette::Result<()> {
     writeln!(out, "Command: {}", cmd.name()).into_diagnostic()?;
     if let Some(title) = cmd.title() {
         writeln!(out, "Title: {title}").into_diagnostic()?;
@@ -685,8 +686,14 @@ fn run_explain_command(cmd: &crate::command::Command, _is_tty: bool, out: &mut d
         writeln!(out).into_diagnostic()?;
         writeln!(out, "Extract: {} ({:?} {:?}) pattern={}", extract.signal_id, extract.aggregate, extract.unit, extract.pattern).into_diagnostic()?;
     }
-    if let Some(links) = None::<Vec<()>> {
-        let _ = links;
+    if let Some(links) = cmd.links.as_deref() {
+        if !links.is_empty() {
+            writeln!(out).into_diagnostic()?;
+            writeln!(out, "Links:").into_diagnostic()?;
+            for link in links {
+                writeln!(out, "  {} — {}", link.name, link.url).into_diagnostic()?;
+            }
+        }
     }
     Ok(())
 }
@@ -924,6 +931,18 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> miette::Re
     // analysis holds the last clone of progress_tx; drop it now so the progress
     // thread's channel closes and handle.join() below does not deadlock.
     drop(analysis);
+
+    // Compute at-a-glance overview fields.
+    let first_results: Vec<_> = report
+        .command_results()
+        .first()
+        .map(|v| v.to_vec())
+        .unwrap_or_default();
+    report.vital_signs = compute_vital_signs(report.signals(), report.findings());
+    report.use_coverage = compute_use_coverage(&first_results);
+    if let Ok(profile) = config.profile(profile_name) {
+        report.followup_recommendations = profile.followup.clone();
+    }
 
     // --profile-cpu: generate flamegraph and attach to report.
     if let Some(profile_dur) = &opt.profile_cpu {

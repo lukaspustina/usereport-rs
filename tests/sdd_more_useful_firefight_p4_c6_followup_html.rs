@@ -1,7 +1,7 @@
 //! SDD more-useful-firefight Phase 4, C6.
 //! GIVEN a fired finding with id = "cpu.iowait_elevated" and a followup_recommendation
-//!       matching that finding with recommend = "mem" and reason = "iowait often driven by memory pressure"
-//! WHEN the report renders
+//!   matching that finding with recommend = "mem" and reason = "iowait often driven by memory pressure"
+//! WHEN the HTML report renders
 //! THEN a section appears containing "mem" and "iowait often driven by memory pressure".
 
 use usereport::analysis::{AnalysisReport, Context, ProfileFollowup};
@@ -9,10 +9,10 @@ use usereport::finding::{Finding, FindingKind, Severity};
 use usereport::renderer::TemplateRenderer;
 use usereport::Renderer;
 
-const MARKDOWN: &str = include_str!("../contrib/markdown.j2");
+const HTML: &str = include_str!("../contrib/html.j2");
 
 #[test]
-fn followup_recommendation_rendered_for_matching_finding() {
+fn followup_recommendation_rendered_in_html() {
     let finding = Finding {
         id: "cpu.iowait_elevated".to_string(),
         kind: FindingKind::Rule,
@@ -36,18 +36,18 @@ fn followup_recommendation_rendered_for_matching_finding() {
         recommend: "mem".to_string(),
         reason: "iowait often driven by memory pressure".to_string(),
     }];
-    let renderer = TemplateRenderer::new(MARKDOWN);
+    let renderer = TemplateRenderer::new(HTML);
     let mut out = Vec::new();
     renderer.render(&report, &mut out).expect("render ok");
     let s = String::from_utf8(out).unwrap();
     assert!(
         s.contains("mem"),
-        "output must contain 'mem' from followup recommendation:\n{}",
-        s
+        "HTML must contain 'mem' from followup recommendation:\n{}",
+        &s[..s.len().min(3000)]
     );
     assert!(
         s.contains("iowait often driven by memory pressure"),
-        "output must contain reason string:\n{}",
-        s
+        "HTML must contain reason string:\n{}",
+        &s[..s.len().min(3000)]
     );
 }
