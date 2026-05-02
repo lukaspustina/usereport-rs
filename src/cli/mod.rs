@@ -353,6 +353,13 @@ fn show_config(config: &Config) {
 }
 
 fn show_profiles(config: &Config) {
+    let is_tty = std::io::stdout().is_terminal();
+    let stdout = std::io::stdout();
+    let mut handle = stdout.lock();
+    show_profiles_inner(config, is_tty, &mut handle);
+}
+
+pub fn show_profiles_inner(config: &Config, is_tty: bool, out: &mut dyn Write) {
     use comfy_table::{Attribute, Cell};
     let mut table = Table::new();
     table.set_header(vec![
@@ -360,6 +367,9 @@ fn show_profiles(config: &Config) {
         Cell::new("Commands").add_attribute(Attribute::Bold),
         Cell::new("Description").add_attribute(Attribute::Bold),
     ]);
+    if is_tty {
+        table.enforce_styling();
+    }
     for p in &config.profiles {
         table.add_row(vec![
             p.name.clone(),
@@ -367,7 +377,7 @@ fn show_profiles(config: &Config) {
             p.description.as_deref().unwrap_or("-").to_string(),
         ]);
     }
-    println!("{table}");
+    let _ = writeln!(out, "{table}");
 }
 
 fn show_output_template(opt: &Opt) -> miette::Result<()> {
@@ -470,7 +480,24 @@ fn run_check(config: &Config, profile_filter: Option<&str>) -> miette::Result<()
         checks.push(("bpf".into(), (*tool).into(), binary));
     }
 
-    use comfy_table::{Attribute, Cell, Color};
+    let is_tty = std::io::stdout().is_terminal();
+    let stdout = std::io::stdout();
+    let mut handle = stdout.lock();
+    let missing = run_check_inner(&checks, is_tty, &mut handle)?;
+
+    if missing > 0 {
+        eprintln!("{} binary/binaries not found", missing);
+        std::process::exit(1);
+    }
+    Ok(())
+}
+
+pub fn run_check_inner(
+    checks: &[(String, String, String)],
+    is_tty: bool,
+    out: &mut dyn Write,
+) -> miette::Result<usize> {
+    use comfy_table::{Attribute, Cell};
     let mut table = Table::new();
     table.set_header(vec![
         Cell::new("Category").add_attribute(Attribute::Bold),
@@ -478,20 +505,21 @@ fn run_check(config: &Config, profile_filter: Option<&str>) -> miette::Result<()
         Cell::new("Binary").add_attribute(Attribute::Bold),
         Cell::new("Status").add_attribute(Attribute::Bold),
     ]);
-
-    let is_tty = std::io::stdout().is_terminal();
+    if is_tty {
+        table.enforce_styling();
+    }
     let mut missing = 0usize;
-    for (category, name, binary) in &checks {
+    for (category, name, binary) in checks {
         let found = which::which(binary).is_ok() || std::path::Path::new(binary.as_str()).exists();
-        let status_str = if found { "ok" } else { missing += 1; "MISSING" };
         let status_cell = if is_tty {
             if found {
-                Cell::new(status_str).fg(Color::Green)
+                Cell::new("\x1b[32mok\x1b[0m")
             } else {
-                Cell::new(status_str).fg(Color::Red)
+                missing += 1;
+                Cell::new("\x1b[31mMISSING\x1b[0m")
             }
         } else {
-            Cell::new(status_str)
+            if found { Cell::new("ok") } else { missing += 1; Cell::new("MISSING") }
         };
         table.add_row(vec![
             Cell::new(category),
@@ -500,13 +528,8 @@ fn run_check(config: &Config, profile_filter: Option<&str>) -> miette::Result<()
             status_cell,
         ]);
     }
-    println!("{table}");
-
-    if missing > 0 {
-        eprintln!("{} binary/binaries not found", missing);
-        std::process::exit(1);
-    }
-    Ok(())
+    writeln!(out, "{table}").into_diagnostic()?;
+    Ok(missing)
 }
 
 fn run_baseline(action: &BaselineAction) -> miette::Result<()> {
