@@ -78,31 +78,45 @@ pub fn read_cpu_snapshot() -> Option<CpuSnapshot> {
     })
 }
 
-/// Parse `iostat 1 1` data line: returns (user_pct, sys_pct, idle_pct).
+/// Parse `iostat 1 1` output: returns (user_pct, sys_pct, idle_pct).
+///
+/// The number of disk columns varies by machine (disk0 only vs disk0+disk1+…),
+/// so we locate `us`/`sy`/`id` from the header line rather than using fixed
+/// column indices.
 fn parse_iostat_cpu(s: &str) -> Option<(u64, u64, u64)> {
-    // Data line format (after two header lines):
-    //    KB/t  tps  MB/s  us sy id   1m   5m   15m
-    //   17.81  240  4.18  10  9 81  9.34 7.44 5.46
+    let mut us_col: Option<usize> = None;
+    let mut sy_col: Option<usize> = None;
+    let mut id_col: Option<usize> = None;
+
     for line in s.lines() {
         let parts: Vec<&str> = line.split_whitespace().collect();
-        // Data lines start with a float KB/t value; look for a line with
-        // at least 7 fields where fields 3,4,5 are small integers (0-100).
-        if parts.len() < 7 {
+        if parts.is_empty() {
             continue;
         }
-        // Skip header lines (contain "us" or "KB/t")
-        if parts[3] == "us" || parts[0] == "KB/t" {
-            continue;
-        }
-        // Fields 3=us, 4=sy, 5=id
-        if let (Ok(us), Ok(sy), Ok(id)) = (
-            parts[3].parse::<u64>(),
-            parts[4].parse::<u64>(),
-            parts[5].parse::<u64>(),
-        ) {
-            if us + sy + id <= 100 {
-                return Some((us, sy, id));
+        // Header line: locate the us/sy/id column positions.
+        if us_col.is_none() {
+            if let (Some(u), Some(s), Some(i)) = (
+                parts.iter().position(|&p| p == "us"),
+                parts.iter().position(|&p| p == "sy"),
+                parts.iter().position(|&p| p == "id"),
+            ) {
+                us_col = Some(u);
+                sy_col = Some(s);
+                id_col = Some(i);
             }
+            continue;
+        }
+        // First data line after the header.
+        let (u, s, i) = (us_col?, sy_col?, id_col?);
+        if parts.len() <= i {
+            continue;
+        }
+        if let (Ok(us), Ok(sy), Ok(id)) = (
+            parts[u].parse::<u64>(),
+            parts[s].parse::<u64>(),
+            parts[i].parse::<u64>(),
+        ) {
+            return Some((us, sy, id));
         }
     }
     None
