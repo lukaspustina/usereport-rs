@@ -32,8 +32,7 @@ impl super::Collector for HostCollector {
                 load_avg = snap.load_avg_1m;
             }
             None => {
-                cpu_count =
-                    std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1) as f64;
+                cpu_count = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1) as f64;
                 mem_total = 0.0;
                 load_avg = 0.0;
             }

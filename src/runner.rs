@@ -112,18 +112,29 @@ pub mod thread {
                 .spawn(move || {
                     if let Some(ref progress_tx) = progress_tx {
                         progress_tx
-                            .send(ProgressEvent { seq, name: name.clone(), kind: EventKind::Started })
+                            .send(ProgressEvent {
+                                seq,
+                                name: name.clone(),
+                                kind: EventKind::Started,
+                            })
                             .expect("Thread failed to send progress via channel");
                     }
                     let res = command.exec();
                     tx.send((seq, res)).expect("Thread failed to send result via channel");
                     if let Some(progress_tx) = progress_tx {
                         progress_tx
-                            .send(ProgressEvent { seq, name: name.clone(), kind: EventKind::Finished })
+                            .send(ProgressEvent {
+                                seq,
+                                name: name.clone(),
+                                kind: EventKind::Finished,
+                            })
                             .expect("Thread failed to send progress via channel");
                     }
                 })
-                .map_err(|e| Error::ExecuteCommandFailed { name: name_for_err, source: e })
+                .map_err(|e| Error::ExecuteCommandFailed {
+                    name: name_for_err,
+                    source: e,
+                })
         }
 
         fn wait_for_results(children: Vec<JoinHandle<()>>, rx: Receiver<ChildResult>) -> Vec<CommandResult> {
@@ -164,7 +175,11 @@ pub mod thread {
 
         #[test]
         fn progress_event_started_fields() {
-            let ev = ProgressEvent { seq: 0, name: "cmd_a".to_string(), kind: EventKind::Started };
+            let ev = ProgressEvent {
+                seq: 0,
+                name: "cmd_a".to_string(),
+                kind: EventKind::Started,
+            };
             assert_eq!(ev.seq, 0);
             assert_eq!(ev.name, "cmd_a");
             assert!(matches!(ev.kind, EventKind::Started));
@@ -172,7 +187,11 @@ pub mod thread {
 
         #[test]
         fn progress_event_finished_fields() {
-            let ev = ProgressEvent { seq: 1, name: "cmd_b".to_string(), kind: EventKind::Finished };
+            let ev = ProgressEvent {
+                seq: 1,
+                name: "cmd_b".to_string(),
+                kind: EventKind::Finished,
+            };
             assert_eq!(ev.seq, 1);
             assert!(matches!(ev.kind, EventKind::Finished));
         }

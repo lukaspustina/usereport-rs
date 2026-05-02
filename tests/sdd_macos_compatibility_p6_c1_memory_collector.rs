@@ -5,8 +5,8 @@
 #![cfg(feature = "bin")]
 
 use usereport::collector::memory::MemoryCollector;
-use usereport::collector::{CollectCtx, Collector};
 use usereport::collector::platform::MemSnapshot;
+use usereport::collector::{CollectCtx, Collector};
 
 /// T9 — MemoryCollector::new() exists and collect() returns mem.free_pct.
 #[test]
@@ -63,7 +63,10 @@ fn p6_signals_from_mem_snapshot_available_mb_only_when_some() {
     };
     let sigs = MemoryCollector::signals_from_mem_snapshot(&snap_none).expect("ok");
     let ids: Vec<&str> = sigs.iter().map(|s| s.id.as_str()).collect();
-    assert!(!ids.contains(&"mem.available_mb"), "mem.available_mb must not appear when None");
+    assert!(
+        !ids.contains(&"mem.available_mb"),
+        "mem.available_mb must not appear when None"
+    );
 
     let snap_some = MemSnapshot {
         available_mb: Some(700.0),
@@ -71,5 +74,8 @@ fn p6_signals_from_mem_snapshot_available_mb_only_when_some() {
     };
     let sigs2 = MemoryCollector::signals_from_mem_snapshot(&snap_some).expect("ok");
     let ids2: Vec<&str> = sigs2.iter().map(|s| s.id.as_str()).collect();
-    assert!(ids2.contains(&"mem.available_mb"), "mem.available_mb should appear when Some");
+    assert!(
+        ids2.contains(&"mem.available_mb"),
+        "mem.available_mb should appear when Some"
+    );
 }

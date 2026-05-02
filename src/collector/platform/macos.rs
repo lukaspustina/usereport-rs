@@ -20,7 +20,11 @@ pub fn read_host_snapshot() -> Option<HostSnapshot> {
     let cpu_count: u64 = run("sysctl", &["-n", "hw.logicalcpu"])?.trim().parse().ok()?;
     let mem_total_bytes: u64 = run("sysctl", &["-n", "hw.memsize"])?.trim().parse().ok()?;
     let load_avg_1m = parse_loadavg(&run("sysctl", &["-n", "vm.loadavg"])?)?;
-    Some(HostSnapshot { cpu_count, mem_total_bytes, load_avg_1m })
+    Some(HostSnapshot {
+        cpu_count,
+        mem_total_bytes,
+        load_avg_1m,
+    })
 }
 
 /// Parse `{ 0.52 0.58 0.57 }` → first float.
@@ -130,8 +134,7 @@ pub fn read_net_snapshot() -> Option<NetSnapshot> {
     let rx_drops = parse_netstat_drops(&netstat_i);
 
     let netstat_s = run("netstat", &["-s", "-p", "tcp"]).unwrap_or_default();
-    let (tcp_out_segs, tcp_retrans_segs, tcp_attempt_fails, tcp_tw_count) =
-        parse_netstat_tcp_stats(&netstat_s);
+    let (tcp_out_segs, tcp_retrans_segs, tcp_attempt_fails, tcp_tw_count) = parse_netstat_tcp_stats(&netstat_s);
 
     Some(NetSnapshot {
         rx_drops,
@@ -232,10 +235,9 @@ pub fn read_mem_snapshot() -> Option<MemSnapshot> {
     let free_mb = ((free_p + speculative_p) * page_size) as f64 / bytes_per_mb as f64;
     let used_mb = total_mb - free_mb;
 
-    let (swap_total_mb, swap_used_mb, swap_free_mb) =
-        run("sysctl", &["-n", "vm.swapusage"])
-            .and_then(|s| parse_swapusage(&s))
-            .unwrap_or((0.0, 0.0, 0.0));
+    let (swap_total_mb, swap_used_mb, swap_free_mb) = run("sysctl", &["-n", "vm.swapusage"])
+        .and_then(|s| parse_swapusage(&s))
+        .unwrap_or((0.0, 0.0, 0.0));
 
     Some(MemSnapshot {
         total_mb,
@@ -298,7 +300,10 @@ fn parse_swapusage(s: &str) -> Option<(f64, f64, f64)> {
 // ---------------------------------------------------------------------------
 
 pub fn read_cpufreq_snapshot() -> CpuFreqSnapshot {
-    CpuFreqSnapshot { freq_ratio: None, temp_celsius: None }
+    CpuFreqSnapshot {
+        freq_ratio: None,
+        temp_celsius: None,
+    }
 }
 
 // ---------------------------------------------------------------------------

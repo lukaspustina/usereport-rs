@@ -33,7 +33,10 @@ fn make_cpu_snap(iowait: Option<u64>, procs_running: Option<u64>, ctxt: Option<u
 #[test]
 fn t2_from_cpu_snapshots_no_iowait_pct_when_iowait_none() {
     let a = make_cpu_snap(None, None, None);
-    let b = CpuSnapshot { user: 1100, ..make_cpu_snap(None, None, None) };
+    let b = CpuSnapshot {
+        user: 1100,
+        ..make_cpu_snap(None, None, None)
+    };
     let signals = CpuCollector::from_cpu_snapshots(&a, &b, 1.0);
     let ids: Vec<&str> = signals.iter().map(|s| s.id.as_str()).collect();
     assert!(
@@ -42,7 +45,11 @@ fn t2_from_cpu_snapshots_no_iowait_pct_when_iowait_none() {
         ids
     );
     // usr_pct should still be present
-    assert!(ids.contains(&"cpu.usr_pct"), "cpu.usr_pct should be present; got: {:?}", ids);
+    assert!(
+        ids.contains(&"cpu.usr_pct"),
+        "cpu.usr_pct should be present; got: {:?}",
+        ids
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -52,7 +59,10 @@ fn t2_from_cpu_snapshots_no_iowait_pct_when_iowait_none() {
 #[test]
 fn t3_from_cpu_snapshots_has_iowait_pct_when_iowait_some() {
     let a = make_cpu_snap(Some(500), None, None);
-    let b = CpuSnapshot { user: 1100, ..make_cpu_snap(Some(600), None, None) };
+    let b = CpuSnapshot {
+        user: 1100,
+        ..make_cpu_snap(Some(600), None, None)
+    };
     let signals = CpuCollector::from_cpu_snapshots(&a, &b, 1.0);
     let ids: Vec<&str> = signals.iter().map(|s| s.id.as_str()).collect();
     assert!(
@@ -70,17 +80,29 @@ fn t3_from_cpu_snapshots_has_iowait_pct_when_iowait_some() {
 fn t3_from_cpu_snapshots_vmstat_r_only_when_procs_running_some() {
     // With None — no vmstat.r
     let a_none = make_cpu_snap(None, None, None);
-    let b_none = CpuSnapshot { user: 1100, ..make_cpu_snap(None, None, None) };
+    let b_none = CpuSnapshot {
+        user: 1100,
+        ..make_cpu_snap(None, None, None)
+    };
     let sigs = CpuCollector::from_cpu_snapshots(&a_none, &b_none, 1.0);
     let ids: Vec<&str> = sigs.iter().map(|s| s.id.as_str()).collect();
-    assert!(!ids.contains(&"vmstat.r"), "vmstat.r must not appear when procs_running=None");
+    assert!(
+        !ids.contains(&"vmstat.r"),
+        "vmstat.r must not appear when procs_running=None"
+    );
 
     // With Some — vmstat.r present
     let a_some = make_cpu_snap(None, Some(3), None);
-    let b_some = CpuSnapshot { user: 1100, ..make_cpu_snap(None, Some(4), None) };
+    let b_some = CpuSnapshot {
+        user: 1100,
+        ..make_cpu_snap(None, Some(4), None)
+    };
     let sigs2 = CpuCollector::from_cpu_snapshots(&a_some, &b_some, 1.0);
     let ids2: Vec<&str> = sigs2.iter().map(|s| s.id.as_str()).collect();
-    assert!(ids2.contains(&"vmstat.r"), "vmstat.r must appear when procs_running=Some");
+    assert!(
+        ids2.contains(&"vmstat.r"),
+        "vmstat.r must appear when procs_running=Some"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -116,8 +138,16 @@ fn t4_from_disk_snapshots_no_util_or_await_when_time_none() {
         ids
     );
     // read_iops and write_iops should still be present
-    assert!(ids.contains(&"disk.sda.read_iops"), "read_iops should be present; got: {:?}", ids);
-    assert!(ids.contains(&"disk.sda.write_iops"), "write_iops should be present; got: {:?}", ids);
+    assert!(
+        ids.contains(&"disk.sda.read_iops"),
+        "read_iops should be present; got: {:?}",
+        ids
+    );
+    assert!(
+        ids.contains(&"disk.sda.write_iops"),
+        "write_iops should be present; got: {:?}",
+        ids
+    );
 }
 
 #[test]
@@ -171,6 +201,10 @@ fn p5_from_net_snapshots_emits_retrans_and_drops() {
     let signals = NetworkCollector::from_net_snapshots(&a, &b, 1.0);
     let ids: Vec<&str> = signals.iter().map(|s| s.id.as_str()).collect();
     assert!(ids.contains(&"net.rx_drops"), "net.rx_drops missing; got: {:?}", ids);
-    assert!(ids.contains(&"net.retrans_pct"), "net.retrans_pct missing; got: {:?}", ids);
+    assert!(
+        ids.contains(&"net.retrans_pct"),
+        "net.retrans_pct missing; got: {:?}",
+        ids
+    );
     assert!(ids.contains(&"net.tw_count"), "net.tw_count missing; got: {:?}", ids);
 }

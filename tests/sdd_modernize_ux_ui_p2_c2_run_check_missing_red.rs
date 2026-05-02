@@ -15,8 +15,7 @@ fn run_check_missing_binary_emits_red_ansi_when_tty() {
     )];
 
     let mut out: Vec<u8> = Vec::new();
-    let missing = run_check_inner(&checks, true, &mut out)
-        .expect("run_check_inner should succeed");
+    let missing = run_check_inner(&checks, true, &mut out).expect("run_check_inner should succeed");
 
     let output = String::from_utf8(out).expect("output is valid UTF-8");
 

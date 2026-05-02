@@ -42,7 +42,13 @@ impl MemoryCollector {
         }
 
         if snap.total_mb > 0.0 {
-            push(&mut signals, "mem.free_pct", snap.free_mb / snap.total_mb * 100.0, Unit::Pct, now);
+            push(
+                &mut signals,
+                "mem.free_pct",
+                snap.free_mb / snap.total_mb * 100.0,
+                Unit::Pct,
+                now,
+            );
         }
 
         push(&mut signals, "swap.total_mb", snap.swap_total_mb, Unit::Count, now);

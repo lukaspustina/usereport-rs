@@ -17,10 +17,7 @@ fn bad_config_path_exits_nonzero_with_error_message() {
     );
 
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        !stderr.is_empty(),
-        "expected error message in stderr, got empty"
-    );
+    assert!(!stderr.is_empty(), "expected error message in stderr, got empty");
     // miette fancy format includes rich box-drawing (×, ├─▶, ╰─▶) not a bare "Error: msg" line
     let has_rich_format = stderr.contains('×') || stderr.contains("├─▶") || stderr.contains("╰─▶");
     assert!(

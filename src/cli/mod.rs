@@ -15,11 +15,10 @@ use crate::{
 };
 #[cfg(feature = "bpf")]
 use crate::{collector::bpf::BpfCollector, rule::builtin::bpf_rules};
-use miette::{miette, IntoDiagnostic as _, Context as _};
 use clap::Parser;
 use comfy_table::Table;
-use termimad;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
+use miette::{Context as _, IntoDiagnostic as _, miette};
 use std::{
     collections::HashSet,
     fs::File,
@@ -29,6 +28,7 @@ use std::{
     sync::mpsc::{self, Sender},
     thread::JoinHandle,
 };
+use termimad;
 
 pub mod config;
 
@@ -475,8 +475,7 @@ fn run_check(config: &Config, profile_filter: Option<&str>) -> miette::Result<()
     #[cfg(feature = "bpf")]
     for tool in crate::collector::bpf::TOOLS {
         // Resolve bare name or -bpfcc suffix (Ubuntu packages them with the suffix).
-        let binary = crate::collector::bpf::resolve_bcc_tool(tool)
-            .unwrap_or_else(|| tool.to_string());
+        let binary = crate::collector::bpf::resolve_bcc_tool(tool).unwrap_or_else(|| tool.to_string());
         checks.push(("bpf".into(), (*tool).into(), binary));
     }
 
@@ -519,7 +518,12 @@ pub fn run_check_inner(
                 Cell::new("\x1b[31mMISSING\x1b[0m")
             }
         } else {
-            if found { Cell::new("ok") } else { missing += 1; Cell::new("MISSING") }
+            if found {
+                Cell::new("ok")
+            } else {
+                missing += 1;
+                Cell::new("MISSING")
+            }
         };
         table.add_row(vec![
             Cell::new(category),
@@ -533,7 +537,9 @@ pub fn run_check_inner(
 }
 
 fn run_baseline(action: &BaselineAction) -> miette::Result<()> {
-    let store = BaselineStore::xdg().into_diagnostic().context("locate baseline directory")?;
+    let store = BaselineStore::xdg()
+        .into_diagnostic()
+        .context("locate baseline directory")?;
     match action {
         BaselineAction::Record { name } => {
             let label = name.as_deref().unwrap_or("default");
@@ -552,7 +558,11 @@ fn run_baseline(action: &BaselineAction) -> miette::Result<()> {
                 println!("{}", name);
             }
         }
-        BaselineAction::Show { name } => match store.load(name).into_diagnostic().with_context(|| format!("load baseline '{}'", name))? {
+        BaselineAction::Show { name } => match store
+            .load(name)
+            .into_diagnostic()
+            .with_context(|| format!("load baseline '{}'", name))?
+        {
             Some(record) => println!("{}", serde_json::to_string_pretty(&record).into_diagnostic()?),
             None => return Err(miette!("baseline '{}' not found", name)),
         },
@@ -568,10 +578,18 @@ fn run_baseline(action: &BaselineAction) -> miette::Result<()> {
 }
 
 fn run_diff(a_path: &PathBuf, b_path: &PathBuf, output: &str) -> miette::Result<()> {
-    let a_bytes = std::fs::read(a_path).into_diagnostic().with_context(|| format!("read {}", a_path.display()))?;
-    let b_bytes = std::fs::read(b_path).into_diagnostic().with_context(|| format!("read {}", b_path.display()))?;
-    let a: AnalysisReport = serde_json::from_slice(&a_bytes).into_diagnostic().with_context(|| format!("parse {}", a_path.display()))?;
-    let b: AnalysisReport = serde_json::from_slice(&b_bytes).into_diagnostic().with_context(|| format!("parse {}", b_path.display()))?;
+    let a_bytes = std::fs::read(a_path)
+        .into_diagnostic()
+        .with_context(|| format!("read {}", a_path.display()))?;
+    let b_bytes = std::fs::read(b_path)
+        .into_diagnostic()
+        .with_context(|| format!("read {}", b_path.display()))?;
+    let a: AnalysisReport = serde_json::from_slice(&a_bytes)
+        .into_diagnostic()
+        .with_context(|| format!("parse {}", a_path.display()))?;
+    let b: AnalysisReport = serde_json::from_slice(&b_bytes)
+        .into_diagnostic()
+        .with_context(|| format!("parse {}", b_path.display()))?;
     let report = diff::diff(&a, &b);
     let stdout = std::io::stdout();
     let mut handle = stdout.lock();
@@ -686,9 +704,8 @@ fn generate_flamegraph(duration_secs: u64, _use_bpf: bool) -> miette::Result<Opt
     }
 
     if has_bpftrace {
-        let script = format!(
-            "profile:hz:99 {{ @[comm, kstack, ustack] = count(); }} interval:s:{duration_secs} {{ exit(); }}"
-        );
+        let script =
+            format!("profile:hz:99 {{ @[comm, kstack, ustack] = count(); }} interval:s:{duration_secs} {{ exit(); }}");
         let out = std::process::Command::new("bpftrace")
             .args(["-f", "folded", "-e", &script])
             .stderr(std::process::Stdio::null())
@@ -788,8 +805,9 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> miette::Re
         all_rules.extend(bpf_rules());
     }
     // Phase 8: merge workload-specific rules when --workload is set to a known pack.
-    let workload_rules =
-        load_workload_rules(&opt.workload).into_diagnostic().with_context(|| format!("invalid --workload value '{}'", opt.workload))?;
+    let workload_rules = load_workload_rules(&opt.workload)
+        .into_diagnostic()
+        .with_context(|| format!("invalid --workload value '{}'", opt.workload))?;
     all_rules.extend(workload_rules);
     let rule_engine = RuleEngine::new(all_rules);
 
@@ -820,8 +838,14 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> miette::Re
         analysis = analysis.with_cgroup(cgroup_path);
     }
     if let Some(name) = opt.baseline.as_deref() {
-        let store = BaselineStore::xdg().into_diagnostic().context("locate baseline directory")?;
-        match store.load(name).into_diagnostic().with_context(|| format!("load baseline '{}'", name))? {
+        let store = BaselineStore::xdg()
+            .into_diagnostic()
+            .context("locate baseline directory")?;
+        match store
+            .load(name)
+            .into_diagnostic()
+            .with_context(|| format!("load baseline '{}'", name))?
+        {
             Some(record) => analysis = analysis.with_baseline_records(vec![record]),
             None => return Err(miette!("baseline '{}' not found", name)),
         }
@@ -868,7 +892,9 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> miette::Re
             let redactor = Redactor::from_env();
             llm_out = redactor.redact_output(llm_out);
         }
-        serde_json::to_writer(writer, &llm_out).into_diagnostic().context("failed to write LLM JSON")?;
+        serde_json::to_writer(writer, &llm_out)
+            .into_diagnostic()
+            .context("failed to write LLM JSON")?;
     } else {
         let mut buf: Vec<u8> = Vec::new();
         renderer
@@ -876,7 +902,9 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> miette::Re
             .render(&report, Box::new(&mut buf) as Box<dyn Write + Send>)
             .into_diagnostic()
             .context("failed to render report")?;
-        let rendered = String::from_utf8(buf).into_diagnostic().context("rendered output is not UTF-8")?;
+        let rendered = String::from_utf8(buf)
+            .into_diagnostic()
+            .context("rendered output is not UTF-8")?;
         let is_tty = opt.output_file.is_none() && std::io::stdout().is_terminal();
         render_for_output(&rendered, &mut *writer, is_tty, &opt.output)?;
     }
@@ -899,7 +927,9 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> miette::Re
 }
 
 fn parse_duration(s: &str) -> miette::Result<std::time::Duration> {
-    humantime::parse_duration(s).into_diagnostic().with_context(|| format!("invalid duration {:?}", s))
+    humantime::parse_duration(s)
+        .into_diagnostic()
+        .with_context(|| format!("invalid duration {:?}", s))
 }
 
 /// Build a writer for the rendered report. When `output_file` is `Some(path)`,
@@ -915,7 +945,9 @@ pub(crate) fn output_writer(output_file: &Option<PathBuf>) -> miette::Result<Box
                         .with_context(|| format!("failed to create parent directories for {}", path.display()))?;
                 }
             }
-            let file = File::create(path).into_diagnostic().with_context(|| format!("failed to open output file {}", path.display()))?;
+            let file = File::create(path)
+                .into_diagnostic()
+                .with_context(|| format!("failed to open output file {}", path.display()))?;
             Ok(Box::new(file))
         }
         None => Ok(Box::new(std::io::stdout())),
@@ -1006,9 +1038,7 @@ fn create_runner(progress: bool, number_of_commands: usize) -> (ThreadRunner, Op
     (runner, join_handle)
 }
 
-fn create_progress_bar(
-    expected: usize,
-) -> (Sender<crate::runner::thread::ProgressEvent>, JoinHandle<()>) {
+fn create_progress_bar(expected: usize) -> (Sender<crate::runner::thread::ProgressEvent>, JoinHandle<()>) {
     use crate::runner::thread::{EventKind, ProgressEvent};
     use std::collections::HashMap;
 
@@ -1049,18 +1079,15 @@ fn create_progress_bar(
     (tx, handle)
 }
 
-fn render_for_output(
-    rendered: &str,
-    writer: &mut dyn Write,
-    is_tty: bool,
-    format: &OutputType,
-) -> miette::Result<()> {
+fn render_for_output(rendered: &str, writer: &mut dyn Write, is_tty: bool, format: &OutputType) -> miette::Result<()> {
     if is_tty && *format == OutputType::Markdown {
         // termimad::print_text writes directly to stdout;
         // writer is intentionally unused here because is_tty=true implies output_file.is_none()
         termimad::print_text(rendered);
     } else {
-        write!(writer, "{}", rendered).into_diagnostic().context("write output")?;
+        write!(writer, "{}", rendered)
+            .into_diagnostic()
+            .context("write output")?;
     }
     Ok(())
 }
@@ -1245,7 +1272,7 @@ mod tests {
     }
 
     fn make_rule(severity: Severity) -> Rule {
-        use crate::rule::{Predicate, Op, Rhs, Value};
+        use crate::rule::{Op, Predicate, Rhs, Value};
         Rule {
             id: "test.rule".to_string(),
             when: Predicate::Cmp {
@@ -1268,7 +1295,11 @@ mod tests {
         let mut buf: Vec<u8> = Vec::new();
         run_explain_inner(&rule, true, &mut buf).unwrap();
         let output = String::from_utf8(buf).unwrap();
-        assert!(output.contains('\x1b'), "expected ANSI escape in tty output, got: {:?}", output);
+        assert!(
+            output.contains('\x1b'),
+            "expected ANSI escape in tty output, got: {:?}",
+            output
+        );
         assert!(output.contains("Warn"), "expected 'Warn' token in output");
     }
 
@@ -1278,7 +1309,11 @@ mod tests {
         let mut buf: Vec<u8> = Vec::new();
         run_explain_inner(&rule, true, &mut buf).unwrap();
         let output = String::from_utf8(buf).unwrap();
-        assert!(output.contains('\x1b'), "expected ANSI escape in tty output, got: {:?}", output);
+        assert!(
+            output.contains('\x1b'),
+            "expected ANSI escape in tty output, got: {:?}",
+            output
+        );
         assert!(output.contains("Info"), "expected 'Info' token in output");
     }
 
@@ -1288,7 +1323,11 @@ mod tests {
         let mut buf: Vec<u8> = Vec::new();
         run_explain_inner(&rule, false, &mut buf).unwrap();
         let output = String::from_utf8(buf).unwrap();
-        assert!(!output.contains('\x1b'), "expected no ANSI escape in non-tty output, got: {:?}", output);
+        assert!(
+            !output.contains('\x1b'),
+            "expected no ANSI escape in non-tty output, got: {:?}",
+            output
+        );
         assert!(output.contains("Crit"), "expected 'Crit' token in output");
     }
 
@@ -1296,10 +1335,30 @@ mod tests {
     fn create_progress_bar_drains_channel_and_returns() {
         use crate::runner::thread::{EventKind, ProgressEvent};
         let (tx, handle) = create_progress_bar(2);
-        tx.send(ProgressEvent { seq: 0, name: "a".into(), kind: EventKind::Started }).unwrap();
-        tx.send(ProgressEvent { seq: 0, name: "a".into(), kind: EventKind::Finished }).unwrap();
-        tx.send(ProgressEvent { seq: 1, name: "b".into(), kind: EventKind::Started }).unwrap();
-        tx.send(ProgressEvent { seq: 1, name: "b".into(), kind: EventKind::Finished }).unwrap();
+        tx.send(ProgressEvent {
+            seq: 0,
+            name: "a".into(),
+            kind: EventKind::Started,
+        })
+        .unwrap();
+        tx.send(ProgressEvent {
+            seq: 0,
+            name: "a".into(),
+            kind: EventKind::Finished,
+        })
+        .unwrap();
+        tx.send(ProgressEvent {
+            seq: 1,
+            name: "b".into(),
+            kind: EventKind::Started,
+        })
+        .unwrap();
+        tx.send(ProgressEvent {
+            seq: 1,
+            name: "b".into(),
+            kind: EventKind::Finished,
+        })
+        .unwrap();
         drop(tx);
         handle.join().expect("progress thread panicked");
     }

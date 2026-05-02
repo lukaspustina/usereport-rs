@@ -43,8 +43,20 @@ impl DiskCollector {
                 let write_t_delta = b.write_time_ms.saturating_sub(a.write_time_ms) as f64;
                 let io_t_delta = b.io_time_ms.saturating_sub(a.io_time_ms) as f64;
 
-                push(&mut signals, &format!("disk.{}.read_iops", dev), read_delta / elapsed_secs, Unit::Iops, now);
-                push(&mut signals, &format!("disk.{}.write_iops", dev), write_delta / elapsed_secs, Unit::Iops, now);
+                push(
+                    &mut signals,
+                    &format!("disk.{}.read_iops", dev),
+                    read_delta / elapsed_secs,
+                    Unit::Iops,
+                    now,
+                );
+                push(
+                    &mut signals,
+                    &format!("disk.{}.write_iops", dev),
+                    write_delta / elapsed_secs,
+                    Unit::Iops,
+                    now,
+                );
                 let util = (io_t_delta / (elapsed_secs * 1000.0)) * 100.0;
                 let util = util.min(100.0);
                 push(&mut signals, &format!("disk.{}.util_pct", dev), util, Unit::Pct, now);
@@ -55,7 +67,13 @@ impl DiskCollector {
                 } else {
                     0.0
                 };
-                push(&mut signals, &format!("disk.{}.await_ms", dev), await_ms, Unit::MillisPerOp, now);
+                push(
+                    &mut signals,
+                    &format!("disk.{}.await_ms", dev),
+                    await_ms,
+                    Unit::MillisPerOp,
+                    now,
+                );
                 max_await = Some(max_await.unwrap_or(f64::NEG_INFINITY).max(await_ms));
             }
         }
@@ -89,30 +107,62 @@ impl DiskCollector {
         let mut max_await: Option<f64> = None;
 
         for b_dev in b {
-            let Some(a_dev) = a_by_name.get(b_dev.name.as_str()) else { continue };
+            let Some(a_dev) = a_by_name.get(b_dev.name.as_str()) else {
+                continue;
+            };
 
             let read_delta = b_dev.read_ios.saturating_sub(a_dev.read_ios) as f64;
             let write_delta = b_dev.write_ios.saturating_sub(a_dev.write_ios) as f64;
 
-            push(&mut signals, &format!("disk.{}.read_iops", b_dev.name), read_delta / elapsed_secs, Unit::Iops, now);
-            push(&mut signals, &format!("disk.{}.write_iops", b_dev.name), write_delta / elapsed_secs, Unit::Iops, now);
+            push(
+                &mut signals,
+                &format!("disk.{}.read_iops", b_dev.name),
+                read_delta / elapsed_secs,
+                Unit::Iops,
+                now,
+            );
+            push(
+                &mut signals,
+                &format!("disk.{}.write_iops", b_dev.name),
+                write_delta / elapsed_secs,
+                Unit::Iops,
+                now,
+            );
 
             if let (Some(a_io), Some(b_io)) = (a_dev.io_time_ms, b_dev.io_time_ms) {
                 let io_t_delta = b_io.saturating_sub(a_io) as f64;
                 let util = (io_t_delta / (elapsed_secs * 1000.0)) * 100.0;
                 let util = util.min(100.0);
-                push(&mut signals, &format!("disk.{}.util_pct", b_dev.name), util, Unit::Pct, now);
+                push(
+                    &mut signals,
+                    &format!("disk.{}.util_pct", b_dev.name),
+                    util,
+                    Unit::Pct,
+                    now,
+                );
                 max_util = Some(max_util.unwrap_or(f64::NEG_INFINITY).max(util));
 
-                let read_t_delta = b_dev.read_time_ms.unwrap_or(0).saturating_sub(a_dev.read_time_ms.unwrap_or(0)) as f64;
-                let write_t_delta = b_dev.write_time_ms.unwrap_or(0).saturating_sub(a_dev.write_time_ms.unwrap_or(0)) as f64;
+                let read_t_delta = b_dev
+                    .read_time_ms
+                    .unwrap_or(0)
+                    .saturating_sub(a_dev.read_time_ms.unwrap_or(0)) as f64;
+                let write_t_delta = b_dev
+                    .write_time_ms
+                    .unwrap_or(0)
+                    .saturating_sub(a_dev.write_time_ms.unwrap_or(0)) as f64;
                 let total_ios = read_delta + write_delta;
                 let await_ms = if total_ios > 0.0 {
                     (read_t_delta + write_t_delta) / total_ios
                 } else {
                     0.0
                 };
-                push(&mut signals, &format!("disk.{}.await_ms", b_dev.name), await_ms, Unit::MillisPerOp, now);
+                push(
+                    &mut signals,
+                    &format!("disk.{}.await_ms", b_dev.name),
+                    await_ms,
+                    Unit::MillisPerOp,
+                    now,
+                );
                 max_await = Some(max_await.unwrap_or(f64::NEG_INFINITY).max(await_ms));
             }
         }
@@ -167,13 +217,16 @@ fn parse_diskstats(s: &str) -> std::collections::HashMap<String, DiskStats> {
             continue;
         }
         let dev = toks[2].to_string();
-        out.insert(dev, DiskStats {
-            read_ios: toks[3].parse().unwrap_or(0),
-            read_time_ms: toks[6].parse().unwrap_or(0),
-            write_ios: toks[7].parse().unwrap_or(0),
-            write_time_ms: toks[10].parse().unwrap_or(0),
-            io_time_ms: toks[12].parse().unwrap_or(0),
-        });
+        out.insert(
+            dev,
+            DiskStats {
+                read_ios: toks[3].parse().unwrap_or(0),
+                read_time_ms: toks[6].parse().unwrap_or(0),
+                write_ios: toks[7].parse().unwrap_or(0),
+                write_time_ms: toks[10].parse().unwrap_or(0),
+                io_time_ms: toks[12].parse().unwrap_or(0),
+            },
+        );
     }
     out
 }

@@ -35,10 +35,7 @@ fn file_output_markdown_contains_no_ansi_escapes() {
     );
 
     let content = std::fs::read_to_string(&out_path).expect("read output file");
-    assert!(
-        !content.is_empty(),
-        "output file must not be empty"
-    );
+    assert!(!content.is_empty(), "output file must not be empty");
     assert!(
         !content.contains('\x1b'),
         "output file must contain no ANSI escape sequences, got file with {} bytes",
@@ -73,10 +70,7 @@ fn file_output_markdown_contains_no_ansi_escapes() {
     );
 
     let content = std::fs::read_to_string(&out_path).expect("read output file");
-    assert!(
-        !content.is_empty(),
-        "output file must not be empty"
-    );
+    assert!(!content.is_empty(), "output file must not be empty");
     assert!(
         !content.contains('\x1b'),
         "output file must contain no ANSI escape sequences, got file with {} bytes",

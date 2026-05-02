@@ -21,7 +21,10 @@ fn p2_read_host_snapshot_returns_some_on_linux() {
 #[test]
 fn p2_read_cpu_snapshot_returns_some_on_linux() {
     let snap = platform::read_cpu_snapshot();
-    assert!(snap.is_some(), "read_cpu_snapshot() returned None on Linux (needs /proc/stat)");
+    assert!(
+        snap.is_some(),
+        "read_cpu_snapshot() returned None on Linux (needs /proc/stat)"
+    );
     let s = snap.unwrap();
     // Linux should always have iowait
     assert!(s.iowait.is_some(), "iowait should be Some on Linux");
@@ -44,8 +47,8 @@ fn p2_read_disk_snapshots_returns_items_on_linux() {
 #[cfg(target_os = "linux")]
 #[test]
 fn p2_cpu_collector_collect_returns_cpu_usr_pct_on_linux() {
-    use usereport::collector::{CollectCtx, Collector};
     use usereport::collector::cpu::CpuCollector;
+    use usereport::collector::{CollectCtx, Collector};
     let c = CpuCollector::new();
     let ctx = CollectCtx::default();
     let result = c.collect(&ctx).expect("collect should not error");

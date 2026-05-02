@@ -62,9 +62,8 @@ impl CpuCollector {
 
         let total_delta = b.total().saturating_sub(a.total()) as f64;
         if total_delta > 0.0 {
-            let pct = |b_field: u64, a_field: u64| -> f64 {
-                (b_field.saturating_sub(a_field) as f64 / total_delta) * 100.0
-            };
+            let pct =
+                |b_field: u64, a_field: u64| -> f64 { (b_field.saturating_sub(a_field) as f64 / total_delta) * 100.0 };
             push(&mut signals, "cpu.usr_pct", pct(b.user, a.user), Unit::Pct, now);
             push(&mut signals, "cpu.sys_pct", pct(b.system, a.system), Unit::Pct, now);
             push(&mut signals, "cpu.idle_pct", pct(b.idle, a.idle), Unit::Pct, now);
@@ -210,8 +209,7 @@ impl CpuTimes {
 fn parse_cpu_aggregate(s: &str) -> Option<CpuTimes> {
     for line in s.lines() {
         if let Some(rest) = line.strip_prefix("cpu ").or_else(|| line.strip_prefix("cpu  ")) {
-            let nums: Vec<u64> =
-                rest.split_whitespace().filter_map(|t| t.parse::<u64>().ok()).collect();
+            let nums: Vec<u64> = rest.split_whitespace().filter_map(|t| t.parse::<u64>().ok()).collect();
             if nums.len() < 4 {
                 return None;
             }

@@ -42,8 +42,11 @@ impl NetworkCollector {
         if let (Some(s1), Some(s2)) = (parse_tcp_snmp(snmp1), parse_tcp_snmp(snmp2)) {
             let out_delta = s2.out_segs.saturating_sub(s1.out_segs) as f64;
             let ret_delta = s2.retrans_segs.saturating_sub(s1.retrans_segs) as f64;
-            let retrans_pct =
-                if out_delta > 0.0 { (ret_delta / out_delta) * 100.0 } else { 0.0 };
+            let retrans_pct = if out_delta > 0.0 {
+                (ret_delta / out_delta) * 100.0
+            } else {
+                0.0
+            };
             push(&mut signals, "net.retrans_pct", retrans_pct, Unit::Pct, now);
         }
 
@@ -70,7 +73,11 @@ impl NetworkCollector {
         // retrans_pct from TCP counters
         let out_delta = b.tcp_out_segs.saturating_sub(a.tcp_out_segs) as f64;
         let ret_delta = b.tcp_retrans_segs.saturating_sub(a.tcp_retrans_segs) as f64;
-        let retrans_pct = if out_delta > 0.0 { (ret_delta / out_delta) * 100.0 } else { 0.0 };
+        let retrans_pct = if out_delta > 0.0 {
+            (ret_delta / out_delta) * 100.0
+        } else {
+            0.0
+        };
         push(&mut signals, "net.retrans_pct", retrans_pct, Unit::Pct, now);
 
         // tw_count — point-in-time from b
@@ -80,7 +87,13 @@ impl NetworkCollector {
 
         // connect_failures — delta of cumulative AttemptFails counter
         let fail_delta = b.tcp_attempt_fails.saturating_sub(a.tcp_attempt_fails);
-        push(&mut signals, "net.connect_failures", fail_delta as f64, Unit::Count, now);
+        push(
+            &mut signals,
+            "net.connect_failures",
+            fail_delta as f64,
+            Unit::Count,
+            now,
+        );
 
         // estab_resets — delta of cumulative EstabResets counter
         let reset_delta = b.tcp_estab_resets.saturating_sub(a.tcp_estab_resets);
@@ -150,7 +163,10 @@ fn parse_tcp_snmp(s: &str) -> Option<TcpSnmp> {
             .and_then(|v| v.parse().ok())
             .unwrap_or(0)
     };
-    Some(TcpSnmp { out_segs: get("OutSegs"), retrans_segs: get("RetransSegs") })
+    Some(TcpSnmp {
+        out_segs: get("OutSegs"),
+        retrans_segs: get("RetransSegs"),
+    })
 }
 
 fn parse_rx_drops(s: &str) -> HashMap<String, u64> {

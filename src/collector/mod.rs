@@ -16,7 +16,6 @@ use crate::signal::Signal;
 pub mod bpf;
 pub mod cgroup;
 pub mod cpu;
-pub mod platform;
 pub mod cpufreq;
 pub mod disk;
 pub mod dmesg;
@@ -24,6 +23,7 @@ pub mod host;
 pub mod interrupts;
 pub mod memory;
 pub mod network;
+pub mod platform;
 
 #[derive(Debug, Error)]
 pub enum Error {

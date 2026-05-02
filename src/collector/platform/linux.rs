@@ -19,8 +19,7 @@ pub fn read_cpu_snapshot() -> Option<CpuSnapshot> {
 fn parse_cpu_line(s: &str) -> Option<CpuSnapshot> {
     for line in s.lines() {
         if let Some(rest) = line.strip_prefix("cpu ").or_else(|| line.strip_prefix("cpu  ")) {
-            let n: Vec<u64> =
-                rest.split_whitespace().filter_map(|t| t.parse::<u64>().ok()).collect();
+            let n: Vec<u64> = rest.split_whitespace().filter_map(|t| t.parse::<u64>().ok()).collect();
             if n.len() < 4 {
                 return None;
             }
@@ -68,8 +67,7 @@ pub fn read_net_snapshot() -> Option<NetSnapshot> {
     let rx_drops = parse_rx_drops(&dev);
 
     let snmp = std::fs::read_to_string("/proc/net/snmp").unwrap_or_default();
-    let (tcp_out_segs, tcp_retrans_segs, tcp_attempt_fails, tcp_estab_resets) =
-        parse_tcp_snmp(&snmp);
+    let (tcp_out_segs, tcp_retrans_segs, tcp_attempt_fails, tcp_estab_resets) = parse_tcp_snmp(&snmp);
 
     let sockstat = std::fs::read_to_string("/proc/net/sockstat").unwrap_or_default();
     let tcp_tw_count = parse_tw_count(&sockstat);
@@ -128,7 +126,12 @@ fn parse_tcp_snmp(s: &str) -> (u64, u64, u64, u64) {
             .and_then(|v| v.parse().ok())
             .unwrap_or(0)
     };
-    (get("OutSegs"), get("RetransSegs"), get("AttemptFails"), get("EstabResets"))
+    (
+        get("OutSegs"),
+        get("RetransSegs"),
+        get("AttemptFails"),
+        get("EstabResets"),
+    )
 }
 
 fn parse_tw_count(s: &str) -> Option<u64> {
@@ -150,11 +153,16 @@ fn parse_tw_count(s: &str) -> Option<u64> {
 // ---------------------------------------------------------------------------
 
 pub fn read_host_snapshot() -> Option<HostSnapshot> {
-    let cpu_count =
-        std::thread::available_parallelism().map(|n| n.get() as u64).unwrap_or(1);
+    let cpu_count = std::thread::available_parallelism()
+        .map(|n| n.get() as u64)
+        .unwrap_or(1);
     let mem_total_bytes = read_mem_total_bytes()?;
     let load_avg_1m = read_load_avg_1m()?;
-    Some(HostSnapshot { cpu_count, mem_total_bytes, load_avg_1m })
+    Some(HostSnapshot {
+        cpu_count,
+        mem_total_bytes,
+        load_avg_1m,
+    })
 }
 
 fn read_mem_total_bytes() -> Option<u64> {
@@ -212,8 +220,7 @@ fn parse_free_m_output(s: &str) -> Option<MemSnapshot> {
     for line in s.lines() {
         let t = line.trim();
         if let Some(rest) = t.strip_prefix("Mem:") {
-            let n: Vec<f64> =
-                rest.split_whitespace().filter_map(|x| x.parse::<f64>().ok()).collect();
+            let n: Vec<f64> = rest.split_whitespace().filter_map(|x| x.parse::<f64>().ok()).collect();
             if n.len() < 3 {
                 return None;
             }
@@ -222,8 +229,7 @@ fn parse_free_m_output(s: &str) -> Option<MemSnapshot> {
             free_mb = Some(n[2]);
             available_mb = n.get(5).copied();
         } else if let Some(rest) = t.strip_prefix("Swap:") {
-            let n: Vec<f64> =
-                rest.split_whitespace().filter_map(|x| x.parse::<f64>().ok()).collect();
+            let n: Vec<f64> = rest.split_whitespace().filter_map(|x| x.parse::<f64>().ok()).collect();
             if n.len() >= 3 {
                 swap_total = n[0];
                 swap_used = n[1];
@@ -251,7 +257,10 @@ fn parse_free_m_output(s: &str) -> Option<MemSnapshot> {
 pub fn read_cpufreq_snapshot() -> CpuFreqSnapshot {
     let freq_ratio = read_freq_ratio();
     let temp_celsius = read_max_temp_celsius();
-    CpuFreqSnapshot { freq_ratio, temp_celsius }
+    CpuFreqSnapshot {
+        freq_ratio,
+        temp_celsius,
+    }
 }
 
 fn read_freq_ratio() -> Option<f64> {
@@ -280,7 +289,11 @@ fn read_freq_ratio() -> Option<f64> {
             count += 1;
         }
     }
-    if count == 0 || max_sum == 0.0 { None } else { Some(cur_sum / max_sum) }
+    if count == 0 || max_sum == 0.0 {
+        None
+    } else {
+        Some(cur_sum / max_sum)
+    }
 }
 
 fn read_max_temp_celsius() -> Option<f64> {
