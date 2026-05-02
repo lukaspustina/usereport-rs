@@ -1,3 +1,0 @@
-chown root:root /usr/bin/usereport
-chmod 755 /usr/bin/usereport
-
