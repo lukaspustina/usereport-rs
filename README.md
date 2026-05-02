@@ -5,7 +5,7 @@
 [![docs.rs](https://img.shields.io/docsrs/usereport-rs/latest)](https://docs.rs/usereport-rs)
 [![MIT licensed](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 
-> Your server is on fire. You have 60 seconds. Go.
+> Your server is on fire. You have 60 seconds. Go. -- LLM-ready
 
 `usereport` collects system signals in parallel — from `/proc`, `/sys`, and a curated set of commands — evaluates a rule engine against them, and hands you a structured performance report. One binary, one command, no daemons.
 
@@ -27,7 +27,7 @@ usereport --output llm --redact | your-ai "diagnose" # pipe redacted context to 
 ## What happens in one run
 
 ```sh
-$ usereport --profile net --output html -O report.html
+usereport --profile net --output html -O report.html
 ```
 
 By the time that command returns, `usereport` has:
@@ -60,7 +60,7 @@ Most monitoring tools run continuously, need agents, and show you dashboards you
 | LLM-ready output with hostname/IP redaction | **yes** | no | no | no |
 | Works fully offline and air-gapped | **yes** | yes | yes | no |
 
-The core insight: a `cpu.freq_ratio` of 0.41 only looks wrong if you know it's usually 0.98. A TIME_WAIT alert only fires when `net.tw_count` and `net.connect_failures` are elevated *at the same time*. Thresholds alone can't catch either. `usereport` can.
+The core insight: a `cpu.freq_ratio` of 0.41 only looks wrong if you know it's usually 0.98. A TIME_WAIT alert only fires when `net.tw_count` and `net.connect_failures` are elevated _at the same time_. Thresholds alone can't catch either. `usereport` can.
 
 ---
 
@@ -139,7 +139,7 @@ Next steps:
 ### Signals and findings as JSON
 
 ```sh
-$ usereport --output json | jq '{signals: [.signals[].id], findings: [.findings[].id]}'
+usereport --output json | jq '{signals: [.signals[].id], findings: [.findings[].id]}'
 ```
 
 ```json
@@ -192,7 +192,7 @@ No more "what does this finding mean?" moments at 3am.
 ### LLM-ready output with redaction
 
 ```sh
-$ usereport --output llm --redact | jq '{schema_version, hostname: .host.hostname, findings: [.findings[].id]}'
+usereport --output llm --redact | jq '{schema_version, hostname: .host.hostname, findings: [.findings[].id]}'
 ```
 
 ```json
@@ -229,7 +229,7 @@ usereport diff before.json after.json
 ### Check tool availability
 
 ```sh
-$ usereport check
+usereport check
 ```
 
 ```
@@ -265,7 +265,7 @@ Covers every binary `usereport` might invoke — profile commands, direct collec
 **Symptom:** A Node.js reverse proxy starts refusing new connections under load. Application logs show `ECONNREFUSED` on outgoing calls. CPU and memory look fine.
 
 ```sh
-$ usereport --output markdown
+usereport --output markdown
 ```
 
 ```
@@ -354,7 +354,7 @@ Findings only in after.json:
 **Symptom:** A JVM microservice restarts randomly every few hours. Heap dumps are truncated. The service gets progressively slower before each crash.
 
 ```sh
-$ usereport --output markdown
+usereport --output markdown
 ```
 
 ```
@@ -441,7 +441,7 @@ usereport --baseline stable --exit-on warn
 **Symptom:** A nightly data-processing job that normally completes in 20 minutes is taking 90 minutes. No code was deployed. CPU utilization looks normal.
 
 ```sh
-$ usereport --baseline last-tuesday --output markdown
+usereport --baseline last-tuesday --output markdown
 ```
 
 ```
