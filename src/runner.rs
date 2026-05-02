@@ -33,10 +33,23 @@ pub mod thread {
         thread::JoinHandle,
     };
 
+    #[derive(Debug, Clone)]
+    pub enum EventKind {
+        Started,
+        Finished,
+    }
+
+    #[derive(Debug, Clone)]
+    pub struct ProgressEvent {
+        pub seq: usize,
+        pub name: String,
+        pub kind: EventKind,
+    }
+
     /// Ensures that results are in same order as commands
     #[derive(Default, Debug, Clone)]
     pub struct ThreadRunner {
-        progress_tx: Option<Sender<usize>>,
+        progress_tx: Option<Sender<ProgressEvent>>,
     }
 
     impl<'a, I: IntoIterator<Item = &'a Command>> super::Runner<'a, I> for ThreadRunner {
@@ -64,7 +77,7 @@ pub mod thread {
             ThreadRunner::default()
         }
 
-        pub fn with_progress<T: Into<Option<Sender<usize>>>>(self, progress_tx: T) -> Self {
+        pub fn with_progress<T: Into<Option<Sender<ProgressEvent>>>>(self, progress_tx: T) -> Self {
             ThreadRunner {
                 progress_tx: progress_tx.into(),
             }
@@ -72,7 +85,7 @@ pub mod thread {
 
         fn create_children<'a, I: IntoIterator<Item = &'a Command>>(
             commands: I,
-            progress_tx: &Option<Sender<usize>>,
+            progress_tx: &Option<Sender<ProgressEvent>>,
         ) -> Result<ChildrenSupervision> {
             let (tx, rx): (Sender<ChildResult>, Receiver<ChildResult>) = mpsc::channel();
             let mut children = Vec::new();
@@ -90,21 +103,27 @@ pub mod thread {
             seq: usize,
             command: Command,
             tx: Sender<ChildResult>,
-            progress_tx: Option<Sender<usize>>,
+            progress_tx: Option<Sender<ProgressEvent>>,
         ) -> Result<JoinHandle<()>> {
             let name = command.name.clone();
+            let name_for_err = name.clone();
             thread::Builder::new()
                 .name(command.name.clone())
                 .spawn(move || {
+                    if let Some(ref progress_tx) = progress_tx {
+                        progress_tx
+                            .send(ProgressEvent { seq, name: name.clone(), kind: EventKind::Started })
+                            .expect("Thread failed to send progress via channel");
+                    }
                     let res = command.exec();
-                    // This should not happen as long as the parent is alive; if it happens, this is a valid reason to
-                    // panic
                     tx.send((seq, res)).expect("Thread failed to send result via channel");
                     if let Some(progress_tx) = progress_tx {
-                        progress_tx.send(1).expect("Thread failed to send progress via channel");
+                        progress_tx
+                            .send(ProgressEvent { seq, name: name.clone(), kind: EventKind::Finished })
+                            .expect("Thread failed to send progress via channel");
                     }
                 })
-                .map_err(|e| Error::ExecuteCommandFailed { name, source: e })
+                .map_err(|e| Error::ExecuteCommandFailed { name: name_for_err, source: e })
         }
 
         fn wait_for_results(children: Vec<JoinHandle<()>>, rx: Receiver<ChildResult>) -> Vec<CommandResult> {
@@ -142,6 +161,21 @@ pub mod thread {
     mod tests {
         use super::*;
         use crate::runner::Runner;
+
+        #[test]
+        fn progress_event_started_fields() {
+            let ev = ProgressEvent { seq: 0, name: "cmd_a".to_string(), kind: EventKind::Started };
+            assert_eq!(ev.seq, 0);
+            assert_eq!(ev.name, "cmd_a");
+            assert!(matches!(ev.kind, EventKind::Started));
+        }
+
+        #[test]
+        fn progress_event_finished_fields() {
+            let ev = ProgressEvent { seq: 1, name: "cmd_b".to_string(), kind: EventKind::Finished };
+            assert_eq!(ev.seq, 1);
+            assert!(matches!(ev.kind, EventKind::Finished));
+        }
 
         use googletest::prelude::*;
 

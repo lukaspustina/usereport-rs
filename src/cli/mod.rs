@@ -19,14 +19,14 @@ use anyhow::{Context as _, anyhow};
 use clap::Parser;
 use comfy_table::Table;
 use termimad;
-use indicatif::{ProgressBar, ProgressStyle};
+use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use std::{
     collections::HashSet,
     fs::File,
     io::{IsTerminal, Read, Write},
     path::PathBuf,
     str::FromStr,
-    sync::mpsc::{self, Receiver, Sender},
+    sync::mpsc::{self, Sender},
     thread::JoinHandle,
 };
 
@@ -969,22 +969,43 @@ fn create_runner(progress: bool, number_of_commands: usize) -> (ThreadRunner, Op
     (runner, join_handle)
 }
 
-fn create_progress_bar(expected: usize) -> (Sender<usize>, JoinHandle<()>) {
-    let (tx, rx): (Sender<usize>, Receiver<usize>) = mpsc::channel();
-    let pb = ProgressBar::new(expected as u64).with_style(
-        ProgressStyle::default_bar()
-            .template("Running commands {bar:40.cyan/blue} {pos}/{len}")
-            .expect("valid progress template"),
-    );
+fn create_progress_bar(
+    expected: usize,
+) -> (Sender<crate::runner::thread::ProgressEvent>, JoinHandle<()>) {
+    use crate::runner::thread::{EventKind, ProgressEvent};
+    use std::collections::HashMap;
 
+    let (tx, rx) = mpsc::channel::<ProgressEvent>();
     let handle = std::thread::Builder::new()
         .name("Progress".to_string())
         .spawn(move || {
-            for _ in 0..expected {
-                let _ = rx.recv().expect("Thread failed to receive progress via channel");
-                pb.inc(1);
+            let mp = MultiProgress::new();
+            let count_bar = mp.add(ProgressBar::new(expected as u64));
+            count_bar.set_style(
+                ProgressStyle::default_bar()
+                    .template("{bar:40.cyan/blue} {pos}/{len} commands")
+                    .expect("valid progress template"),
+            );
+            let mut spinners: HashMap<usize, ProgressBar> = HashMap::new();
+
+            for event in rx {
+                match event.kind {
+                    EventKind::Started => {
+                        let s = mp.add(ProgressBar::new_spinner());
+                        s.set_message(event.name.clone());
+                        s.enable_steady_tick(std::time::Duration::from_millis(80));
+                        spinners.insert(event.seq, s);
+                    }
+                    EventKind::Finished => {
+                        if let Some(s) = spinners.remove(&event.seq) {
+                            s.finish_and_clear();
+                        }
+                        count_bar.inc(1);
+                    }
+                }
             }
-            pb.finish_and_clear();
+
+            count_bar.finish_and_clear();
         })
         .expect("failed to spawn progress thread");
 
@@ -1232,5 +1253,17 @@ mod tests {
         let output = String::from_utf8(buf).unwrap();
         assert!(!output.contains('\x1b'), "expected no ANSI escape in non-tty output, got: {:?}", output);
         assert!(output.contains("Crit"), "expected 'Crit' token in output");
+    }
+
+    #[test]
+    fn create_progress_bar_drains_channel_and_returns() {
+        use crate::runner::thread::{EventKind, ProgressEvent};
+        let (tx, handle) = create_progress_bar(2);
+        tx.send(ProgressEvent { seq: 0, name: "a".into(), kind: EventKind::Started }).unwrap();
+        tx.send(ProgressEvent { seq: 0, name: "a".into(), kind: EventKind::Finished }).unwrap();
+        tx.send(ProgressEvent { seq: 1, name: "b".into(), kind: EventKind::Started }).unwrap();
+        tx.send(ProgressEvent { seq: 1, name: "b".into(), kind: EventKind::Finished }).unwrap();
+        drop(tx);
+        handle.join().expect("progress thread panicked");
     }
 }
