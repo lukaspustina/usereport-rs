@@ -241,7 +241,7 @@ jobs:
       - name: Build deb package
         shell: bash
         run: |
-          TARBALL=$(ls target/distrib/usereport-rs-${{ matrix.target }}.tar.xz)
+          TARBALL=$(ls target/distrib/usereport-rs-*-${{ matrix.target }}.tar.xz)
           VERSION=$(echo '${{ needs.plan.outputs.val }}' | jq -r '.releases[0].app_version')
           ARCH=${{ matrix.arch }}
 
