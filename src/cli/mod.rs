@@ -487,8 +487,8 @@ fn run_check(config: &Config, profile_filter: Option<&str>) -> miette::Result<()
         checks.push(("profiling".into(), "bpftrace".into(), "bpftrace".into()));
     }
 
-    // eBPF tools (--bpf)
-    #[cfg(feature = "bpf")]
+    // eBPF tools (--bpf) — Linux only; BCC tools don't exist on macOS
+    #[cfg(all(feature = "bpf", target_os = "linux"))]
     for tool in crate::collector::bpf::TOOLS {
         // Resolve bare name or -bpfcc suffix (Ubuntu packages them with the suffix).
         let binary = crate::collector::bpf::resolve_bcc_tool(tool).unwrap_or_else(|| tool.to_string());
