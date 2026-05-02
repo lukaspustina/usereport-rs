@@ -103,7 +103,7 @@ fn ac_phase6_4_redact_replaces_hostname_and_ip() {
         signals: vec![],
         findings: vec![],
         checked_ok: vec![],
-        raw_excerpts: vec!["OOM kill on 192.168.1.100".to_string()],
+        raw_excerpts: vec![usereport::llm::LlmExcerpt { command: "dmesg".to_string(), output: "OOM kill on 192.168.1.100".to_string() }],
     };
 
     let redactor = Redactor::with_salt(b"test-salt-for-tests");

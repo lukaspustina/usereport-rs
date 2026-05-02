@@ -69,11 +69,19 @@ impl Redactor {
     /// `findings[].summary`, `findings[].evidence[].observed` (Text values),
     /// and `signals[].value` (Text values).
     pub fn redact_output(&self, mut output: LlmOutput) -> LlmOutput {
-        output.host.hostname = self.redact_value(&output.host.hostname);
+        let hostname = output.host.hostname.clone();
+        let redacted_hostname = self.redact_value(&hostname);
+        output.host.hostname = redacted_hostname.clone();
         output.raw_excerpts = output
             .raw_excerpts
             .into_iter()
-            .map(|line| self.redact_text(&line))
+            .map(|mut excerpt| {
+                if !hostname.is_empty() {
+                    excerpt.output = excerpt.output.replace(&hostname, &format!("[redacted:{}]", &redacted_hostname));
+                }
+                excerpt.output = self.redact_text(&excerpt.output);
+                excerpt
+            })
             .collect();
 
         for finding in &mut output.findings {

@@ -8,8 +8,17 @@
 use serde::{Deserialize, Serialize};
 
 use crate::analysis::AnalysisReport;
+use crate::command::CommandResult;
 use crate::finding::Finding;
+use crate::redact::Redactor;
 use crate::signal::{Signal, SignalValue};
+
+/// One command's stdout, truncated to `MAX_EXCERPT_CHARS`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LlmExcerpt {
+    pub command: String,
+    pub output: String,
+}
 
 /// Top-level schema-versioned document. `schema_version` is always `"1"`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -19,7 +28,7 @@ pub struct LlmOutput {
     pub signals: Vec<Signal>,
     pub findings: Vec<Finding>,
     pub checked_ok: Vec<String>,
-    pub raw_excerpts: Vec<String>,
+    pub raw_excerpts: Vec<LlmExcerpt>,
 }
 
 /// Host metadata populated from `Context` and collector-emitted host signals.
@@ -34,14 +43,16 @@ pub struct LlmHost {
 
 impl LlmOutput {
     pub const SCHEMA_VERSION: &'static str = "1";
+    pub const MAX_EXCERPT_CHARS: usize = 1_000;
 
     /// Build an `LlmOutput` from an `AnalysisReport`.
     ///
     /// `hostname` and `kernel` come from `Context`. `cpu_count`,
     /// `mem_total_bytes`, and `load_avg_1m` are read from collector-emitted
     /// signals `host.cpu_count`, `host.mem_total_bytes`, `host.load_avg_1m`
-    /// respectively (falling back to 0 if absent).
-    pub fn from_report(report: &AnalysisReport) -> Self {
+    /// respectively (falling back to 0 if absent). If `redact` is true the
+    /// output is HMAC-redacted before returning.
+    pub fn from_report(report: &AnalysisReport, redact: bool) -> Self {
         fn find_f64(signals: &[Signal], id: &str) -> f64 {
             signals
                 .iter()
@@ -63,13 +74,32 @@ impl LlmOutput {
             load_avg_1m: find_f64(&signals, "host.load_avg_1m"),
         };
 
-        LlmOutput {
+        let raw_excerpts: Vec<LlmExcerpt> = report
+            .command_results()
+            .first()
+            .map(|v| v.as_slice())
+            .unwrap_or(&[])
+            .iter()
+            .filter_map(|cr| match cr {
+                CommandResult::Success { command, stdout, .. } => Some(LlmExcerpt {
+                    command: command.name().to_string(),
+                    output: stdout.chars().take(Self::MAX_EXCERPT_CHARS).collect(),
+                }),
+                _ => None,
+            })
+            .collect();
+
+        let mut out = LlmOutput {
             schema_version: Self::SCHEMA_VERSION.to_string(),
             host,
             signals,
             findings: report.findings().to_vec(),
             checked_ok: report.checked_ok().to_vec(),
-            raw_excerpts: Vec::new(),
+            raw_excerpts,
+        };
+        if redact {
+            out = Redactor::from_env().redact_output(out);
         }
+        out
     }
 }

@@ -9,7 +9,6 @@ use crate::{
     diff,
     finding::{Finding, Severity},
     llm::LlmOutput,
-    redact::Redactor,
     renderer,
     pattern::PatternEngine,
     rule::{Rule, RuleEngine, RulesLoader, builtin::builtin_rules},
@@ -162,8 +161,8 @@ pub enum Subcommand {
         a: PathBuf,
         b: PathBuf,
         /// Output format: `text` (default) or `json`.
-        #[arg(long, default_value = "text")]
-        output: String,
+        #[arg(long, default_value = "text", value_parser = clap::value_parser!(OutputType))]
+        output: OutputType,
     },
     /// Print the definition, what raises it, what to investigate, and links for a rule or signal ID.
     /// When the ID is unknown, lists all known rule IDs.
@@ -226,6 +225,8 @@ pub enum OutputType {
     Json,
     Markdown,
     Llm,
+    /// Only valid for `usereport diff`; not accepted by the root `--output`.
+    Text,
 }
 
 impl FromStr for OutputType {
@@ -242,13 +243,18 @@ impl FromStr for OutputType {
             "json" => Ok(OutputType::Json),
             "markdown" => Ok(OutputType::Markdown),
             "llm" => Ok(OutputType::Llm),
-            _ => Err(miette!("failed to parse {} as output type", s)),
+            "text" => Ok(OutputType::Text),
+            _ => Err(miette!(
+                "failed to parse {} as output type; valid values: template, html, json, markdown, llm",
+                s
+            )),
         }
     }
 }
 
 impl clap::ValueEnum for OutputType {
     fn value_variants<'a>() -> &'a [Self] {
+        // Text is intentionally excluded: it is only valid for `diff`.
         &[
             OutputType::Template,
             OutputType::Html,
@@ -265,6 +271,7 @@ impl clap::ValueEnum for OutputType {
             OutputType::Json => clap::builder::PossibleValue::new("json"),
             OutputType::Markdown => clap::builder::PossibleValue::new("markdown"),
             OutputType::Llm => clap::builder::PossibleValue::new("llm"),
+            OutputType::Text => return None,
         })
     }
 
@@ -433,6 +440,7 @@ fn show_output_template(opt: &Opt) -> miette::Result<()> {
         OutputType::Json => "".to_string(),
         OutputType::Markdown => defaults::MD_TEMPLATE.to_string(),
         OutputType::Llm => "".to_string(),
+        OutputType::Text => "".to_string(),
     };
 
     println!("{}", template);
@@ -662,7 +670,7 @@ fn run_baseline(action: &BaselineAction) -> miette::Result<()> {
     Ok(())
 }
 
-fn run_diff(a_path: &PathBuf, b_path: &PathBuf, output: &str) -> miette::Result<()> {
+fn run_diff(a_path: &PathBuf, b_path: &PathBuf, output: &OutputType) -> miette::Result<()> {
     let a_bytes = std::fs::read(a_path)
         .into_diagnostic()
         .with_context(|| format!("read {}", a_path.display()))?;
@@ -679,13 +687,14 @@ fn run_diff(a_path: &PathBuf, b_path: &PathBuf, output: &str) -> miette::Result<
     let stdout = std::io::stdout();
     let mut handle = stdout.lock();
     match output {
-        "json" => {
+        OutputType::Json => {
             serde_json::to_writer_pretty(&mut handle, &report).into_diagnostic()?;
             writeln!(handle).into_diagnostic()?;
         }
-        _ => {
+        OutputType::Text => {
             diff::render_text(&report, &mut handle).into_diagnostic()?;
         }
+        _ => return Err(miette!("output type not supported for diff; valid values: text, json")),
     }
     Ok(())
 }
@@ -714,11 +723,7 @@ fn run_convert(
     let mut writer = output_writer(&output_file.map(PathBuf::from))?;
 
     if *output == OutputType::Llm {
-        let mut llm_out = LlmOutput::from_report(&report);
-        if redact {
-            let redactor = Redactor::from_env();
-            llm_out = redactor.redact_output(llm_out);
-        }
+        let llm_out = LlmOutput::from_report(&report, redact);
         serde_json::to_writer(writer, &llm_out)
             .into_diagnostic()
             .context("failed to write LLM JSON")?;
@@ -943,6 +948,11 @@ fn generate_svg_from_folded(folded: &[u8]) -> miette::Result<Option<String>> {
 }
 
 fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> miette::Result<Vec<Finding>> {
+    if opt.output == OutputType::Text {
+        return Err(miette!(
+            "output type 'text' is only valid for the diff subcommand; valid values: template, html, json, markdown, llm"
+        ));
+    }
     let parallel = opt.parallel.unwrap_or(config.defaults.max_parallel_commands);
     let repetitions = opt.repetitions.unwrap_or(config.defaults.repetitions);
     let progress = is_show_progress(opt);
@@ -1101,11 +1111,7 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> miette::Re
     }
 
     if opt.output == OutputType::Llm {
-        let mut llm_out = LlmOutput::from_report(&report);
-        if opt.redact {
-            let redactor = Redactor::from_env();
-            llm_out = redactor.redact_output(llm_out);
-        }
+        let llm_out = LlmOutput::from_report(&report, opt.redact);
         serde_json::to_writer(writer, &llm_out)
             .into_diagnostic()
             .context("failed to write LLM JSON")?;
@@ -1235,6 +1241,7 @@ fn create_renderer<W: Write>(
         OutputType::Json => Box::new(renderer::JsonRenderer::new()),
         OutputType::Markdown => Box::new(renderer::TemplateRenderer::new(defaults::MD_TEMPLATE)),
         OutputType::Llm => unreachable!("LLM output is handled before renderer dispatch"),
+        OutputType::Text => unreachable!("Text output is only valid for diff, rejected before renderer dispatch"),
     };
 
     Ok(renderer)
