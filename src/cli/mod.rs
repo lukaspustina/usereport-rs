@@ -412,26 +412,62 @@ fn run_subcommand(cmd: &Subcommand) -> anyhow::Result<()> {
 
 fn run_check(config: &Config, profile_filter: Option<&str>) -> anyhow::Result<()> {
     use config::Profile;
+
+    // (category, name, binary) — binary may be an absolute path or a bare name
+    let mut checks: Vec<(String, String, String)> = Vec::new();
+
+    // Profile commands
     let profiles: Vec<&Profile> = match profile_filter {
         Some(name) => vec![config.profile(name)?],
         None => config.profiles.iter().collect(),
     };
-
-    let mut table = Table::new();
-    table.set_header(vec!["Profile", "Name", "Binary", "Status"]);
-
-    let mut missing = 0usize;
     for profile in &profiles {
         for cmd in config.commands_for_profile(profile) {
             let binary = cmd.binary().unwrap_or_else(|| cmd.command().to_string());
-            let status = if which::which(&binary).is_ok() { "ok" } else { missing += 1; "MISSING" };
-            table.add_row(vec![profile.name.clone(), cmd.name().to_string(), binary, status.to_string()]);
+            checks.push((profile.name.clone(), cmd.name().to_string(), binary));
         }
+    }
+
+    // Built-in collector tools (platform-specific)
+    #[cfg(target_os = "linux")]
+    {
+        checks.push(("collectors".into(), "dmesg".into(), "dmesg".into()));
+        checks.push(("collectors".into(), "free".into(), "free".into()));
+    }
+    #[cfg(target_os = "macos")]
+    {
+        checks.push(("collectors".into(), "sysctl".into(), "sysctl".into()));
+        checks.push(("collectors".into(), "iostat".into(), "/usr/sbin/iostat".into()));
+        checks.push(("collectors".into(), "netstat".into(), "netstat".into()));
+        checks.push(("collectors".into(), "vm_stat".into(), "vm_stat".into()));
+    }
+
+    // CPU profiling tools (--profile-cpu)
+    checks.push(("profiling".into(), "perf".into(), "perf".into()));
+    checks.push(("profiling".into(), "bpftrace".into(), "bpftrace".into()));
+
+    // eBPF tools (--bpf)
+    #[cfg(feature = "bpf")]
+    for tool in crate::collector::bpf::TOOLS {
+        // Resolve bare name or -bpfcc suffix (Ubuntu packages them with the suffix).
+        let binary = crate::collector::bpf::resolve_bcc_tool(tool)
+            .unwrap_or_else(|| tool.to_string());
+        checks.push(("bpf".into(), (*tool).into(), binary));
+    }
+
+    let mut table = Table::new();
+    table.set_header(vec!["Category", "Name", "Binary", "Status"]);
+
+    let mut missing = 0usize;
+    for (category, name, binary) in &checks {
+        let found = which::which(binary).is_ok() || std::path::Path::new(binary.as_str()).exists();
+        let status = if found { "ok" } else { missing += 1; "MISSING" };
+        table.add_row(vec![category.clone(), name.clone(), binary.clone(), status.to_string()]);
     }
     println!("{table}");
 
     if missing > 0 {
-        eprintln!("{} binary/binaries not found on $PATH", missing);
+        eprintln!("{} binary/binaries not found", missing);
         std::process::exit(1);
     }
     Ok(())

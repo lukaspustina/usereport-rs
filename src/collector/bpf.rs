@@ -15,6 +15,21 @@ use crate::signal::{Signal, SignalValue, Unit};
 /// Histogram-producing tools and event-tracing tools bundled as a single collector.
 pub const TOOLS: &[&str] = &["runqlat", "biolatency", "tcpretrans", "execsnoop", "cachestat"];
 
+/// Resolve a BCC tool name to the actual binary on PATH.
+///
+/// Ubuntu packages the tools as `runqlat-bpfcc` etc.; other distros use the
+/// bare name. Try bare first so upstream/pip installs take precedence.
+pub fn resolve_bcc_tool(name: &str) -> Option<String> {
+    if which::which(name).is_ok() {
+        return Some(name.to_string());
+    }
+    let suffixed = format!("{}-bpfcc", name);
+    if which::which(&suffixed).is_ok() {
+        return Some(suffixed);
+    }
+    None
+}
+
 #[derive(Debug, Default)]
 pub struct BpfCollector;
 
@@ -34,7 +49,8 @@ impl super::Collector for BpfCollector {
         let mut signals = Vec::new();
 
         for tool in TOOLS {
-            let available = which::which(tool).is_ok();
+            let resolved = resolve_bcc_tool(tool);
+            let available = resolved.is_some();
             signals.push(Signal {
                 id: format!("bpf.{}.available", tool),
                 value: SignalValue::Bool(available),
@@ -45,9 +61,9 @@ impl super::Collector for BpfCollector {
                 baseline: None,
             });
 
-            if available {
+            if let Some(binary) = resolved {
                 // Invoke the tool for a short window and parse its output.
-                if let Some(sig) = run_histogram_tool(tool, now) {
+                if let Some(sig) = run_histogram_tool(tool, &binary, now) {
                     signals.push(sig);
                 }
             }
@@ -59,14 +75,14 @@ impl super::Collector for BpfCollector {
 
 /// Run a bcc histogram tool for a 2-second window and produce a latency signal.
 /// Returns `None` if the tool fails or produces no parseable histogram output.
-fn run_histogram_tool(tool: &str, now: chrono::DateTime<Local>) -> Option<Signal> {
+fn run_histogram_tool(tool: &str, binary: &str, now: chrono::DateTime<Local>) -> Option<Signal> {
     // Histogram tools: runqlat, biolatency. Others produce event-based output.
     let args: &[&str] = match tool {
         "runqlat" | "biolatency" | "cachestat" => &["2", "1"],
         _ => return None, // tcpretrans, execsnoop — event-based, no histogram
     };
 
-    let output = std::process::Command::new(tool).args(args).output().ok()?;
+    let output = std::process::Command::new(binary).args(args).output().ok()?;
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     let samples = parse_histogram_usecs(&stdout)?;
