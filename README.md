@@ -874,7 +874,7 @@ install_hint     = "apt-get install sysstat"
 what_to_look_for = "High %iowait means disk is the bottleneck. Idle near 0% means CPU is saturated."
 ```
 
-- `install_hint` — shown in `usereport check` when the binary is missing
+- `install_hint` — shown in `usereport explain <command-name>` when the binary is missing
 - `what_to_look_for` — surfaced in `usereport explain <command-name>`
 
 ### Custom rules
@@ -886,8 +886,8 @@ Drop TOML files in `~/.config/usereport/rules.d/`. They merge with the built-ins
 ## Exit codes
 
 ```sh
-usereport --exit-on warn   # exit 1 if any Warn or Crit findings
-usereport --exit-on crit   # exit 1 only for Crit findings
+usereport --exit-on warn   # exit 1 if any Warn or higher findings
+usereport --exit-on crit   # exit 2 only for Crit findings
 usereport --exit-on never  # always exit 0 (default)
 ```
 
@@ -913,7 +913,7 @@ usereport baseline list
 usereport diff before.json after.json
 ```
 
-Baselines are stored as rolling JSONL files. Every successful run appends to the active baseline automatically if one was specified with `--baseline`.
+Baselines are stored as rolling JSONL files (default window: 24 entries, configurable via `baseline_rolling_n` in `[defaults]`). Every successful run appends a snapshot unconditionally — no flag required.
 
 ---
 
@@ -926,24 +926,7 @@ The core is published as a Rust library. Use it to embed signal collection and r
 usereport-rs = "0.2"
 ```
 
-```rust
-use usereport::{Analysis, Context};
-use usereport::cli::config::Config;
-use usereport::rule::builtin::builtin_rules;
-use usereport::renderer::{Renderer, TemplateRenderer};
-use std::str::FromStr;
-
-let config = Config::from_str(include_str!("../contrib/linux.conf"))?;
-let rules = builtin_rules();
-
-let report = Analysis::new(config, rules).run()?;
-
-println!("{} signals collected, {} findings", report.signals.len(), report.findings.len());
-
-for finding in &report.findings {
-    println!("[{:?}] {} — {}", finding.severity, finding.id, finding.summary);
-}
-```
+See [`examples/json_report.rs`](examples/json_report.rs) for a complete, up-to-date example using the current `Analysis` constructor.
 
 The `TemplateRenderer` and `JsonRenderer` accept the report directly. All collector types, signal structs, and rule engine APIs are public.
 

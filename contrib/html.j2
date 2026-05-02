@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 
-    <title>Use Report - {{ context.hostname }} on {{ context.date_time | rfc2822 }}</title>
+    <title>Use Report - {{ context.hostname | e }} on {{ context.date_time | rfc2822 }}</title>
 
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; color: #212529; }
@@ -31,12 +31,12 @@
 </head>
 <body>
 <div class="container-fluid">
-    <h1>Use Report - {{ context.hostname }} on {{ context.date_time | rfc2822 }}</h1>
+    <h1>Use Report - {{ context.hostname | e }} on {{ context.date_time | rfc2822 }}</h1>
 
     <h2>Summary</h2>
     <ul class="list-group">
-        <li class="list-group-item">Host: <code>{{ context.hostname }}</code></li>
-        <li class="list-group-item">Kernel: <code>{{ context.uname }}</code></li>
+        <li class="list-group-item">Host: <code>{{ context.hostname | e }}</code></li>
+        <li class="list-group-item">Kernel: <code>{{ context.uname | e }}</code></li>
         <li class="list-group-item">Date: <code>{{ context.date_time | rfc2822 }}</code></li>
         <li class="list-group-item">Repetitions: {{ repetitions }}</li>
         <li class="list-group-item">Parallelism: {{ max_parallel_commands }}</li>
@@ -182,7 +182,7 @@
     <p>
     <ul class="list-group">
         {% for key, value in context.more | items %}
-            <li class="list-group-item">{{ key }}: {{ value }}</li>
+            <li class="list-group-item">{{ key | e }}: {{ value | e }}</li>
         {% endfor %}
         <li class="list-group-item">Repetitions: {{ repetitions }}</li>
         <li class="list-group-item">Parallelism: {{ max_parallel_commands }}</li>
@@ -196,55 +196,55 @@
                 <li class="list-group-item">
                     {% if result.Success is defined %}
                         {% set s = result.Success %}
-                        <h3>{% if s.command.title %}{{ s.command.title }}{% else %}{{ s.command.name }}{% endif %}</h3>
+                        <h3>{% if s.command.title %}{{ s.command.title | e }}{% else %}{{ s.command.name | e }}{% endif %}</h3>
                         <div class="border border-secondary rounded">
-                            <pre>{{ s.stdout }}</pre>
+                            <pre>{{ s.stdout | e }}</pre>
                         </div>
                         <p>
                         <small>
                             {% if s.command.description %}
                                 <p>{{ s.command.description | e | replace("\n", "<br/>") | safe }}</p>
                             {% endif %}
-                            Command: <code>{{ s.command.command }}</code> [{{ s.run_time_ms }} ms]<br/>
-                            {% for link in s.command.links %}[<a href="{{ link.url }}">{{ link.name }}</a>] {% endfor %}
+                            Command: <code>{{ s.command.command | e }}</code> [{{ s.run_time_ms }} ms]<br/>
+                            {% for link in s.command.links %}[<a href="{{ link.url | e }}">{{ link.name | e }}</a>] {% endfor %}
                         </small>
                         </p>
                     {% endif %}
 
                     {% if result.Failed is defined %}
                         {% set s = result.Failed %}
-                        <h3 class="text-warning">{% if s.command.title %}{{ s.command.title }}{% else %}{{ s.command.name }}{% endif %}: Failed</h3>
+                        <h3 class="text-warning">{% if s.command.title %}{{ s.command.title | e }}{% else %}{{ s.command.name | e }}{% endif %}: Failed</h3>
                         <div class="border border-secondary rounded">
-                            <pre>{{ s.stdout }}</pre>
+                            <pre>{{ s.stdout | e }}</pre>
                         </div>
                         <p>
                         <small>
                             {% if s.command.description %}
                                 <p>{{ s.command.description | e | replace("\n", "<br/>") | safe }}</p>
                             {% endif %}
-                            Command: <code>{{ s.command.command }}</code> [{{ s.run_time_ms }} ms]<br/>
-                            {% for link in s.command.links %}[<a href="{{ link.url }}">{{ link.name }}</a>] {% endfor %}
+                            Command: <code>{{ s.command.command | e }}</code> [{{ s.run_time_ms }} ms]<br/>
+                            {% for link in s.command.links %}[<a href="{{ link.url | e }}">{{ link.name | e }}</a>] {% endfor %}
                         </small>
                         </p>
                     {% endif %}
 
                     {% if result.Timeout is defined %}
                         {% set s = result.Timeout %}
-                        <h3 class="text-danger">{% if s.command.title %}{{ s.command.title }}{% else %}{{ s.command.name }}{% endif %}: Timed out</h3>
+                        <h3 class="text-danger">{% if s.command.title %}{{ s.command.title | e }}{% else %}{{ s.command.name | e }}{% endif %}: Timed out</h3>
                         <p>
                             <small>
-                                Command: <code>{{ s.command.command }}</code> [{{ s.run_time_ms }} ms]<br/>
+                                Command: <code>{{ s.command.command | e }}</code> [{{ s.run_time_ms }} ms]<br/>
                             </small>
                         </p>
                     {% endif %}
 
                     {% if result.Error is defined %}
                         {% set s = result.Error %}
-                        <h3 class="text-danger">{% if s.command.title %}{{ s.command.title }}{% else %}{{ s.command.name }}{% endif %}: Error</h3>
+                        <h3 class="text-danger">{% if s.command.title %}{{ s.command.title | e }}{% else %}{{ s.command.name | e }}{% endif %}: Error</h3>
                         <p>
-                            Reason: {{ s.reason }}<br/>
+                            Reason: {{ s.reason | e }}<br/>
                             <small>
-                                Command: <code>{{ s.command.command }}</code> [{{ s.run_time_ms }} ms]<br/>
+                                Command: <code>{{ s.command.command | e }}</code> [{{ s.run_time_ms }} ms]<br/>
                             </small>
                         </p>
                     {% endif %}
@@ -278,7 +278,7 @@
             <li class="list-group-item" id="cmd-{{ s.command.name | e }}">
                 <h3>{% if s.command.title %}{{ s.command.title | e }}{% else %}{{ s.command.name | e }}{% endif %}</h3>
                 {% if ns_badge.ids %}<p><strong>Evidence for: {{ ns_badge.ids | join(", ") | e }}</strong></p>{% endif %}
-                <div class="border border-secondary rounded"><pre>{{ s.stdout }}</pre></div>
+                <div class="border border-secondary rounded"><pre>{{ s.stdout | e }}</pre></div>
                 <p><small>
                     {% if s.command.description %}<p>{{ s.command.description | e | replace("\n", "<br/>") | safe }}</p>{% endif %}
                     Command: <code>{{ s.command.command | e }}</code> [{{ s.run_time_ms }} ms]<br/>
@@ -297,7 +297,7 @@
                         {% set s = result.Success %}
                         <h3 id="cmd-{{ s.command.name | e }}">{% if s.command.title %}{{ s.command.title | e }}{% else %}{{ s.command.name | e }}{% endif %}</h3>
                         <div class="border border-secondary rounded">
-                            <pre>{{ s.stdout }}</pre>
+                            <pre>{{ s.stdout | e }}</pre>
                         </div>
                         <p>
                         <small>
@@ -314,7 +314,7 @@
                         {% set s = result.Failed %}
                         <h3 id="cmd-{{ s.command.name | e }}" class="text-warning">{% if s.command.title %}{{ s.command.title | e }}{% else %}{{ s.command.name | e }}{% endif %}: Failed</h3>
                         <div class="border border-secondary rounded">
-                            <pre>{{ s.stdout }}</pre>
+                            <pre>{{ s.stdout | e }}</pre>
                         </div>
                         <p>
                         <small>
