@@ -7,6 +7,7 @@
 
 use chrono::{DateTime, Local};
 use serde::{Deserialize, Serialize};
+use std::fmt;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Signal {
@@ -46,6 +47,22 @@ pub enum Unit {
     Hz,
     Celsius,
     None,
+}
+
+impl fmt::Display for Unit {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Unit::Pct => "percent",
+            Unit::MillisPerOp => "ms",
+            Unit::BytesPerSec => "bytes/s",
+            Unit::Count => "count",
+            Unit::Iops => "iops",
+            Unit::Microseconds => "µs",
+            Unit::Hz => "hz",
+            Unit::Celsius => "celsius",
+            Unit::None => "none",
+        })
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -326,7 +326,7 @@ pub fn main() -> miette::Result<()> {
 
     let opt = Opt::parse().validate()?;
 
-    // Check subcommand needs config — handle before the config-free dispatch.
+    // Check and Explain subcommands need config — handle before the config-free dispatch.
     if let Some(Subcommand::Check { profile }) = &opt.command {
         let config = opt
             .config
@@ -337,6 +337,19 @@ pub fn main() -> miette::Result<()> {
             .context("could not load configuration file")?;
         config.validate().into_diagnostic()?;
         return run_check(&config, profile.as_deref());
+    }
+
+    if let Some(Subcommand::Explain { id }) = &opt.command {
+        let config = opt
+            .config
+            .as_ref()
+            .map(Config::from_file)
+            .unwrap_or_else(|| Config::from_str(defaults::CONFIG))
+            .into_diagnostic()
+            .context("could not load configuration file")?;
+        // Validate lightly — skip profile/command cross-validation since explain
+        // should work even with partial configs.
+        return run_explain(id, &config);
     }
 
     // Phase 2: subcommand dispatch (baseline / diff). The default code path
@@ -756,19 +769,49 @@ pub fn run_explain(id: &str, config: &Config) -> miette::Result<()> {
 
     let all_rules = builtin_rules();
     if let Some(rule) = all_rules.iter().find(|r| r.id == id) {
-        run_explain_inner(rule, is_tty, &mut handle)
-    } else {
-        eprintln!("Unknown topic '{}'.", id);
-        eprintln!();
-        eprintln!("Known topics:");
-        for c in &config.commands {
-            eprintln!("  {} (command)", c.name());
-        }
-        for r in &all_rules {
-            eprintln!("  {} (rule)", r.id);
-        }
-        std::process::exit(1);
+        return run_explain_inner(rule, is_tty, &mut handle);
     }
+
+    // Collect all signal IDs from config extract definitions
+    let all_signal_ids: Vec<(&str, &crate::command::Command)> = config
+        .commands
+        .iter()
+        .flat_map(|cmd| cmd.extract().iter().map(move |ex| (ex.signal_id.as_str(), cmd)))
+        .collect();
+
+    if let Some((_, cmd)) = all_signal_ids.iter().find(|(sid, _)| *sid == id) {
+        let emitting_commands: Vec<&str> = config
+            .commands
+            .iter()
+            .filter(|c| c.extract().iter().any(|ex| ex.signal_id == id))
+            .map(|c| c.name())
+            .collect();
+        writeln!(handle, "Signal ID: {id}").into_diagnostic()?;
+        writeln!(handle, "Emitted by: {}", emitting_commands.join(", ")).into_diagnostic()?;
+        for extract in cmd.extract().iter().filter(|ex| ex.signal_id == id) {
+            writeln!(handle, "  Aggregate: {}", extract.aggregate).into_diagnostic()?;
+            writeln!(handle, "  Unit:      {}", extract.unit).into_diagnostic()?;
+            writeln!(handle, "  Pattern:   {}", extract.pattern).into_diagnostic()?;
+        }
+        return Ok(());
+    }
+
+    let mut known: Vec<String> = Vec::new();
+    for c in &config.commands {
+        known.push(format!("  {} (command)", c.name()));
+    }
+    for r in &all_rules {
+        known.push(format!("  {} (rule)", r.id));
+    }
+    for (sid, _) in &all_signal_ids {
+        known.push(format!("  {} (signal)", sid));
+    }
+    known.sort();
+    Err(miette!(
+        "unknown topic '{}'\n\nKnown topics:\n{}",
+        id,
+        known.join("\n"),
+    ))
 }
 
 pub fn run_explain_command(cmd: &crate::command::Command, _is_tty: bool, out: &mut dyn Write) -> miette::Result<()> {
@@ -787,12 +830,10 @@ pub fn run_explain_command(cmd: &crate::command::Command, _is_tty: bool, out: &m
     }
     for extract in cmd.extract() {
         writeln!(out).into_diagnostic()?;
-        writeln!(
-            out,
-            "Extract: {} ({:?} {:?}) pattern={}",
-            extract.signal_id, extract.aggregate, extract.unit, extract.pattern
-        )
-        .into_diagnostic()?;
+        writeln!(out, "Signal ID: {}", extract.signal_id).into_diagnostic()?;
+        writeln!(out, "  Aggregate: {}", extract.aggregate).into_diagnostic()?;
+        writeln!(out, "  Unit:      {}", extract.unit).into_diagnostic()?;
+        writeln!(out, "  Pattern:   {}", extract.pattern).into_diagnostic()?;
     }
     if let Some(links) = cmd.links.as_deref() {
         if !links.is_empty() {

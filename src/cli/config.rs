@@ -4,6 +4,7 @@ use crate::report_context::ProfileFollowup;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{HashMap, HashSet},
+    fmt,
     fs::File,
     io::Read,
     iter::FromIterator,
@@ -49,6 +50,18 @@ pub enum Aggregate {
     Max,
     Min,
     Avg,
+}
+
+impl fmt::Display for Aggregate {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Aggregate::Count => "count",
+            Aggregate::Last => "last",
+            Aggregate::Max => "max",
+            Aggregate::Min => "min",
+            Aggregate::Avg => "avg",
+        })
+    }
 }
 
 /// Extracts a signal from a command's stdout via regex
