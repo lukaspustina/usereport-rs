@@ -496,8 +496,10 @@ pub fn run_check_inner(
     is_tty: bool,
     out: &mut dyn Write,
 ) -> miette::Result<usize> {
-    use comfy_table::{Attribute, Cell};
+    use comfy_table::{Attribute, Cell, ContentArrangement, presets};
     let mut table = Table::new();
+    table.load_preset(presets::UTF8_FULL_CONDENSED);
+    table.set_content_arrangement(ContentArrangement::Dynamic);
     table.set_header(vec![
         Cell::new("Category").add_attribute(Attribute::Bold),
         Cell::new("Name").add_attribute(Attribute::Bold),
@@ -508,6 +510,7 @@ pub fn run_check_inner(
         table.enforce_styling();
     }
     let mut missing = 0usize;
+    let mut last_category = String::new();
     for (category, name, binary) in checks {
         let found = which::which(binary).is_ok() || std::path::Path::new(binary.as_str()).exists();
         let status_cell = if is_tty {
@@ -517,20 +520,22 @@ pub fn run_check_inner(
                 missing += 1;
                 Cell::new("\x1b[31mMISSING\x1b[0m")
             }
+        } else if found {
+            Cell::new("ok")
         } else {
-            if found {
-                Cell::new("ok")
-            } else {
-                missing += 1;
-                Cell::new("MISSING")
-            }
+            missing += 1;
+            Cell::new("MISSING")
         };
-        table.add_row(vec![
-            Cell::new(category),
-            Cell::new(name),
-            Cell::new(binary),
-            status_cell,
-        ]);
+        // Show category only on the first row of each group
+        let category_cell = if *category != last_category {
+            last_category.clone_from(category);
+            Cell::new(category).add_attribute(Attribute::Bold)
+        } else {
+            Cell::new("")
+        };
+        // Omit binary when it's identical to the command name
+        let binary_cell = if binary == name { Cell::new("") } else { Cell::new(binary) };
+        table.add_row(vec![category_cell, Cell::new(name), binary_cell, status_cell]);
     }
     writeln!(out, "{table}").into_diagnostic()?;
     Ok(missing)

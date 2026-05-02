@@ -4,6 +4,7 @@ version = "0.2.0"
 authors = ["Lukas Pustina <lukas@pustina.net>"]
 description = "Collect system information for the first 60 seconds of a performance analysis"
 repository = "https://github.com/lukaspustina/usereport-rs.git"
+homepage = "https://github.com/lukaspustina/usereport-rs"
 documentation = "https://docs.rs/usereport-rs"
 readme = "README.md"
 license = "MIT"
@@ -50,7 +51,7 @@ required-features = ["bin"]
 miette = { version = "7", features = ["fancy"], optional = true }
 humantime = { version = "2", optional = true }
 chrono = { version = "0.4", features = ["serde"] }
-clap = { version = "4", features = ["derive"], optional = true }
+clap = { version = "4", features = ["derive", "color"], optional = true }
 env_logger = { version = "0.11", optional = true }
 minijinja = "2"
 human-panic = { version = "2", optional = true }
@@ -91,7 +92,10 @@ targets = [
     "aarch64-apple-darwin",
 ]
 features = ["bin"]      # binary requires --features bin to compile
-installers = ["shell"]
+installers = ["shell", "homebrew"]
+tap = "lukaspustina/homebrew-usereport-rs"
+publish-jobs = ["homebrew"]
+allow-dirty = ["ci"]
 
 [workspace.metadata.dist.github-custom-runners]
 # Native arm64 runner — avoids cross/Docker for the aarch64-musl build.
