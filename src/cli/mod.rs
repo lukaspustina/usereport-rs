@@ -15,7 +15,7 @@ use crate::{
 };
 #[cfg(feature = "bpf")]
 use crate::{collector::bpf::BpfCollector, rule::builtin::bpf_rules};
-use anyhow::{Context as _, anyhow};
+use miette::{miette, IntoDiagnostic as _, Context as _};
 use clap::Parser;
 use comfy_table::Table;
 use termimad;
@@ -177,9 +177,9 @@ pub enum BaselineAction {
 }
 
 impl Opt {
-    pub fn validate(self) -> anyhow::Result<Self> {
+    pub fn validate(self) -> miette::Result<Self> {
         if self.output == OutputType::Template && self.output_template.is_none() {
-            return Err(anyhow!("Output template requires --output-template <PATH>"));
+            return Err(miette!("Output template requires --output-template <PATH>"));
         }
 
         Ok(self)
@@ -196,7 +196,7 @@ pub enum OutputType {
 }
 
 impl FromStr for OutputType {
-    type Err = anyhow::Error;
+    type Err = miette::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_ref() {
@@ -209,7 +209,7 @@ impl FromStr for OutputType {
             "json" => Ok(OutputType::Json),
             "markdown" => Ok(OutputType::Markdown),
             "llm" => Ok(OutputType::Llm),
-            _ => Err(anyhow!("failed to parse {} as output type", s)),
+            _ => Err(miette!("failed to parse {} as output type", s)),
         }
     }
 }
@@ -280,8 +280,7 @@ pub fn compute_exit_code(exit_on: ExitOn, findings: &[Finding]) -> i32 {
     }
 }
 
-pub fn main() -> anyhow::Result<()> {
-    human_panic::setup_panic!();
+pub fn main() -> miette::Result<()> {
     env_logger::init();
     log::debug!("RUST_LOG={:?}", std::env::var("RUST_LOG").unwrap_or_default());
 
@@ -294,8 +293,9 @@ pub fn main() -> anyhow::Result<()> {
             .as_ref()
             .map(Config::from_file)
             .unwrap_or_else(|| Config::from_str(defaults::CONFIG))
+            .into_diagnostic()
             .context("could not load configuration file")?;
-        config.validate()?;
+        config.validate().into_diagnostic()?;
         return run_check(&config, profile.as_deref());
     }
 
@@ -310,8 +310,9 @@ pub fn main() -> anyhow::Result<()> {
         .as_ref()
         .map(Config::from_file)
         .unwrap_or_else(|| Config::from_str(defaults::CONFIG))
+        .into_diagnostic()
         .context("could not load configuration file")?;
-    config.validate()?;
+    config.validate().into_diagnostic()?;
     let profile_name = opt.profile.as_ref().unwrap_or(&config.defaults.profile);
 
     if opt.debug {
@@ -369,7 +370,7 @@ fn show_profiles(config: &Config) {
     println!("{table}");
 }
 
-fn show_output_template(opt: &Opt) -> anyhow::Result<()> {
+fn show_output_template(opt: &Opt) -> miette::Result<()> {
     let template = match opt.output {
         OutputType::Template => {
             let template_file = opt
@@ -378,8 +379,10 @@ fn show_output_template(opt: &Opt) -> anyhow::Result<()> {
                 .expect("output template requires --output-template <PATH>");
             let mut txt = String::new();
             File::open(template_file)
+                .into_diagnostic()
                 .context("failed to open template file")?
                 .read_to_string(&mut txt)
+                .into_diagnostic()
                 .context("failed to read template file")?;
             txt
         }
@@ -413,7 +416,7 @@ fn show_commands(config: &Config) {
     println!("{table}");
 }
 
-fn run_subcommand(cmd: &Subcommand) -> anyhow::Result<()> {
+fn run_subcommand(cmd: &Subcommand) -> miette::Result<()> {
     match cmd {
         Subcommand::Baseline { action } => run_baseline(action),
         Subcommand::Diff { a, b, output } => run_diff(a, b, output),
@@ -422,7 +425,7 @@ fn run_subcommand(cmd: &Subcommand) -> anyhow::Result<()> {
     }
 }
 
-fn run_check(config: &Config, profile_filter: Option<&str>) -> anyhow::Result<()> {
+fn run_check(config: &Config, profile_filter: Option<&str>) -> miette::Result<()> {
     use config::Profile;
 
     // (category, name, binary) — binary may be an absolute path or a bare name
@@ -430,7 +433,7 @@ fn run_check(config: &Config, profile_filter: Option<&str>) -> anyhow::Result<()
 
     // Profile commands
     let profiles: Vec<&Profile> = match profile_filter {
-        Some(name) => vec![config.profile(name)?],
+        Some(name) => vec![config.profile(name).into_diagnostic()?],
         None => config.profiles.iter().collect(),
     };
     for profile in &profiles {
@@ -506,13 +509,14 @@ fn run_check(config: &Config, profile_filter: Option<&str>) -> anyhow::Result<()
     Ok(())
 }
 
-fn run_baseline(action: &BaselineAction) -> anyhow::Result<()> {
-    let store = BaselineStore::xdg().context("locate baseline directory")?;
+fn run_baseline(action: &BaselineAction) -> miette::Result<()> {
+    let store = BaselineStore::xdg().into_diagnostic().context("locate baseline directory")?;
     match action {
         BaselineAction::Record { name } => {
             let label = name.as_deref().unwrap_or("default");
             store
                 .record(label, &[])
+                .into_diagnostic()
                 .with_context(|| format!("record baseline '{}'", label))?;
             println!(
                 "recorded baseline '{}' at {}",
@@ -521,17 +525,18 @@ fn run_baseline(action: &BaselineAction) -> anyhow::Result<()> {
             );
         }
         BaselineAction::List => {
-            for name in store.list().context("list baselines")? {
+            for name in store.list().into_diagnostic().context("list baselines")? {
                 println!("{}", name);
             }
         }
-        BaselineAction::Show { name } => match store.load(name).with_context(|| format!("load baseline '{}'", name))? {
-            Some(record) => println!("{}", serde_json::to_string_pretty(&record)?),
-            None => return Err(anyhow!("baseline '{}' not found", name)),
+        BaselineAction::Show { name } => match store.load(name).into_diagnostic().with_context(|| format!("load baseline '{}'", name))? {
+            Some(record) => println!("{}", serde_json::to_string_pretty(&record).into_diagnostic()?),
+            None => return Err(miette!("baseline '{}' not found", name)),
         },
         BaselineAction::Delete { name } => {
             store
                 .delete(name)
+                .into_diagnostic()
                 .with_context(|| format!("delete baseline '{}'", name))?;
             println!("deleted baseline '{}'", name);
         }
@@ -539,27 +544,27 @@ fn run_baseline(action: &BaselineAction) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn run_diff(a_path: &PathBuf, b_path: &PathBuf, output: &str) -> anyhow::Result<()> {
-    let a_bytes = std::fs::read(a_path).with_context(|| format!("read {}", a_path.display()))?;
-    let b_bytes = std::fs::read(b_path).with_context(|| format!("read {}", b_path.display()))?;
-    let a: AnalysisReport = serde_json::from_slice(&a_bytes).with_context(|| format!("parse {}", a_path.display()))?;
-    let b: AnalysisReport = serde_json::from_slice(&b_bytes).with_context(|| format!("parse {}", b_path.display()))?;
+fn run_diff(a_path: &PathBuf, b_path: &PathBuf, output: &str) -> miette::Result<()> {
+    let a_bytes = std::fs::read(a_path).into_diagnostic().with_context(|| format!("read {}", a_path.display()))?;
+    let b_bytes = std::fs::read(b_path).into_diagnostic().with_context(|| format!("read {}", b_path.display()))?;
+    let a: AnalysisReport = serde_json::from_slice(&a_bytes).into_diagnostic().with_context(|| format!("parse {}", a_path.display()))?;
+    let b: AnalysisReport = serde_json::from_slice(&b_bytes).into_diagnostic().with_context(|| format!("parse {}", b_path.display()))?;
     let report = diff::diff(&a, &b);
     let stdout = std::io::stdout();
     let mut handle = stdout.lock();
     match output {
         "json" => {
-            serde_json::to_writer_pretty(&mut handle, &report)?;
-            writeln!(handle)?;
+            serde_json::to_writer_pretty(&mut handle, &report).into_diagnostic()?;
+            writeln!(handle).into_diagnostic()?;
         }
         _ => {
-            diff::render_text(&report, &mut handle)?;
+            diff::render_text(&report, &mut handle).into_diagnostic()?;
         }
     }
     Ok(())
 }
 
-fn run_explain(id: &str) -> anyhow::Result<()> {
+fn run_explain(id: &str) -> miette::Result<()> {
     let all_rules = builtin_rules();
     if let Some(rule) = all_rules.iter().find(|r| r.id == id) {
         let is_tty = std::io::stdout().is_terminal();
@@ -577,7 +582,7 @@ fn run_explain(id: &str) -> anyhow::Result<()> {
     }
 }
 
-fn run_explain_inner(rule: &Rule, is_tty: bool, out: &mut dyn Write) -> anyhow::Result<()> {
+fn run_explain_inner(rule: &Rule, is_tty: bool, out: &mut dyn Write) -> miette::Result<()> {
     let label = format!("{:?}", rule.severity);
     let severity_str = if is_tty {
         use owo_colors::OwoColorize as _;
@@ -590,25 +595,25 @@ fn run_explain_inner(rule: &Rule, is_tty: bool, out: &mut dyn Write) -> anyhow::
         label
     };
 
-    writeln!(out, "ID:       {}", rule.id)?;
-    writeln!(out, "Severity: {}", severity_str)?;
-    writeln!(out, "Summary:  {}", rule.summary)?;
+    writeln!(out, "ID:       {}", rule.id).into_diagnostic()?;
+    writeln!(out, "Severity: {}", severity_str).into_diagnostic()?;
+    writeln!(out, "Summary:  {}", rule.summary).into_diagnostic()?;
     if let Some(desc) = &rule.description {
-        writeln!(out)?;
-        writeln!(out, "{}", desc)?;
+        writeln!(out).into_diagnostic()?;
+        writeln!(out, "{}", desc).into_diagnostic()?;
     }
     if !rule.suggest.is_empty() {
-        writeln!(out)?;
-        writeln!(out, "To investigate:")?;
+        writeln!(out).into_diagnostic()?;
+        writeln!(out, "To investigate:").into_diagnostic()?;
         for s in &rule.suggest {
-            writeln!(out, "  {}", s)?;
+            writeln!(out, "  {}", s).into_diagnostic()?;
         }
     }
     if !rule.links.is_empty() {
-        writeln!(out)?;
-        writeln!(out, "Links:")?;
+        writeln!(out).into_diagnostic()?;
+        writeln!(out, "Links:").into_diagnostic()?;
         for l in &rule.links {
-            writeln!(out, "  {}", l)?;
+            writeln!(out, "  {}", l).into_diagnostic()?;
         }
     }
     Ok(())
@@ -617,7 +622,7 @@ fn run_explain_inner(rule: &Rule, is_tty: bool, out: &mut dyn Write) -> anyhow::
 /// Run CPU profiling for `duration_secs` seconds using perf (or bpftrace when
 /// `use_bpf` is true and bpftrace is on PATH). Returns `Ok(Some(svg))` on
 /// success, `Ok(None)` when no profiling tool is available.
-fn generate_flamegraph(duration_secs: u64, _use_bpf: bool) -> anyhow::Result<Option<String>> {
+fn generate_flamegraph(duration_secs: u64, _use_bpf: bool) -> miette::Result<Option<String>> {
     let has_perf = which::which("perf").is_ok();
     let has_bpftrace = which::which("bpftrace").is_ok();
 
@@ -626,7 +631,7 @@ fn generate_flamegraph(duration_secs: u64, _use_bpf: bool) -> anyhow::Result<Opt
     }
 
     if has_perf {
-        let tmpdir = tempfile::tempdir()?;
+        let tmpdir = tempfile::tempdir().into_diagnostic()?;
         let perf_data = tmpdir.path().join("perf.data");
 
         let status = std::process::Command::new("perf")
@@ -635,6 +640,7 @@ fn generate_flamegraph(duration_secs: u64, _use_bpf: bool) -> anyhow::Result<Opt
             .args(["--", "sleep", &duration_secs.to_string()])
             .stderr(std::process::Stdio::null())
             .status()
+            .into_diagnostic()
             .context("failed to run perf record")?;
 
         if !status.success() {
@@ -646,6 +652,7 @@ fn generate_flamegraph(duration_secs: u64, _use_bpf: bool) -> anyhow::Result<Opt
             .arg(&perf_data)
             .stderr(std::process::Stdio::null())
             .output()
+            .into_diagnostic()
             .context("failed to run perf script")?;
 
         if script.stdout.is_empty() {
@@ -663,6 +670,7 @@ fn generate_flamegraph(duration_secs: u64, _use_bpf: bool) -> anyhow::Result<Opt
             .args(["-f", "folded", "-e", &script])
             .stderr(std::process::Stdio::null())
             .output()
+            .into_diagnostic()
             .context("failed to run bpftrace")?;
 
         if out.stdout.is_empty() {
@@ -675,7 +683,7 @@ fn generate_flamegraph(duration_secs: u64, _use_bpf: bool) -> anyhow::Result<Opt
     Ok(None)
 }
 
-fn generate_svg_from_perf_script(perf_output: &[u8]) -> anyhow::Result<Option<String>> {
+fn generate_svg_from_perf_script(perf_output: &[u8]) -> miette::Result<Option<String>> {
     use inferno::collapse::Collapse;
     use inferno::collapse::perf::{Folder, Options as CollapseOpts};
     use inferno::flamegraph;
@@ -684,6 +692,7 @@ fn generate_svg_from_perf_script(perf_output: &[u8]) -> anyhow::Result<Option<St
     let mut folder = Folder::from(CollapseOpts::default());
     folder
         .collapse(perf_output, &mut collapsed)
+        .into_diagnostic()
         .context("inferno collapse failed")?;
 
     let collapsed_str = String::from_utf8_lossy(&collapsed);
@@ -694,11 +703,12 @@ fn generate_svg_from_perf_script(perf_output: &[u8]) -> anyhow::Result<Option<St
 
     let mut svg = Vec::new();
     flamegraph::from_lines(&mut flamegraph::Options::default(), lines, &mut svg)
+        .into_diagnostic()
         .context("inferno flamegraph failed")?;
-    Ok(Some(String::from_utf8(svg)?))
+    Ok(Some(String::from_utf8(svg).into_diagnostic()?))
 }
 
-fn generate_svg_from_folded(folded: &[u8]) -> anyhow::Result<Option<String>> {
+fn generate_svg_from_folded(folded: &[u8]) -> miette::Result<Option<String>> {
     use inferno::flamegraph;
 
     let collapsed_str = String::from_utf8_lossy(folded);
@@ -709,11 +719,12 @@ fn generate_svg_from_folded(folded: &[u8]) -> anyhow::Result<Option<String>> {
 
     let mut svg = Vec::new();
     flamegraph::from_lines(&mut flamegraph::Options::default(), lines, &mut svg)
+        .into_diagnostic()
         .context("inferno flamegraph failed")?;
-    Ok(Some(String::from_utf8(svg)?))
+    Ok(Some(String::from_utf8(svg).into_diagnostic()?))
 }
 
-fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> anyhow::Result<Vec<Finding>> {
+fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> miette::Result<Vec<Finding>> {
     let parallel = opt.parallel.unwrap_or(config.defaults.max_parallel_commands);
     let repetitions = opt.repetitions.unwrap_or(config.defaults.repetitions);
     let progress = is_show_progress(opt);
@@ -755,7 +766,7 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> anyhow::Re
     }
     // Phase 8: merge workload-specific rules when --workload is set to a known pack.
     let workload_rules =
-        load_workload_rules(&opt.workload).with_context(|| format!("invalid --workload value '{}'", opt.workload))?;
+        load_workload_rules(&opt.workload).into_diagnostic().with_context(|| format!("invalid --workload value '{}'", opt.workload))?;
     all_rules.extend(workload_rules);
     let rule_engine = RuleEngine::new(all_rules);
 
@@ -786,15 +797,15 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> anyhow::Re
         analysis = analysis.with_cgroup(cgroup_path);
     }
     if let Some(name) = opt.baseline.as_deref() {
-        let store = BaselineStore::xdg().context("locate baseline directory")?;
-        match store.load(name).with_context(|| format!("load baseline '{}'", name))? {
+        let store = BaselineStore::xdg().into_diagnostic().context("locate baseline directory")?;
+        match store.load(name).into_diagnostic().with_context(|| format!("load baseline '{}'", name))? {
             Some(record) => analysis = analysis.with_baseline_records(vec![record]),
-            None => return Err(anyhow!("baseline '{}' not found", name)),
+            None => return Err(miette!("baseline '{}' not found", name)),
         }
     }
 
     let context = create_context(opt, config, profile_name);
-    let mut report = analysis.run(context)?;
+    let mut report = analysis.run(context).into_diagnostic()?;
 
     // --profile-cpu: generate flamegraph and attach to report.
     if let Some(profile_dur) = &opt.profile_cpu {
@@ -834,14 +845,15 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> anyhow::Re
             let redactor = Redactor::from_env();
             llm_out = redactor.redact_output(llm_out);
         }
-        serde_json::to_writer(writer, &llm_out).context("failed to write LLM JSON")?;
+        serde_json::to_writer(writer, &llm_out).into_diagnostic().context("failed to write LLM JSON")?;
     } else {
         let mut buf: Vec<u8> = Vec::new();
         renderer
             .expect("renderer created for non-LLM output")
             .render(&report, Box::new(&mut buf) as Box<dyn Write + Send>)
+            .into_diagnostic()
             .context("failed to render report")?;
-        let rendered = String::from_utf8(buf).context("rendered output is not UTF-8")?;
+        let rendered = String::from_utf8(buf).into_diagnostic().context("rendered output is not UTF-8")?;
         let is_tty = opt.output_file.is_none() && std::io::stdout().is_terminal();
         render_for_output(&rendered, &mut *writer, is_tty, &opt.output)?;
     }
@@ -863,23 +875,24 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> anyhow::Re
     Ok(report.findings().to_vec())
 }
 
-fn parse_duration(s: &str) -> anyhow::Result<std::time::Duration> {
-    humantime::parse_duration(s).with_context(|| format!("invalid duration {:?}", s))
+fn parse_duration(s: &str) -> miette::Result<std::time::Duration> {
+    humantime::parse_duration(s).into_diagnostic().with_context(|| format!("invalid duration {:?}", s))
 }
 
 /// Build a writer for the rendered report. When `output_file` is `Some(path)`,
 /// the file is created (with parent directories) and a buffered writer is
 /// returned. When `None`, stdout is returned.
-pub fn output_writer(output_file: &Option<PathBuf>) -> anyhow::Result<Box<dyn Write + Send>> {
+pub(crate) fn output_writer(output_file: &Option<PathBuf>) -> miette::Result<Box<dyn Write + Send>> {
     match output_file {
         Some(path) => {
             if let Some(parent) = path.parent() {
                 if !parent.as_os_str().is_empty() {
                     std::fs::create_dir_all(parent)
+                        .into_diagnostic()
                         .with_context(|| format!("failed to create parent directories for {}", path.display()))?;
                 }
             }
-            let file = File::create(path).with_context(|| format!("failed to open output file {}", path.display()))?;
+            let file = File::create(path).into_diagnostic().with_context(|| format!("failed to open output file {}", path.display()))?;
             Ok(Box::new(file))
         }
         None => Ok(Box::new(std::io::stdout())),
@@ -900,10 +913,11 @@ fn is_show_progress(opt: &Opt) -> bool {
     false
 }
 
-fn create_commands(opt: &Opt, config: &Config, profile_name: &str) -> anyhow::Result<Vec<Command>> {
+fn create_commands(opt: &Opt, config: &Config, profile_name: &str) -> miette::Result<Vec<Command>> {
     let (add_commands, remove_commands) = create_command_filter(&opt.filter_commands);
     let mut commands: Vec<Command> = config
         .profile(profile_name)
+        .into_diagnostic()
         .map(|p| config.commands_for_profile(p))?
         .into_iter()
         .filter(|x| !remove_commands.contains(x.name()))
@@ -941,11 +955,11 @@ fn create_command_filter(command_spec: &[String]) -> (HashSet<&str>, HashSet<&st
 fn create_renderer<W: Write>(
     output_type: &OutputType,
     output_template: Option<&String>,
-) -> anyhow::Result<Box<dyn Renderer<W>>> {
+) -> miette::Result<Box<dyn Renderer<W>>> {
     let renderer: Box<dyn Renderer<W>> = match output_type {
         OutputType::Template => {
             let template_file = output_template.expect("output template requires --output-template <PATH>");
-            let renderer = renderer::TemplateRenderer::from_file(template_file)?;
+            let renderer = renderer::TemplateRenderer::from_file(template_file).into_diagnostic()?;
             Box::new(renderer)
         }
         OutputType::Html => Box::new(renderer::TemplateRenderer::new(defaults::HTML_TEMPLATE).with_html_escape()),
@@ -1017,13 +1031,13 @@ fn render_for_output(
     writer: &mut dyn Write,
     is_tty: bool,
     format: &OutputType,
-) -> anyhow::Result<()> {
+) -> miette::Result<()> {
     if is_tty && *format == OutputType::Markdown {
         // termimad::print_text writes directly to stdout;
         // writer is intentionally unused here because is_tty=true implies output_file.is_none()
         termimad::print_text(rendered);
     } else {
-        write!(writer, "{}", rendered).context("write output")?;
+        write!(writer, "{}", rendered).into_diagnostic().context("write output")?;
     }
     Ok(())
 }

@@ -25,7 +25,7 @@ rust-version = "1.85"
 [badges]
 
 [features]
-bin = ["clap", "comfy-table", "env_logger", "anyhow", "human-panic", "indicatif", "humantime", "inferno", "termimad", "owo-colors"]
+bin = ["clap", "comfy-table", "env_logger", "miette", "human-panic", "indicatif", "humantime", "inferno", "termimad", "owo-colors"]
 bpf = []
 
 [[bin]]
@@ -47,7 +47,7 @@ name = "md_report"
 required-features = ["bin"]
 
 [dependencies]
-anyhow = { version = "1", optional = true }
+miette = { version = "7", features = ["fancy"], optional = true }
 humantime = { version = "2", optional = true }
 chrono = { version = "0.4", features = ["serde"] }
 clap = { version = "4", features = ["derive"], optional = true }
