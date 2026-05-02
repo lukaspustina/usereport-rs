@@ -541,15 +541,25 @@ pub fn run_check_inner(
             Cell::new("")
         };
         // Omit binary when it's identical to the command name
-        let binary_cell = if binary == name { Cell::new("") } else { Cell::new(binary) };
+        let binary_cell = if binary == name {
+            Cell::new("")
+        } else {
+            Cell::new(binary)
+        };
         table.add_row(vec![category_cell, Cell::new(name), binary_cell, Cell::new(status_str)]);
     }
     // comfy_table measures raw bytes for column widths, so ANSI in cell content inflates the
     // status column. Render plain, then inject color codes in a post-processing pass.
     let rendered = format!("{table}");
     let rendered = if is_tty {
-        let colored = regex::Regex::new(r"\bok\b( +│)").unwrap().replace_all(&rendered, "\x1b[32mok\x1b[0m$1").into_owned();
-        regex::Regex::new(r"\bMISSING\b( *│)").unwrap().replace_all(&colored, "\x1b[31mMISSING\x1b[0m$1").into_owned()
+        let colored = regex::Regex::new(r"\bok\b( +│)")
+            .unwrap()
+            .replace_all(&rendered, "\x1b[32mok\x1b[0m$1")
+            .into_owned();
+        regex::Regex::new(r"\bMISSING\b( *│)")
+            .unwrap()
+            .replace_all(&colored, "\x1b[31mMISSING\x1b[0m$1")
+            .into_owned()
     } else {
         rendered
     };
