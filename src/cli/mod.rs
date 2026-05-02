@@ -18,6 +18,7 @@ use crate::{collector::bpf::BpfCollector, rule::builtin::bpf_rules};
 use anyhow::{Context as _, anyhow};
 use clap::Parser;
 use comfy_table::Table;
+use termimad;
 use indicatif::{ProgressBar, ProgressStyle};
 use std::{
     collections::HashSet,
@@ -666,7 +667,7 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> anyhow::Re
     let repetitions = opt.repetitions.unwrap_or(config.defaults.repetitions);
     let progress = is_show_progress(opt);
     // Create renderer early to detect misconfiguration early (skip for LLM path)
-    let writer = output_writer(&opt.output_file)?;
+    let mut writer = output_writer(&opt.output_file)?;
     let renderer = if opt.output != OutputType::Llm {
         Some(create_renderer::<Box<dyn Write + Send>>(
             &opt.output,
@@ -784,10 +785,14 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> anyhow::Re
         }
         serde_json::to_writer(writer, &llm_out).context("failed to write LLM JSON")?;
     } else {
+        let mut buf: Vec<u8> = Vec::new();
         renderer
             .expect("renderer created for non-LLM output")
-            .render(&report, writer)
+            .render(&report, Box::new(&mut buf) as Box<dyn Write + Send>)
             .context("failed to render report")?;
+        let rendered = String::from_utf8(buf).context("rendered output is not UTF-8")?;
+        let is_tty = opt.output_file.is_none() && std::io::stdout().is_terminal();
+        render_for_output(&rendered, &mut *writer, is_tty, &opt.output)?;
     }
 
     // Phase 2 §116: every successful run appends one record to the rolling
@@ -933,6 +938,22 @@ fn create_progress_bar(expected: usize) -> (Sender<usize>, JoinHandle<()>) {
         .expect("failed to spawn progress thread");
 
     (tx, handle)
+}
+
+fn render_for_output(
+    rendered: &str,
+    writer: &mut dyn Write,
+    is_tty: bool,
+    format: &OutputType,
+) -> anyhow::Result<()> {
+    if is_tty && *format == OutputType::Markdown {
+        // termimad::print_text writes directly to stdout;
+        // writer is intentionally unused here because is_tty=true implies output_file.is_none()
+        termimad::print_text(rendered);
+    } else {
+        write!(writer, "{}", rendered).context("write output")?;
+    }
+    Ok(())
 }
 
 fn create_context(_opt: &Opt, _config: &Config, profile_name: &str) -> Context {
@@ -1084,5 +1105,33 @@ mod tests {
             w.flush().unwrap();
         }
         assert!(path.exists());
+    }
+
+    #[test]
+    fn render_for_output_pipe_markdown_no_ansi() {
+        let input = "# Hello\n\n**world**\n";
+        let mut buf: Vec<u8> = Vec::new();
+        render_for_output(input, &mut buf, false, &OutputType::Markdown).unwrap();
+        assert_eq!(buf, input.as_bytes());
+        assert!(!buf.contains(&0x1b_u8));
+    }
+
+    #[test]
+    fn render_for_output_tty_html_no_ansi() {
+        let input = "<html><body>hello</body></html>";
+        let mut buf: Vec<u8> = Vec::new();
+        render_for_output(input, &mut buf, true, &OutputType::Html).unwrap();
+        assert_eq!(buf, input.as_bytes());
+        assert!(!buf.contains(&0x1b_u8));
+    }
+
+    #[test]
+    fn render_for_output_tty_markdown_returns_ok() {
+        // tty path calls termimad::print_text which writes to stdout directly;
+        // we can only verify the function returns Ok(())
+        let input = "# Hello\n";
+        let mut buf: Vec<u8> = Vec::new();
+        let result = render_for_output(input, &mut buf, true, &OutputType::Markdown);
+        assert!(result.is_ok());
     }
 }
