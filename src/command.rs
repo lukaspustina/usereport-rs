@@ -226,6 +226,11 @@ impl Command {
         }
     }
 
+    /// Returns the executable (first shell-word of the command string).
+    pub fn binary(&self) -> Option<String> {
+        shell_words::split(&self.command).ok()?.into_iter().next()
+    }
+
     fn args(&self) -> Result<Vec<String>, shell_words::ParseError> {
         shell_words::split(&self.command)
     }

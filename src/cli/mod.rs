@@ -152,6 +152,12 @@ pub enum Subcommand {
     /// Print the definition, what raises it, what to investigate, and links for a rule or signal ID.
     /// When the ID is unknown, lists all known rule IDs.
     Explain { id: String },
+    /// Check whether all binaries used by the selected profile(s) are installed on $PATH.
+    Check {
+        /// Profile to check (checks all profiles when omitted).
+        #[arg(short = 'p', long)]
+        profile: Option<String>,
+    },
 }
 
 #[derive(Debug, clap::Subcommand)]
@@ -280,6 +286,18 @@ pub fn main() -> anyhow::Result<()> {
 
     let opt = Opt::parse().validate()?;
 
+    // Check subcommand needs config — handle before the config-free dispatch.
+    if let Some(Subcommand::Check { profile }) = &opt.command {
+        let config = opt
+            .config
+            .as_ref()
+            .map(Config::from_file)
+            .unwrap_or_else(|| Config::from_str(defaults::CONFIG))
+            .context("could not load configuration file")?;
+        config.validate()?;
+        return run_check(&config, profile.as_deref());
+    }
+
     // Phase 2: subcommand dispatch (baseline / diff). The default code path
     // (no subcommand) preserves the existing report-generation behaviour.
     if let Some(cmd) = opt.command.as_ref() {
@@ -388,7 +406,35 @@ fn run_subcommand(cmd: &Subcommand) -> anyhow::Result<()> {
         Subcommand::Baseline { action } => run_baseline(action),
         Subcommand::Diff { a, b, output } => run_diff(a, b, output),
         Subcommand::Explain { id } => run_explain(id),
+        Subcommand::Check { .. } => unreachable!("Check is handled before run_subcommand"),
     }
+}
+
+fn run_check(config: &Config, profile_filter: Option<&str>) -> anyhow::Result<()> {
+    use config::Profile;
+    let profiles: Vec<&Profile> = match profile_filter {
+        Some(name) => vec![config.profile(name)?],
+        None => config.profiles.iter().collect(),
+    };
+
+    let mut table = Table::new();
+    table.set_header(vec!["Profile", "Name", "Binary", "Status"]);
+
+    let mut missing = 0usize;
+    for profile in &profiles {
+        for cmd in config.commands_for_profile(profile) {
+            let binary = cmd.binary().unwrap_or_else(|| cmd.command().to_string());
+            let status = if which::which(&binary).is_ok() { "ok" } else { missing += 1; "MISSING" };
+            table.add_row(vec![profile.name.clone(), cmd.name().to_string(), binary, status.to_string()]);
+        }
+    }
+    println!("{table}");
+
+    if missing > 0 {
+        eprintln!("{} binary/binaries not found on $PATH", missing);
+        std::process::exit(1);
+    }
+    Ok(())
 }
 
 fn run_baseline(action: &BaselineAction) -> anyhow::Result<()> {
@@ -483,18 +529,18 @@ fn run_explain(id: &str) -> anyhow::Result<()> {
 /// Run CPU profiling for `duration_secs` seconds using perf (or bpftrace when
 /// `use_bpf` is true and bpftrace is on PATH). Returns `Ok(Some(svg))` on
 /// success, `Ok(None)` when no profiling tool is available.
-fn generate_flamegraph(duration_secs: u64, use_bpf: bool) -> anyhow::Result<Option<String>> {
+fn generate_flamegraph(duration_secs: u64, _use_bpf: bool) -> anyhow::Result<Option<String>> {
     let has_perf = which::which("perf").is_ok();
-    let has_bpftrace = use_bpf && which::which("bpftrace").is_ok();
+    let has_bpftrace = which::which("bpftrace").is_ok();
 
     if !has_perf && !has_bpftrace {
         return Ok(None);
     }
 
-    let tmpdir = tempfile::tempdir()?;
-    let perf_data = tmpdir.path().join("perf.data");
-
     if has_perf {
+        let tmpdir = tempfile::tempdir()?;
+        let perf_data = tmpdir.path().join("perf.data");
+
         let status = std::process::Command::new("perf")
             .args(["record", "-F", "99", "-ag", "-o"])
             .arg(&perf_data)
@@ -521,6 +567,23 @@ fn generate_flamegraph(duration_secs: u64, use_bpf: bool) -> anyhow::Result<Opti
         return generate_svg_from_perf_script(&script.stdout);
     }
 
+    if has_bpftrace {
+        let script = format!(
+            "profile:hz:99 {{ @[comm, kstack, ustack] = count(); }} interval:s:{duration_secs} {{ exit(); }}"
+        );
+        let out = std::process::Command::new("bpftrace")
+            .args(["-f", "folded", "-e", &script])
+            .stderr(std::process::Stdio::null())
+            .output()
+            .context("failed to run bpftrace")?;
+
+        if out.stdout.is_empty() {
+            return Ok(None);
+        }
+
+        return generate_svg_from_folded(&out.stdout);
+    }
+
     Ok(None)
 }
 
@@ -536,6 +599,21 @@ fn generate_svg_from_perf_script(perf_output: &[u8]) -> anyhow::Result<Option<St
         .context("inferno collapse failed")?;
 
     let collapsed_str = String::from_utf8_lossy(&collapsed);
+    let lines: Vec<&str> = collapsed_str.lines().filter(|l| !l.is_empty()).collect();
+    if lines.is_empty() {
+        return Ok(None);
+    }
+
+    let mut svg = Vec::new();
+    flamegraph::from_lines(&mut flamegraph::Options::default(), lines, &mut svg)
+        .context("inferno flamegraph failed")?;
+    Ok(Some(String::from_utf8(svg)?))
+}
+
+fn generate_svg_from_folded(folded: &[u8]) -> anyhow::Result<Option<String>> {
+    use inferno::flamegraph;
+
+    let collapsed_str = String::from_utf8_lossy(folded);
     let lines: Vec<&str> = collapsed_str.lines().filter(|l| !l.is_empty()).collect();
     if lines.is_empty() {
         return Ok(None);
