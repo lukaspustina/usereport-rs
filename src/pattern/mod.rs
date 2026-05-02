@@ -40,6 +40,16 @@ pub struct PatternEngine {
 }
 
 impl PatternEngine {
+    /// Create an engine with no patterns.
+    pub fn empty() -> Self {
+        Self { patterns: Vec::new() }
+    }
+
+    /// Move all patterns from `other` into this engine.
+    pub fn extend_from(&mut self, other: PatternEngine) {
+        self.patterns.extend(other.patterns);
+    }
+
     /// Parse patterns from a TOML string (used in tests and for loading files).
     pub fn from_toml(text: &str) -> Result<Self> {
         #[derive(Deserialize)]

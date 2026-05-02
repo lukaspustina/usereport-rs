@@ -16,8 +16,9 @@ A product review identified a set of critical and high-severity gaps between the
 
 - **Stack**: Rust 2024 edition, rust-version 1.85, single-crate workspace. All binary features gated behind `--all-features`. Entry point: `src/cli/mod.rs` (`generate_report`, `run_baseline`, `run_explain`, `run_diff`).
 - **Key conventions** (CLAUDE.md): `cargo build/test/check --all-features`; surgical changes only; conventional commits; no `#[allow(...)]` without explanation.
-- **Test strategy**: integration tests under `tests/` named `sdd_product_review_p<N>_c<N>_<desc>.rs`. Unit tests inline in source modules. Write failing tests before implementing fixes.
-- **Integration test `<name>` token**: `product_review` — all test files for this SDD use this prefix.
+- **Test strategy**: integration tests under `tests/` named `sdd_product_review_p<N>_c<N>_<desc>.rs`. Unit tests inline in source modules. Write failing tests before implementing fixes. Subprocess tests use `std::process::Command::new(env!("CARGO_BIN_EXE_usereport"))` — no additional test crate is needed.
+- **Integration test prefix**: `product_review` — all test files for this SDD use this prefix.
+- **Phase gate**: each phase is complete when all its test scenarios pass under `cargo test --all-features`.
 
 ---
 
@@ -48,11 +49,14 @@ A product review identified a set of critical and high-severity gaps between the
 Files touched by this SDD (no new files required):
 
 ```
-src/cli/mod.rs            — Phase 1: pattern + rules wiring, baseline record, explain signal lookup, explain unknown-topic error path, redact warning, plural fix
-src/cli/config.rs         — Phase 4: error variants updated to carry profile/command name context; Phase 3: Display impls for Aggregate
+src/cli/mod.rs            — Phase 1: pattern + rules wiring, baseline record, explain signal lookup,
+                            explain unknown-topic error path, redact warning, plural fix
+src/cli/config.rs         — Phase 4: error variants updated to carry profile/command name context
+                            Phase 3: Display impl for Aggregate
 src/signal.rs             — Phase 3: Display impl for Unit
-src/llm.rs                — Phase 2: raw_excerpts population; add redact parameter to from_report
+src/llm.rs                — Phase 2: LlmExcerpt type, raw_excerpts population, redact parameter
 src/diff.rs               — Phase 2 + Phase 4: output field type change; render_text takes filename labels
+src/pattern/mod.rs        — Phase 1: add PatternEngine::empty() and extend_from() methods
 contrib/html.j2           — Phase 5: XSS fix
 contrib/linux.conf        — Phase 5: commented config keys
 contrib/osx.conf          — Phase 5: commented config keys
@@ -73,6 +77,9 @@ tests/sdd_product_review_p5_c1_html_xss_fix.rs
 tests/sdd_product_review_p5_c2_redact_warning.rs
 ```
 
+The `contrib/patterns/` directory already exists and contains six TOML files:
+`lock_contention.toml`, `nfs_stall.toml`, `slab_leak.toml`, `socket_leak.toml`, `thundering_herd.toml`, `time_wait.toml`.
+
 ---
 
 ## Data Models
@@ -92,7 +99,7 @@ pub struct LlmExcerpt {
 }
 
 impl LlmOutput {
-    /// `MAX_EXCERPT_CHARS` is a compile-time constant defined in `src/llm.rs`:
+    /// Compile-time constant for excerpt truncation.
     pub const MAX_EXCERPT_CHARS: usize = 1_000;
 
     /// Signature change: add `redact: bool` parameter.
@@ -102,24 +109,29 @@ impl LlmOutput {
 
 ### Config error variants (`src/cli/config.rs`)
 
-The `InvalidConfig { reason: &'static str }` variant must be replaced by three specific variants to carry runtime context:
+`InvalidConfig { reason: &'static str }` is removed entirely. Replace all three call sites with typed variants:
 
 ```rust
 pub enum Error {
+    // existing variants unchanged:
+    ParseConfigFailed { source: toml::de::Error },
+    ReadConfigFileFailed { path: PathBuf, source: std::io::Error },
+    InvalidExtractPattern { command: String, pattern: String, reason: String },
     // replaces InvalidConfig for the "no such profile" case:
     NoSuchProfile { name: String },
     // replaces InvalidConfig for the "profile command not found" case:
     ProfileCommandNotFound { profile: String, command: String },
     // replaces InvalidConfig for the "hostinfo command not found" case:
     HostinfoCommandNotFound { command: String },
-    // keep existing non-context variants unchanged
-    ParseConfigFailed { source: toml::de::Error },
-    ReadConfigFileFailed { path: PathBuf, source: std::io::Error },
-    InvalidExtractPattern { command: String, pattern: String, reason: String },
 }
 ```
 
-`InvalidConfig { reason: &'static str }` is removed entirely. All three call sites in `src/cli/config.rs` are updated.
+Display strings (for `thiserror`):
+- `NoSuchProfile` → `"no such profile '{name}'"`
+- `ProfileCommandNotFound` → `"profile '{profile}': command '{command}' not found"`
+- `HostinfoCommandNotFound` → `"hostinfo: command '{command}' not found"`
+
+The three call sites in `src/cli/config.rs` are `Config::profile()` (line with `Error::InvalidConfig { reason: "no such profile" }`), `validate_host_info()`, and `validate_profiles_commands()`.
 
 ### Display impls for Aggregate and Unit
 
@@ -129,30 +141,65 @@ Add `impl fmt::Display for Aggregate` in `src/cli/config.rs`:
 Add `impl fmt::Display for Unit` in `src/signal.rs`:
 - `Pct` → `"percent"`, `MillisPerOp` → `"ms"`, `BytesPerSec` → `"bytes/s"`, `Count` → `"count"`, `Iops` → `"iops"`, `Microseconds` → `"µs"`, `Hz` → `"hz"`, `Celsius` → `"celsius"`, `None` → `"none"`
 
-### Pattern loading
+### PatternEngine helpers (`src/pattern/mod.rs`)
 
-`PatternEngine` does not have a `load_from_dir` method. Instead, use `PatternEngine::from_toml(text)` with embedded TOML strings via the existing `defaults` module pattern:
+The `patterns` field of `PatternEngine` is private. Add two methods:
 
 ```rust
-// In src/cli/mod.rs defaults module:
-mod defaults {
-    // existing ...
-    pub(crate) static PATTERNS: &[&str] = &[
-        include_str!("../../contrib/patterns/time_wait.toml"),
-        include_str!("../../contrib/patterns/lock_contention.toml"),
-        include_str!("../../contrib/patterns/nfs_stall.toml"),
-        include_str!("../../contrib/patterns/slab_leak.toml"),
-        include_str!("../../contrib/patterns/socket_leak.toml"),
-        include_str!("../../contrib/patterns/thundering_herd.toml"),
-    ];
+impl PatternEngine {
+    pub fn empty() -> Self {
+        Self { patterns: vec![] }
+    }
+
+    pub fn extend_from(&mut self, other: PatternEngine) {
+        self.patterns.extend(other.patterns);
+    }
 }
 ```
 
-In `generate_report`, build the engine from these slices. On parse error for any pattern file, log a warning and skip that pattern (do not hard-fail `generate_report`).
+### Pattern loading in `generate_report` (`src/cli/mod.rs`)
+
+In the `defaults` module (alongside existing `CONFIG`, `HTML_TEMPLATE`, etc.), add:
+
+```rust
+pub(crate) static PATTERNS: &[&str] = &[
+    include_str!("../../contrib/patterns/lock_contention.toml"),
+    include_str!("../../contrib/patterns/nfs_stall.toml"),
+    include_str!("../../contrib/patterns/slab_leak.toml"),
+    include_str!("../../contrib/patterns/socket_leak.toml"),
+    include_str!("../../contrib/patterns/thundering_herd.toml"),
+    include_str!("../../contrib/patterns/time_wait.toml"),
+];
+```
+
+### OutputType::Text variant (`src/cli/mod.rs`)
+
+Add `Text` to `OutputType`:
+
+```rust
+pub enum OutputType {
+    Template,
+    Html,
+    Json,
+    Markdown,
+    Llm,
+    Text,  // new variant, used only by diff subcommand
+}
+```
+
+Add to `impl clap::ValueEnum for OutputType`:
+- Include `OutputType::Text` in `value_variants()`.
+- Map `OutputType::Text => clap::builder::PossibleValue::new("text")`.
+
+Add to `impl FromStr for OutputType`:
+- `"text" => Ok(OutputType::Text)`.
+
+The `FromStr` error message (root `--output`) must not include `text` in valid values since `text` is only valid for `diff`; keep valid values as: `"template, html, json, markdown, llm"`.
 
 ### diff subcommand output field
 
-Change `Subcommand::Diff` in `src/cli/mod.rs`:
+Current `Subcommand::Diff` uses `output: String` with `default_value = "text"`. Change to:
+
 ```rust
 Diff {
     a: PathBuf,
@@ -167,9 +214,12 @@ Change `run_diff` signature:
 fn run_diff(a_path: &PathBuf, b_path: &PathBuf, output: &OutputType) -> miette::Result<()>
 ```
 
+Match arm: `OutputType::Text` maps to `diff::render_text(...)`. `OutputType::Json` maps to `serde_json::to_writer_pretty(...)`.
+
 ### diff render_text labels
 
 Change `diff::render_text` signature to accept label strings:
+
 ```rust
 pub fn render_text<W: std::io::Write>(
     d: &DiffReport,
@@ -179,7 +229,7 @@ pub fn render_text<W: std::io::Write>(
 ) -> std::io::Result<()>
 ```
 
-Callers pass `a_path.display().to_string()` and `b_path.display().to_string()`. The heading strings change from `"## Signals only in A"` to `"## Signals only in {label_a}"`.
+Callers pass `a_path.display().to_string()` and `b_path.display().to_string()`. Replace all four heading literals `"## Signals only in A"`, `"## Signals only in B"`, `"## Signals changed"` etc. with `format!("## ... in {label_a}")` / `format!("## ... in {label_b}")`.
 
 ---
 
@@ -193,11 +243,20 @@ Output: LlmOutput
 Side effects: none
 ```
 
-`raw_excerpts` is populated from `report.command_results().first()` (first repetition slice). For each `CommandResult::Success { command, stdout, .. }` entry, include an `LlmExcerpt { command: command.name().to_string(), output: stdout.chars().take(MAX_EXCERPT_CHARS).collect() }`. If `redact` is true, pass the assembled `LlmOutput` through `Redactor::from_env().redact_output(llm_out)` before returning.
+`raw_excerpts` is populated from `report.command_results().first().unwrap_or(&[])`. For each `CommandResult::Success { command, stdout, .. }` entry, append `LlmExcerpt { command: command.name().to_string(), output: stdout.chars().take(MAX_EXCERPT_CHARS).collect() }`. If `redact` is true, apply `Redactor::from_env().redact_output(llm_out)` before returning.
 
-All callers of `LlmOutput::from_report` must be updated to pass the `redact` flag:
-- `run_convert` in `src/cli/mod.rs` (line ~698): `LlmOutput::from_report(&report, redact)`
-- `generate_report` in `src/cli/mod.rs` (line ~1060): `LlmOutput::from_report(&report, opt.redact)`
+Remove the existing per-caller redaction blocks (they currently appear in `run_convert` around line 699 and in `generate_report` around line 1061) and rely solely on the `redact` parameter in `from_report`.
+
+Call site updates (use function names as anchors, not line numbers):
+- In `run_convert`: `LlmOutput::from_report(&report, redact)` — remove the `if redact { ... }` block that follows.
+- In `generate_report` (inside `if opt.output == OutputType::Llm`): `LlmOutput::from_report(&report, opt.redact)` — remove the `if opt.redact { ... }` block that follows.
+
+### `PatternEngine::empty` / `extend_from`
+
+```
+PatternEngine::empty() -> PatternEngine         // returns empty engine
+extend_from(&mut self, other: PatternEngine)    // merges other.patterns into self
+```
 
 ---
 
@@ -219,13 +278,13 @@ These lines must appear in `[defaults]` after the existing uncommented keys.
 
 | Failure | Trigger | Behaviour | User-visible |
 |---|---|---|---|
-| Malformed pattern TOML in `defaults::PATTERNS` | Embedded file is invalid TOML (compile-time authoring error) | `log::warn!` and skip that pattern; `generate_report` continues | Log line: `"pattern: failed to parse embedded pattern, skipping: {err}"` |
-| `--output xyz` on root command | `FromStr` for `OutputType` returns `Err` | clap exits non-zero; error message appended with `"; valid values: template, html, json, markdown, llm"` | `"failed to parse xyz as output type; valid values: template, html, json, markdown, llm"` |
-| `--output jsn` on `diff` subcommand | clap `value_enum` rejects unknown variant | clap exits non-zero with auto-generated error | `"error: invalid value 'jsn' for '--output <OUTPUT>'\n  [possible values: template, html, json, markdown, llm]"` |
+| Malformed pattern TOML in `defaults::PATTERNS` | Embedded file is invalid TOML | `log::warn!` and skip; `generate_report` continues | `"pattern: failed to parse embedded pattern, skipping: {err}"` |
+| `--output xyz` on root command | `FromStr` for `OutputType` returns `Err` | clap exits non-zero | `"failed to parse xyz as output type; valid values: template, html, json, markdown, llm"` |
+| `--output jsn` on `diff` subcommand | clap `value_enum` rejects unknown variant | clap exits non-zero with auto-generated error | `"error: invalid value 'jsn' for '--output <OUTPUT>'\n  [possible values: template, html, json, markdown, llm, text]"` |
 | No such profile | `Config::profile()` called with unknown name | Return `Error::NoSuchProfile { name }` | `"no such profile 'nonexistent'"` |
 | Profile command not found | `validate_profiles_commands` detects missing command | Return `Error::ProfileCommandNotFound { profile, command }` | `"profile 'p': command 'c' not found"` |
 | Hostinfo command not found | `validate_host_info` detects missing command | Return `Error::HostinfoCommandNotFound { command }` | `"hostinfo: command 'c' not found"` |
-| `explain` unknown topic | ID matches no command, rule, or signal | Return `Err(miette!(...))` with list of known topics | `"unknown topic 'x'; known topics: ..."` |
+| `explain` unknown topic | ID matches no command, rule, or signal | Return `Err(miette!(...))` | `"unknown topic 'x'\n\nKnown topics:\n  ..."` |
 | `--redact` without `--output llm` | `opt.redact && opt.output != OutputType::Llm` | Print warning to stderr, continue | `"warning: --redact has no effect unless --output llm is also set"` |
 | `baseline list` returns empty | `store.list()` returns `Ok(vec![])` | Print message, exit 0 | `"No baselines recorded."` |
 
@@ -235,59 +294,114 @@ These lines must appear in `[defaults]` after the existing uncommented keys.
 
 ## Phase 1 — Wire pattern engine, user rules, and baseline record
 
-Three fully-built subsystems are never called from the CLI. Fix all three in one phase because they all touch `generate_report` and `run_baseline` in `src/cli/mod.rs`. Each fix gets its own commit.
+Three fully-built subsystems are never called from the CLI. Fix all three in this phase, each as a separate commit, all touching `src/cli/mod.rs` and `src/pattern/mod.rs`.
 
-**Pattern engine wiring** (`generate_report` in `src/cli/mod.rs`):
-1. Extend the `defaults` module with a `PATTERNS` static slice containing `include_str!` for each file in `contrib/patterns/` (list the six TOML files explicitly).
-2. After workload rules are loaded and before `RuleEngine::new`, build the engine:
-   ```rust
-   let pattern_engine = defaults::PATTERNS.iter().fold(
-       PatternEngine { patterns: vec![] },
-       |mut acc, text| {
-           match PatternEngine::from_toml(text) {
-               Ok(pe) => { acc.patterns.extend(pe.patterns); acc }
-               Err(e) => { log::warn!("pattern: failed to parse embedded pattern, skipping: {e}"); acc }
-           }
-       },
-   );
-   analysis = analysis.with_pattern_engine(pattern_engine);
-   ```
-   Note: `PatternEngine.patterns` is a private field; if direct construction is not possible, add a `PatternEngine::merge(self, other: PatternEngine) -> PatternEngine` method to `src/pattern/mod.rs`, or expose a `PatternEngine::empty() -> Self` constructor and a `extend` method. Prefer the minimal change.
+**1a — PatternEngine::empty() and extend_from() (`src/pattern/mod.rs`)**
 
-**User rules wiring** (`generate_report` in `src/cli/mod.rs`):
-- Replace `let mut all_rules = builtin_rules();` with:
-  ```rust
-  let user_rules_dir = dirs::config_dir()
-      .map(|d| d.join("usereport").join("rules.d"));
-  let mut loader = RulesLoader::new().with_builtins(builtin_rules());
-  if let Some(dir) = user_rules_dir {
-      loader = loader.with_user_dir(dir);
-  }
-  let rules_result = loader.load();
-  // log any load errors but continue with successfully loaded rules
-  let mut all_rules = rules_result.rules;
-  ```
-  The `dirs` crate is already a dependency (check `Cargo.toml`); if not, use `std::env::var("XDG_CONFIG_HOME")` fallback to `~/.config`.
+Add to `impl PatternEngine`:
 
-**Baseline record signals** (`run_baseline` in `src/cli/mod.rs`):
-- In `BaselineAction::Record { name }`, instead of calling `store.record(label, &[])`, run a minimal signal collection pass:
-  ```rust
-  let config = load_config_for_baseline()?; // reuse existing config-loading logic
-  let signals = collect_signals_for_baseline(&config)?;
-  store.record(label, &signals)?;
-  ```
-  Extract a private helper `collect_signals_for_baseline(config: &Config) -> miette::Result<Vec<Signal>>` that constructs a `HostCollector` + `CpuCollector` (the same set used in `generate_report`) and calls `.collect(ctx)` synchronously. Do not duplicate the full runner pipeline — only collector signals are needed for a baseline; command-extracted signals are optional. If collection fails, log a warning and record an empty slice rather than failing the command.
+```rust
+pub fn empty() -> Self {
+    Self { patterns: vec![] }
+}
 
-**Phase complete when**:
-- A pattern TOML file in `contrib/patterns/` fires a finding on a synthetic signal set.
-- A TOML rule file in `~/.config/usereport/rules.d/` fires findings.
-- `usereport baseline record --name smoke` produces a baseline JSON with a non-empty `signals` map.
+pub fn extend_from(&mut self, other: PatternEngine) {
+    self.patterns.extend(other.patterns);
+}
+```
+
+**1b — Pattern engine wiring (`generate_report` in `src/cli/mod.rs`)**
+
+1. Add `PATTERNS` static to the `defaults` module (six `include_str!` entries for all files in `contrib/patterns/`; list all six explicitly as shown in Data Models).
+2. After `all_rules.extend(workload_rules);` and before `let rule_engine = RuleEngine::new(all_rules);`, insert:
+
+```rust
+let mut pattern_engine = PatternEngine::empty();
+for text in defaults::PATTERNS {
+    match PatternEngine::from_toml(text) {
+        Ok(pe) => pattern_engine.extend_from(pe),
+        Err(e) => log::warn!("pattern: failed to parse embedded pattern, skipping: {e}"),
+    }
+}
+analysis = analysis.with_pattern_engine(pattern_engine);
+```
+
+Note: `analysis.with_pattern_engine(...)` must be called after `Analysis::new(...)` is constructed but before `analysis.run(...)`. Place it immediately after the `if let Some(cgroup_path)` block and before the baseline loading block.
+
+**1c — User rules wiring (`generate_report` in `src/cli/mod.rs`)**
+
+Replace `let mut all_rules = builtin_rules();` with:
+
+```rust
+let user_rules_dir = std::env::var("XDG_CONFIG_HOME")
+    .map(PathBuf::from)
+    .or_else(|_| std::env::var("HOME").map(|h| PathBuf::from(h).join(".config")))
+    .ok()
+    .map(|d| d.join("usereport").join("rules.d"));
+
+let mut loader = RulesLoader::new().with_builtins(builtin_rules());
+if let Some(dir) = user_rules_dir {
+    loader = loader.with_user_dir(dir);
+}
+let rules_result = loader.load();
+let mut all_rules = rules_result.rules;
+```
+
+After `analysis.run(context)` and the `drop(analysis)` call, push load findings into the report:
+
+```rust
+for finding in rules_result.load_findings {
+    report.findings.push(finding);
+}
+```
+
+This is consistent with the `cpu.unavailable` pattern at the flamegraph block.
+
+Add `RulesLoader` and `RulesLoadResult` to the import from `crate::rule` (currently `rule::{Rule, RuleEngine, builtin::builtin_rules}`).
+
+**1d — Baseline record signals (`run_baseline` in `src/cli/mod.rs`)**
+
+In the `BaselineAction::Record { name }` arm, replace `store.record(label, &[])` with a real collection pass. Extract a private helper:
+
+```rust
+fn collect_signals_for_baseline() -> Vec<Signal> {
+    use crate::collector::{Collector, CollectCtx};
+    let ctx = CollectCtx::default();
+    let collectors: Vec<Box<dyn Collector>> = vec![
+        Box::new(HostCollector::new()),
+        Box::new(CpuCollector::new()),
+    ];
+    let mut signals = Vec::new();
+    for mut c in collectors {
+        match c.collect(&ctx) {
+            Ok(mut s) => signals.append(&mut s),
+            Err(e) => log::warn!("baseline collect: {e}"),
+        }
+    }
+    signals
+}
+```
+
+Then in `BaselineAction::Record`:
+
+```rust
+let config = Config::from_str(defaults::CONFIG).expect("builtin default config is always valid");
+let _ = config; // config retained to mirror generate_report pattern; unused for collector-only baseline
+let signals = collect_signals_for_baseline();
+store.record(label, &signals)
+    .into_diagnostic()
+    .with_context(|| format!("record baseline '{}'", label))?;
+```
+
+`HostCollector` and `CpuCollector` are already imported at the top of `src/cli/mod.rs`. `CollectCtx` must be added to the collector import. `Signal` must be in scope (already imported via `crate::signal::Signal` or the analysis import).
+
+**Phase complete when**: `cargo test --all-features` passes for all Phase 1 test files.
 
 ### Test Scenarios
 
-- GIVEN a TOML pattern file in `contrib/patterns/` whose predicates match a provided synthetic signal set WHEN `Analysis` is constructed with that pattern engine and run THEN `report.findings()` contains a finding whose ID matches the pattern file entry.
-- GIVEN a TOML rule file placed at `~/.config/usereport/rules.d/test.toml` with `id = "test.user_rule"` and an always-true predicate WHEN `generate_report` runs THEN the returned report contains a finding with `rule_id = "test.user_rule"`.
-- GIVEN a config with at least one command that exits within 5 s WHEN `usereport baseline record --name smoke` runs THEN the baseline JSON on disk contains a `signals` object with at least one key whose value is a non-zero number.
+- GIVEN `contrib/patterns/` contains a TOML pattern file whose signal predicates match a synthetic `SignalSet` where `tcp.time_wait_count > 500` WHEN `Analysis::run()` is called with that pattern engine wired in THEN `report.findings()` contains at least one finding whose `id` matches the pattern file's pattern `id` field.
+- GIVEN `~/.config/usereport/rules.d/test.toml` (or the path derived from `XDG_CONFIG_HOME`) exists with a rule `id = "test.user_rule"` and a predicate that always matches WHEN `usereport --output json` runs THEN the JSON report contains a finding with `rule_id` equal to `"test.user_rule"`.
+- GIVEN a valid config with at least one command that exits within 5 s WHEN `usereport baseline record --name smoke` runs THEN exit code is 0 AND the baseline JSON file on disk contains a `signals` object with at least one key whose value is a non-zero number.
 
 ---
 
@@ -295,156 +409,291 @@ Three fully-built subsystems are never called from the CLI. Fix all three in one
 
 Two independent correctness gaps in separate files. Each sub-item is one commit.
 
-**`src/llm.rs` — raw_excerpts**:
-1. Change `raw_excerpts: Vec<String>` to `raw_excerpts: Vec<LlmExcerpt>`.
-2. Add `pub struct LlmExcerpt { pub command: String, pub output: String }` (derive `Debug, Clone, Serialize, Deserialize`).
+**2a — `src/llm.rs` — raw_excerpts**
+
+1. Add `pub struct LlmExcerpt { pub command: String, pub output: String }` (derive `Debug, Clone, Serialize, Deserialize`).
+2. Change `raw_excerpts: Vec<String>` to `raw_excerpts: Vec<LlmExcerpt>`.
 3. Change `from_report` signature to `pub fn from_report(report: &AnalysisReport, redact: bool) -> Self`.
 4. Populate `raw_excerpts` from `report.command_results().first().unwrap_or(&[])`. For each `CommandResult::Success { command, stdout, .. }`, append `LlmExcerpt { command: command.name().to_string(), output: stdout.chars().take(Self::MAX_EXCERPT_CHARS).collect() }`.
-5. If `redact` is true, apply `Redactor::from_env().redact_output(llm_out)` before returning. Move the redaction call from callers into `from_report`.
-6. Update both call sites in `src/cli/mod.rs`: `LlmOutput::from_report(&report, opt.redact)` and `LlmOutput::from_report(&report, redact)`.
-7. `convert` subcommand already accepts `--redact` (confirmed at `src/cli/mod.rs` line ~192); no new flag needed.
+5. If `redact` is true, apply `Redactor::from_env().redact_output(llm_out)` before returning. Add `use crate::redact::Redactor;` import.
+6. Update both call sites in `src/cli/mod.rs`:
+   - In `run_convert` (function `run_convert`, inside `if *output == OutputType::Llm`): change `LlmOutput::from_report(&report)` to `LlmOutput::from_report(&report, redact)`. Remove the `if redact { let redactor = Redactor::from_env(); llm_out = redactor.redact_output(llm_out); }` block that currently follows.
+   - In `generate_report` (inside `if opt.output == OutputType::Llm`): change `LlmOutput::from_report(&report)` to `LlmOutput::from_report(&report, opt.redact)`. Remove the `if opt.redact { ... }` block that currently follows.
 
-**`src/cli/mod.rs` + `src/diff.rs` — diff --output type safety**:
-1. Change `Subcommand::Diff { output: String }` to `output: OutputType` with `#[arg(long, default_value = "text", value_enum)]`. Use `"text"` as the default (add `Text` variant to `OutputType` if not present, or use `"markdown"` if the existing text rendering maps to that; inspect `run_diff` to determine the correct default). Current `run_diff` uses `"json"` branch vs catch-all for text — map `"text"` to a new `OutputType::Text` variant or rename to align with existing enum variants. Concretely: if `OutputType` has no `Text` variant, add one; map the old catch-all text path to it.
-2. Change `run_diff` signature to `fn run_diff(a_path: &PathBuf, b_path: &PathBuf, output: &OutputType) -> miette::Result<()>`.
-3. Update the `FromStr` implementation's error message to append valid values: `Err(miette!("failed to parse {} as output type; valid values: template, html, json, markdown, llm", s))`.
+**2b — `src/cli/mod.rs` + `src/diff.rs` — diff --output type safety**
 
-**Phase complete when**:
-- `usereport convert report.json --output llm` produces non-empty `raw_excerpts`.
-- `usereport diff a.json b.json --output jsn` exits non-zero with clap printing "jsn" and "possible values".
+1. Add `OutputType::Text` variant and wire it into `clap::ValueEnum` and `FromStr` as specified in Data Models.
+2. Change `Subcommand::Diff { output: String }` to `output: OutputType` with `#[arg(long, default_value = "text", value_enum)]`.
+3. Change `run_diff` signature to `fn run_diff(a_path: &PathBuf, b_path: &PathBuf, output: &OutputType) -> miette::Result<()>`.
+4. Update the match in `run_diff`: `OutputType::Json => { serde_json::to_writer_pretty ... }`, `OutputType::Text => { diff::render_text(...) }`, all other arms `=> return Err(miette!("output type not supported for diff"))`.
+5. The `Subcommand::Diff` dispatch in `run_subcommand` already passes `output` by reference — no change needed there.
+6. Update the `FromStr` error message: `Err(miette!("failed to parse {} as output type; valid values: template, html, json, markdown, llm", s))`. (`text` is intentionally excluded because it is only valid for `diff`.)
+
+**Phase complete when**: `cargo test --all-features` passes for all Phase 2 test files.
 
 ### Test Scenarios
 
-- GIVEN a JSON report where at least one command succeeded and emitted stdout WHEN `usereport convert report.json --output llm` runs THEN the output JSON `raw_excerpts` array is non-empty and each entry has a non-empty `output` field.
-- GIVEN a JSON report where a command's stdout contains the literal string `myhostname` and redaction covers hostnames WHEN `usereport convert report.json --output llm --redact` runs THEN no `raw_excerpts[*].output` entry contains the literal string `myhostname`.
-- GIVEN `usereport diff a.json b.json --output jsn` WHEN the command runs THEN exit code is non-zero and stderr contains both `jsn` and at least one valid format name such as `markdown`.
+- GIVEN a JSON report where at least one `CommandResult::Success` entry has non-empty `stdout` WHEN `usereport convert report.json --output llm` runs THEN the output JSON has a `raw_excerpts` array with at least one entry AND each entry has a non-empty `output` field AND `output` is at most 1000 characters long.
+- GIVEN a JSON report where a command's stdout contains the literal string `myhostname` and the `USEREPORT_REDACT_SALT` env var is set so redaction is active WHEN `usereport convert report.json --output llm --redact` runs THEN no element of `raw_excerpts[*].output` contains the literal string `myhostname`.
+- GIVEN `usereport diff a.json b.json --output jsn` WHEN the command runs THEN exit code is non-zero AND stderr contains both `jsn` and at least one valid format name (e.g. `markdown` or `json`).
 
 ---
 
 ## Phase 3 — explain: signal ID support and Debug format fix
 
-Two gaps in `run_explain` / `run_explain_command` in `src/cli/mod.rs`. Each sub-item is one commit.
+Two gaps in `run_explain` and `run_explain_command` in `src/cli/mod.rs`. Each sub-item is one commit.
 
-**Signal ID lookup** (`run_explain` function):
-After the existing command-name lookup and before the rule-ID lookup, add a third path: collect all `extract.signal_id` values from `config.commands` into a `HashSet<&str>`. If `id` matches any signal ID, find the command(s) that emit it and print a description:
-```
-Signal ID: mem.free_pct
-Emitted by: mem-check (command)
-Unit: percent
-Aggregate: last
-Pattern: (?P<val>\d+)
-```
-Use the `Display` impls added for `Aggregate` and `Unit` (Phase 3 prerequisite). A signal may be emitted by multiple commands; list all.
+**3a — Display impls for Aggregate and Unit**
 
-**Debug format fix** (`run_explain_command` function):
-The line `"Extract: {} ({:?} {:?}) pattern={}"` at the `writeln!` in `run_explain_command` uses `{:?}` for `extract.aggregate` and `extract.unit`. Replace with `{}` (using the `Display` impls). Also add `Display` impls for `Aggregate` (`src/cli/config.rs`) and `Unit` (`src/signal.rs`) as specified in the Data Models section.
+Add `impl fmt::Display for Aggregate` in `src/cli/config.rs`:
 
-**Unknown topic error path** (`run_explain` function):
-Replace the `eprintln!` + `process::exit(1)` block with:
 ```rust
+impl fmt::Display for Aggregate {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Aggregate::Count => "count",
+            Aggregate::Last  => "last",
+            Aggregate::Max   => "max",
+            Aggregate::Min   => "min",
+            Aggregate::Avg   => "avg",
+        })
+    }
+}
+```
+
+Add `impl fmt::Display for Unit` in `src/signal.rs`:
+
+```rust
+impl fmt::Display for Unit {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Unit::Pct          => "percent",
+            Unit::MillisPerOp  => "ms",
+            Unit::BytesPerSec  => "bytes/s",
+            Unit::Count        => "count",
+            Unit::Iops         => "iops",
+            Unit::Microseconds => "µs",
+            Unit::Hz           => "hz",
+            Unit::Celsius      => "celsius",
+            Unit::None         => "none",
+        })
+    }
+}
+```
+
+**3b — Debug format fix in `run_explain_command`**
+
+In `run_explain_command`, change the extract `writeln!` from:
+
+```rust
+"Extract: {} ({:?} {:?}) pattern={}"
+extract.signal_id, extract.aggregate, extract.unit, extract.pattern
+```
+
+to:
+
+```rust
+writeln!(out, "Signal ID: {}", extract.signal_id).into_diagnostic()?;
+writeln!(out, "  Aggregate: {}", extract.aggregate).into_diagnostic()?;
+writeln!(out, "  Unit:      {}", extract.unit).into_diagnostic()?;
+writeln!(out, "  Pattern:   {}", extract.pattern).into_diagnostic()?;
+```
+
+**3c — Signal ID lookup in `run_explain`**
+
+After the command-name lookup and before the rule-ID lookup, add:
+
+```rust
+// Collect all signal IDs from config extract definitions
+let all_signal_ids: Vec<(&str, &crate::command::Command)> = config
+    .commands
+    .iter()
+    .flat_map(|cmd| cmd.extract().iter().map(move |ex| (ex.signal_id.as_str(), cmd)))
+    .collect();
+
+if let Some((_sid, cmd)) = all_signal_ids.iter().find(|(sid, _)| *sid == id) {
+    // Find all commands that emit this signal ID
+    let emitting_commands: Vec<&str> = config
+        .commands
+        .iter()
+        .filter(|cmd| cmd.extract().iter().any(|ex| ex.signal_id == id))
+        .map(|cmd| cmd.name())
+        .collect();
+    writeln!(handle, "Signal ID: {id}").into_diagnostic()?;
+    writeln!(handle, "Emitted by: {}", emitting_commands.join(", ")).into_diagnostic()?;
+    // Print extract details from the first matching command
+    for extract in cmd.extract().iter().filter(|ex| ex.signal_id == id) {
+        writeln!(handle, "  Aggregate: {}", extract.aggregate).into_diagnostic()?;
+        writeln!(handle, "  Unit:      {}", extract.unit).into_diagnostic()?;
+        writeln!(handle, "  Pattern:   {}", extract.pattern).into_diagnostic()?;
+    }
+    return Ok(());
+}
+```
+
+**3d — Unknown topic error path in `run_explain`**
+
+Replace the `eprintln!` + `std::process::exit(1)` block (currently in the final `else` branch) with:
+
+```rust
+let mut known: Vec<String> = Vec::new();
+for c in &config.commands {
+    known.push(format!("  {} (command)", c.name()));
+}
+for r in &all_rules {
+    known.push(format!("  {} (rule)", r.id));
+}
+for (sid, _) in &all_signal_ids {
+    known.push(format!("  {} (signal)", sid));
+}
+known.sort();
 return Err(miette!(
     "unknown topic '{}'\n\nKnown topics:\n{}",
     id,
-    known_topics_list
+    known.join("\n"),
 ));
 ```
-where `known_topics_list` is built from commands, rules, and signal IDs. This makes `run_explain` consistent with all other error paths that return `miette::Result`.
 
-**Phase complete when**:
-- `usereport explain <signal-id>` exits 0 and prints a human-readable description.
-- `usereport explain <extract-command>` prints `aggregate: last` (not `(Last`) when applicable.
+The list is sorted alphabetically, newline-separated, uncapped.
+
+**Phase complete when**: `cargo test --all-features` passes for all Phase 3 test files.
 
 ### Test Scenarios
 
-- GIVEN a running config that defines a signal with ID `mem.free_pct` WHEN `usereport explain mem.free_pct` runs THEN exit code is 0 and stdout contains the string `mem.free_pct`.
-- GIVEN a config command with an `[[command.extract]]` block specifying `aggregate = "last"` and `unit = "percent"` WHEN `usereport explain <that-command-name>` runs THEN stdout contains the lowercase strings `last` and `percent` and does not contain the substring `(Last` or `Percent)`.
+- GIVEN a config where command `mem-check` defines `[[command.extract]]` with `signal_id = "mem.free_pct"` WHEN `usereport explain mem.free_pct` runs THEN exit code is 0 AND stdout contains `mem.free_pct` AND stdout contains `mem-check`.
+- GIVEN a config command with `[[command.extract]]` specifying `aggregate = "last"` and `unit = "percent"` WHEN `usereport explain <that-command-name>` runs THEN stdout contains the substring `last` AND contains the substring `percent` AND does not contain the substring `(Last` AND does not contain the substring `Percent)`.
+- GIVEN `usereport explain totally_unknown_id` WHEN the command runs THEN exit code is non-zero AND the error output contains the substring `unknown topic` AND contains the string `totally_unknown_id`.
 
 ---
 
 ## Phase 4 — Error message quality
 
-A cluster of missing-context error messages plus two behaviour improvements moved from Phase 5. Each sub-item is one commit.
+Six targeted fixes. Each sub-item is one commit.
 
-**Config error context** (`src/cli/config.rs`):
-Replace `InvalidConfig { reason: &'static str }` with three typed variants as specified in the Data Models section. Update:
+**4a — Config error context (`src/cli/config.rs`)**
+
+Remove `InvalidConfig { reason: &'static str }` from `pub enum Error`. Add three typed variants as specified in Data Models. Update the three call sites:
 - `Config::profile()`: use `Error::NoSuchProfile { name: profile_name.to_string() }`.
 - `validate_host_info()`: use `Error::HostinfoCommandNotFound { command: c.clone() }`.
 - `validate_profiles_commands()`: use `Error::ProfileCommandNotFound { profile: p.name.clone(), command: c.clone() }`.
-- Update all existing unit tests that assert on these error strings.
 
-**diff filenames** (`src/diff.rs`):
-Change `render_text` signature to `pub fn render_text<W: std::io::Write>(d: &DiffReport, label_a: &str, label_b: &str, mut w: W) -> std::io::Result<()>`. Replace the four `"## ... in A"` / `"## ... in B"` heading literals with `format!("## ... in {label_a}")` / `format!("## ... in {label_b}")`. Update the call in `run_diff` to pass `a_path.display().to_string()` and `b_path.display().to_string()`.
+Update all existing unit tests in `src/cli/config.rs` that assert on these error strings.
 
-**baseline list empty state** (`run_baseline` in `src/cli/mod.rs`):
-In the `BaselineAction::List` arm, after collecting the list, add:
+**4b — diff filenames (`src/diff.rs`)**
+
+Change `render_text` signature as specified in Data Models. Replace the four heading literals with `format!` calls using `label_a` and `label_b`. Update the call in `run_diff` to pass `a_path.display().to_string()` and `b_path.display().to_string()`.
+
+**4c — baseline list empty state (`run_baseline` in `src/cli/mod.rs`)**
+
+In the `BaselineAction::List` arm, after the `for name in ...` loop, add:
+
 ```rust
+let names = store.list().into_diagnostic().context("list baselines")?;
 if names.is_empty() {
     println!("No baselines recorded.");
+} else {
+    for name in names {
+        println!("{}", name);
+    }
 }
 ```
 
-**`--output` invalid value with valid names** (`src/cli/mod.rs`):
-The `FromStr for OutputType` already has an error path at `_ => Err(miette!("failed to parse {} as output type", s))`. Append `"; valid values: template, html, json, markdown, llm"` to that message. (This applies to the root command's `--output`; the `diff` subcommand's `--output` uses `value_enum` so clap generates its own message.)
+**4d — `--output` invalid value with valid names (`src/cli/mod.rs`)**
 
-**Grammar fix** (`src/cli/mod.rs`):
-In `main()`, replace `eprintln!("{} binary/binaries not found", missing)` with:
+The `FromStr for OutputType` error path already exists. Change the error string from `"failed to parse {} as output type"` to:
+
+```rust
+Err(miette!("failed to parse {} as output type; valid values: template, html, json, markdown, llm", s))
+```
+
+**4e — Grammar fix (`src/cli/mod.rs`)**
+
+Replace:
+```rust
+eprintln!("{} binary/binaries not found", missing);
+```
+with:
 ```rust
 eprintln!("{} {} not found", missing, if missing == 1 { "binary" } else { "binaries" });
 ```
 
-**`--redact` warning** (`src/cli/mod.rs`):
-In the `Opt::validate` method (or in `main()` before dispatch), add:
+**4f — `--redact` warning (`src/cli/mod.rs`)**
+
+In `Opt::validate` (the method at `impl Opt`), after the `OutputType::Template` check, add:
+
 ```rust
-if opt.redact && opt.output != OutputType::Llm {
+if self.redact && self.output != OutputType::Llm {
     eprintln!("warning: --redact has no effect unless --output llm is also set");
 }
 ```
-Check whether `redact` is also present on the `Convert` subcommand variant in the clap definition; if so, add the same check in `run_convert`. The two locations in the original SDD (lines 213–215 and 191–193) correspond to the root `Opt` and the `Convert` subcommand respectively — update both.
 
-**Phase complete when**: Each of the five error paths above produces output matching the test scenarios below.
+The `Convert` subcommand also has `--redact`. In `run_convert`, add the same guard at the top of the function:
+
+```rust
+if redact && *output != OutputType::Llm {
+    eprintln!("warning: --redact has no effect unless --output llm is also set");
+}
+```
+
+**Phase complete when**: `cargo test --all-features` passes for all Phase 4 test files.
 
 ### Test Scenarios
 
-- GIVEN a config that does not define a profile named `nonexistent` WHEN `usereport --profile nonexistent` runs THEN exit code is non-zero and stderr contains both the word `profile` and the string `nonexistent`.
-- GIVEN two JSON files named `before.json` and `after.json` with at least one signal present in one but not the other WHEN `usereport diff before.json after.json` produces text output THEN the output contains the substrings `before.json` and `after.json` as section headings.
-- GIVEN no baselines stored in the baseline directory WHEN `usereport baseline list` runs THEN exit code is 0 and stdout contains the words `No` and `baseline`.
-- GIVEN `usereport --output xyz` with an unrecognised format value WHEN the command runs THEN stderr contains at least one valid format name such as `markdown`.
+- GIVEN a config that defines no profile named `nonexistent` WHEN `usereport --profile nonexistent` runs THEN exit code is non-zero AND stderr contains the word `profile` AND contains the string `nonexistent`.
+- GIVEN two JSON baseline files `before.json` and `after.json` where signal `cpu.idle_pct` is present in `before.json` but absent from `after.json` WHEN `usereport diff before.json after.json` produces text output THEN stdout contains the substring `before.json` AND contains the substring `after.json` as section heading labels.
+- GIVEN no baseline files exist in the baseline store directory WHEN `usereport baseline list` runs THEN exit code is 0 AND stdout contains the words `No` and `baseline`.
+- GIVEN `usereport --output xyz` with an unrecognised format value WHEN the command runs THEN exit code is non-zero AND stderr contains at least one of: `markdown`, `html`, `json`, `template`, `llm`.
+- GIVEN `usereport --output markdown --redact` WHEN the command runs THEN stderr contains a warning referencing `--redact` and indicating it has no effect without `--output llm`.
 
 ---
 
 ## Phase 5 — Documentation fixes and minor polish
 
-No behaviour-changing code changes except the HTML template XSS fix. README and config file edits.
+No behaviour-changing code changes except the HTML template XSS fix. README and config file edits. Each sub-item is one commit.
 
-**HTML XSS** (`contrib/html.j2`):
-Find the hostinfo error section (search for `s.reason`). The unescaped `{{ s.reason }}` must become `{{ s.reason | e }}`. Audit all other `{{ ... }}` expressions in `html.j2` that render user-supplied strings and add `| e` to any that lack it — this is a full template audit, not just the one occurrence.
+**5a — HTML XSS (`contrib/html.j2`)**
 
-**`contrib/*.conf` discoverability**:
-In the `[defaults]` section of both `contrib/linux.conf` and `contrib/osx.conf`, add after existing uncommented keys:
+Search for all `{{ ... }}` expressions that render user-supplied strings (any field that originates from command output, hostinfo, or collector data). The following expressions require `| e` if not already present:
+
+- `{{ s.reason }}` in the hostinfo error section → `{{ s.reason | e }}`
+- Any `{{ result.stdout }}` or similar command-output renders
+- Any `{{ finding.summary }}` or `{{ finding.suggest }}` renders
+- Any `{{ signal.id }}` or `{{ signal.value }}` renders
+
+Audit every `{{ ... }}` in the file. Add `| e` to any expression rendering data that ultimately comes from subprocess output or user config strings. Do not add `| e` to static strings or numeric values that minijinja cannot inject.
+
+**5b — `contrib/*.conf` discoverability**
+
+In the `[defaults]` section of `contrib/linux.conf`, after existing uncommented keys, add:
+
 ```toml
 # max_parallel_commands = 8
 # repetitions = 1
 # baseline_rolling_n = 10
 ```
 
-**README corrections** (search for these current strings, not line numbers):
-1. Any phrase claiming `--exit-on crit` exits with code 1 → change to exit code 2.
-2. Library API example showing `Analysis::new(config, rules)` → replace with example matching actual `Analysis` constructor (point reader to `examples/json_report.rs`).
-3. Any text claiming `install_hint` appears in `check` output → correct to `explain` output.
-4. Rolling baseline description implying it only appends when `--baseline` is passed → clarify it appends unconditionally.
-5. Baseline outlier finding demo output → update to match actual `"X standard deviations"` phrasing.
+Repeat identically in `contrib/osx.conf`.
 
-**Phase complete when**:
-- HTML template renders `&lt;script&gt;` for a `<script>` payload in `s.reason`.
-- Both default config files contain a commented `max_parallel_commands` line.
-- `grep -n "exit.*1.*[Cc]rit\|[Cc]rit.*exit.*1" README.md` returns no matches.
-- `usereport --output markdown --redact` prints a warning to stderr.
+**5c — README corrections**
+
+Make the following targeted corrections in `README.md` (search by meaning, not line number):
+
+1. Any phrase claiming `--exit-on crit` exits with code 1: change to exit code 2.
+2. Any library API example showing `Analysis::new(config, rules)`: replace with a reference to `examples/json_report.rs` for the current constructor signature.
+3. Any text claiming `install_hint` appears in `check` output: correct to `explain` output.
+4. Any rolling baseline description implying it only appends when `--baseline` is passed: clarify it appends unconditionally each run.
+
+**Phase complete when**: `cargo test --all-features` passes for all Phase 5 test files AND:
+- `grep -c "exit.*1.*[Cc]rit\|[Cc]rit.*exit.*1" README.md` returns 0.
+- Both `contrib/linux.conf` and `contrib/osx.conf` contain `# max_parallel_commands`.
+- HTML rendering of a report with `reason = "<script>alert(1)</script>"` produces `&lt;script&gt;`.
 
 ### Test Scenarios
 
-- GIVEN an HTML report rendered from a command result whose `reason` field is `<script>alert(1)</script>` WHEN the rendered HTML is inspected THEN it contains `&lt;script&gt;` and does not contain a bare `<script>` tag.
+- GIVEN an `AnalysisReport` where a hostinfo error `reason` field is the string `<script>alert(1)</script>` WHEN the report is rendered to HTML using `html.j2` via `TemplateRenderer` THEN the output contains `&lt;script&gt;` AND does not contain a bare `<script>` tag.
 - GIVEN `usereport --output markdown --redact` is invoked WHEN the command runs THEN stderr contains a warning referencing `--redact` and indicating it has no effect.
-- GIVEN `contrib/osx.conf` is opened WHEN the `[defaults]` section is inspected THEN it contains a commented-out line for `max_parallel_commands`.
+- GIVEN `contrib/osx.conf` is read WHEN the `[defaults]` section is inspected THEN it contains a commented-out line matching `# max_parallel_commands =`.
+- GIVEN `contrib/linux.conf` is read WHEN the `[defaults]` section is inspected THEN it contains a commented-out line matching `# max_parallel_commands =`.
 
 ---
 
@@ -452,21 +701,26 @@ In the `[defaults]` section of both `contrib/linux.conf` and `contrib/osx.conf`,
 
 | Decision | Alternatives considered | Rationale |
 |---|---|---|
-| Embed pattern TOML via `include_str!` in `defaults::PATTERNS` | Runtime `load_from_dir` resolving installed path | Embedding is reproducible and requires no filesystem access; it mirrors how configs and templates are already handled in the `defaults` module. User cannot currently override patterns, which is acceptable given Out of Scope constraints. |
-| `raw_excerpts` truncation as compile-time constant `MAX_EXCERPT_CHARS = 1_000` in `src/llm.rs` | Config key `[defaults] llm_excerpt_chars` | YAGNI — no current caller needs runtime control. Constant is trivially adjustable in source and avoids adding a config key with no other callers. |
-| Add `Display` impls for `Aggregate` (in `src/cli/config.rs`) and `Unit` (in `src/signal.rs`) | Inline `match` arms at the call site in `run_explain_command` | Both enums are used in multiple places (`extract.rs`, `cli/mod.rs`). A `Display` impl prevents future recurrence of Debug-format output. |
-| Change `diff --output` field type to `OutputType` with clap `value_enum` | Add runtime string validation | Compile-time validation is strictly safer; clap generates the correct "possible values" error message automatically. |
-| Leave `--exit-on crit → exit 2` as-is; fix only the README | Change code to exit 1 | `tests/sdd_version_2_phase1.rs:223` asserts exit code 2. Changing the code would break existing scripts. |
+| Add `PatternEngine::empty()` and `extend_from()` to `src/pattern/mod.rs` | Use `pub(crate)` on `patterns` field; add `merge` method | The `patterns` field is `private` (confirmed by inspection). Two minimal methods give the fold pattern without exposing internals. `extend_from(&mut self, other)` avoids an allocation vs. `merge(self, other) -> Self`. |
+| Embed pattern TOML via `include_str!` in `defaults::PATTERNS` | Runtime `load_from_dir` resolving installed path | Embedding is reproducible, requires no filesystem access, and mirrors how configs and templates are handled in the `defaults` module. |
+| Use `PatternEngine::empty()` as fold accumulator with `extend_from()` in `Ok` branch | Collect `Ok` results and chain | Explicit fold with `empty()` accumulator is the direct expression of the open decision resolution from sdd-validate. |
+| `raw_excerpts` truncation as compile-time constant `MAX_EXCERPT_CHARS = 1_000` | Config key `[defaults] llm_excerpt_chars` | YAGNI — no current caller needs runtime control. |
+| Add `Display` impls for `Aggregate` (in `src/cli/config.rs`) and `Unit` (in `src/signal.rs`) | Inline `match` arms at call site | Both enums are used in multiple contexts. A `Display` impl prevents future Debug-format recurrence. |
+| Change `diff --output` field type to `OutputType` with clap `value_enum`; add `OutputType::Text` variant | Add runtime string validation | Compile-time validation is strictly safer; clap generates the "possible values" error message automatically. `Text` is excluded from root `--output` valid-values error to avoid confusion. |
+| Leave `--exit-on crit → exit 2` as-is; fix only the README | Change code to exit 1 | An existing integration test asserts exit code 2. Changing the code would break it and existing scripts. |
 | Scope `explain` signal ID lookup to config-derived signals | Full static catalogue of all collector signals | The config-derived list is always correct for the current install; a static catalogue can drift from collector reality. |
-| Replace `InvalidConfig { reason: &'static str }` with three typed variants | Keep static reason string; add a `name: String` context field | Typed variants provide compile-time guarantees and are more idiomatic in thiserror; the static reason string cannot carry runtime name context without `String` anyway. |
-| Move grammar fix and `--redact` warning from Phase 5 into Phase 4 | Keep both in Phase 5 | Both are behaviour changes. Phase 5 is documentation and template only; mixing behaviour changes into it violates the single-reason-to-change principle and risks masking regressions. |
-| Three CLI-wiring fixes in Phase 1 as separate commits | Single large commit | Co-location in `src/cli/mod.rs` justifies one phase, but each fix is logically independent. Separate commits make bisection possible. |
+| Replace `InvalidConfig { reason: &'static str }` with three typed variants | Keep static reason string; add a `name: String` context field | Typed variants provide compile-time guarantees and carry runtime name context. |
+| Move `--redact` warning and grammar fix into Phase 4 | Keep both in Phase 5 | Both are behaviour changes. Phase 5 is documentation and templates only; mixing behaviour changes in violates single-reason-to-change. |
+| Resolve `run_baseline` config loading as `Config::from_str(defaults::CONFIG).expect(...)` | Introduce `load_config_for_baseline()` helper | No new helper needed; the identical pattern already exists at `src/cli/mod.rs:466`. |
+| Resolve `dirs` crate reference with explicit `std::env` code | Add `dirs` crate dependency | `dirs` is not a current dependency (confirmed by sdd-validate). Explicit `XDG_CONFIG_HOME` / `HOME` fallback achieves the same result with no new dependency. |
+| `collect_signals_for_baseline` uses only `HostCollector` + `CpuCollector` | Use all eight collectors from `generate_report` | Baseline record is a lightweight capture. Using all eight collectors would pull in disk/network/etc. at record time without a corresponding reduction in the comparison set. The two collectors are guaranteed to return at least one signal on any host. |
+| `known_topics_list` sorted alphabetically, newline-separated, uncapped | Grouped by type; truncated at N entries | Simple and consistent. No strong reason to group or truncate for a feature used interactively. |
 
 ---
 
 ## Open Decisions
 
-1. **`PatternEngine` patterns field visibility**: The `patterns` field of `PatternEngine` in `src/pattern/mod.rs` is private. The Phase 1 implementation needs to either expose a constructor (`PatternEngine::empty()` + `extend` method) or add a `merge` method. The minimal change must be chosen after inspecting the field visibility — this is an implementation detail, not a business decision. If `patterns` is `pub(crate)`, no change is needed; if private, add `pub fn empty() -> Self` and `pub fn extend_from(&mut self, other: PatternEngine)` to `src/pattern/mod.rs`.
+None.
 
 ---
 

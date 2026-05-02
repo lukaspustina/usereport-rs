@@ -11,7 +11,8 @@ use crate::{
     llm::LlmOutput,
     redact::Redactor,
     renderer,
-    rule::{Rule, RuleEngine, builtin::builtin_rules},
+    pattern::PatternEngine,
+    rule::{Rule, RuleEngine, RulesLoader, builtin::builtin_rules},
     workload::load_workload_rules,
 };
 #[cfg(feature = "bpf")]
@@ -602,6 +603,23 @@ pub fn run_check_inner(
     Ok(missing)
 }
 
+fn collect_signals_for_baseline() -> Vec<crate::Signal> {
+    use crate::collector::{CollectCtx, Collector};
+    let ctx = CollectCtx::default();
+    let collectors: Vec<Box<dyn Collector>> = vec![
+        Box::new(HostCollector::new()),
+        Box::new(CpuCollector::new()),
+    ];
+    let mut signals = Vec::new();
+    for c in &collectors {
+        match c.collect(&ctx) {
+            Ok(mut s) => signals.append(&mut s),
+            Err(e) => log::warn!("baseline signal collection error: {}", e),
+        }
+    }
+    signals
+}
+
 fn run_baseline(action: &BaselineAction) -> miette::Result<()> {
     let store = BaselineStore::xdg()
         .into_diagnostic()
@@ -609,8 +627,9 @@ fn run_baseline(action: &BaselineAction) -> miette::Result<()> {
     match action {
         BaselineAction::Record { name } => {
             let label = name.as_deref().unwrap_or("default");
+            let signals = collect_signals_for_baseline();
             store
-                .record(label, &[])
+                .record(label, &signals)
                 .into_diagnostic()
                 .with_context(|| format!("record baseline '{}'", label))?;
             println!(
@@ -957,7 +976,19 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> miette::Re
         Box::new(InterruptsCollector::new()),
         Box::new(CgroupCollector::new()),
     ];
-    let mut all_rules = builtin_rules();
+    // Load builtin rules + user rules from $XDG_CONFIG_HOME/usereport/rules.d
+    let user_rules_dir = std::env::var("XDG_CONFIG_HOME")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .map(PathBuf::from)
+        .or_else(|| std::env::var("HOME").ok().map(|h| PathBuf::from(h).join(".config")))
+        .map(|base| base.join("usereport/rules.d"));
+    let mut loader = RulesLoader::new().with_builtins(builtin_rules());
+    if let Some(dir) = user_rules_dir {
+        loader = loader.with_user_dir(dir);
+    }
+    let rules_result = loader.load();
+    let mut all_rules = rules_result.rules;
     #[cfg(feature = "bpf")]
     if opt.bpf {
         collectors.push(Box::new(BpfCollector::new()));
@@ -969,6 +1000,15 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> miette::Re
         .with_context(|| format!("invalid --workload value '{}'", opt.workload))?;
     all_rules.extend(workload_rules);
     let rule_engine = RuleEngine::new(all_rules);
+
+    // Load builtin patterns from contrib/patterns/
+    let mut pattern_engine = PatternEngine::empty();
+    for toml_text in defaults::PATTERNS {
+        match PatternEngine::from_toml(toml_text) {
+            Ok(loaded) => pattern_engine.extend_from(loaded),
+            Err(e) => log::warn!("failed to load builtin pattern: {}", e),
+        }
+    }
 
     // Phase 4: parse --duration / --interval and thread them into the collector context.
     let sample_duration = opt
@@ -989,7 +1029,8 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> miette::Re
     let mut analysis = Analysis::new(Box::new(runner), &hostinfo, &commands)
         .with_max_parallel_commands(parallel)
         .with_repetitions(repetitions)
-        .with_diagnostics(collectors, rule_engine);
+        .with_diagnostics(collectors, rule_engine)
+        .with_pattern_engine(pattern_engine);
     if let Some(d) = sample_duration {
         analysis = analysis.with_sample_duration(d, sample_interval.unwrap_or(default_interval));
     }
@@ -1015,6 +1056,9 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> miette::Re
     // analysis holds the last clone of progress_tx; drop it now so the progress
     // thread's channel closes and handle.join() below does not deadlock.
     drop(analysis);
+
+    // Append any findings from loading user rules (e.g. malformed TOML files).
+    report.findings.extend(rules_result.load_findings);
 
     // Compute at-a-glance overview fields.
     let first_results: Vec<_> = report.command_results().first().map(|v| v.to_vec()).unwrap_or_default();
@@ -1279,6 +1323,15 @@ mod defaults {
 
     #[cfg(target_os = "linux")]
     pub(crate) static CONFIG: &str = include_str!("../../contrib/linux.conf");
+
+    pub(crate) static PATTERNS: &[&str] = &[
+        include_str!("../../contrib/patterns/lock_contention.toml"),
+        include_str!("../../contrib/patterns/nfs_stall.toml"),
+        include_str!("../../contrib/patterns/slab_leak.toml"),
+        include_str!("../../contrib/patterns/socket_leak.toml"),
+        include_str!("../../contrib/patterns/thundering_herd.toml"),
+        include_str!("../../contrib/patterns/time_wait.toml"),
+    ];
 }
 
 #[cfg(test)]

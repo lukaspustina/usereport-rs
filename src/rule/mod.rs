@@ -138,11 +138,8 @@ fn resolve_path(path: &[String], signals_index: &SignalIndex<'_>, ctx: &CollectC
     if path.is_empty() {
         return None;
     }
-    if path[0] == "host" {
-        if path.len() == 2 && path[1] == "cpu_count" {
-            return Some(LhsValue::Number(ctx.cpu_count as f64));
-        }
-        return None;
+    if path[0] == "host" && path.len() == 2 && path[1] == "cpu_count" {
+        return Some(LhsValue::Number(ctx.cpu_count as f64));
     }
 
     // Check for SampleStats suffixes (.p50, .p95, .p99, .min, .max, .trend).
