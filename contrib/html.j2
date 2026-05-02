@@ -80,7 +80,7 @@
     <h2>Run Configuration</h2>
     <p>
     <ul class="list-group">
-        {% for key, value in context.more %}
+        {% for key, value in context.more | items %}
             <li class="list-group-item">{{ key }}: {{ value }}</li>
         {% endfor %}
         <li class="list-group-item">Repetitions: {{ repetitions }}</li>
