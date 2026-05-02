@@ -1,10 +1,14 @@
 //! Memory collector — reads via platform::read_mem_snapshot() on both platforms.
 
+use std::time::{Duration, Instant};
+
 use chrono::Local;
 
 use super::{CollectCtx, Collector, Error, Result};
 use crate::collector::platform::{MemSnapshot, read_mem_snapshot};
 use crate::signal::{Signal, SignalValue, Unit};
+
+const MIN_WINDOW: Duration = Duration::from_secs(1);
 
 #[derive(Debug, Clone, Default)]
 pub struct MemoryCollector {
@@ -60,11 +64,26 @@ impl Collector for MemoryCollector {
             return parse_free_output(s);
         }
 
-        // Runtime path: call platform function (same on Linux and macOS).
-        match read_mem_snapshot() {
-            Some(snap) => Self::signals_from_mem_snapshot(&snap),
-            None => Ok(Vec::new()),
+        // Runtime path: two snapshots to compute vmstat.swap_in delta.
+        let snap_a = read_mem_snapshot();
+        let started = Instant::now();
+        std::thread::sleep(MIN_WINDOW);
+        let snap_b = match read_mem_snapshot() {
+            Some(s) => s,
+            None => return Ok(Vec::new()),
+        };
+        let _ = started; // elapsed not needed for mem signals (point-in-time)
+
+        let mut signals = Self::signals_from_mem_snapshot(&snap_b)?;
+
+        if let Some(a) = &snap_a {
+            if let (Some(si_a), Some(si_b)) = (a.swap_in_pages, snap_b.swap_in_pages) {
+                let delta = si_b.saturating_sub(si_a);
+                push(&mut signals, "vmstat.swap_in", delta as f64, Unit::Count, Local::now());
+            }
         }
+
+        Ok(signals)
     }
 }
 

@@ -31,6 +31,10 @@ impl DiskCollector {
         }
         let m1 = parse_diskstats(s1);
         let m2 = parse_diskstats(s2);
+
+        let mut max_util: Option<f64> = None;
+        let mut max_await: Option<f64> = None;
+
         for (dev, b) in &m2 {
             if let Some(a) = m1.get(dev) {
                 let read_delta = b.read_ios.saturating_sub(a.read_ios) as f64;
@@ -42,7 +46,9 @@ impl DiskCollector {
                 push(&mut signals, &format!("disk.{}.read_iops", dev), read_delta / elapsed_secs, Unit::Iops, now);
                 push(&mut signals, &format!("disk.{}.write_iops", dev), write_delta / elapsed_secs, Unit::Iops, now);
                 let util = (io_t_delta / (elapsed_secs * 1000.0)) * 100.0;
-                push(&mut signals, &format!("disk.{}.util_pct", dev), util.min(100.0), Unit::Pct, now);
+                let util = util.min(100.0);
+                push(&mut signals, &format!("disk.{}.util_pct", dev), util, Unit::Pct, now);
+                max_util = Some(max_util.unwrap_or(f64::NEG_INFINITY).max(util));
                 let total_ios = read_delta + write_delta;
                 let await_ms = if total_ios > 0.0 {
                     (read_t_delta + write_t_delta) / total_ios
@@ -50,13 +56,24 @@ impl DiskCollector {
                     0.0
                 };
                 push(&mut signals, &format!("disk.{}.await_ms", dev), await_ms, Unit::MillisPerOp, now);
+                max_await = Some(max_await.unwrap_or(f64::NEG_INFINITY).max(await_ms));
             }
         }
+
+        if let Some(v) = max_util {
+            push(&mut signals, "disk.max_util_pct", v, Unit::Pct, now);
+        }
+        if let Some(v) = max_await {
+            push(&mut signals, "disk.max_await_ms", v, Unit::MillisPerOp, now);
+        }
+
         signals
     }
 
     /// Snapshot-based delta engine for both Linux and macOS.
     /// `util_pct` and `await_ms` are omitted when `io_time_ms` is `None`.
+    /// Also emits `disk.max_util_pct` and `disk.max_await_ms` — the worst-case
+    /// values across all devices — so rules can fire without knowing device names.
     pub fn from_disk_snapshots(a: &[DiskDevSnapshot], b: &[DiskDevSnapshot], elapsed_secs: f64) -> Vec<Signal> {
         let now = Local::now();
         let mut signals = Vec::new();
@@ -67,6 +84,9 @@ impl DiskCollector {
         // Build lookup by device name for snapshot a
         let a_by_name: std::collections::HashMap<&str, &DiskDevSnapshot> =
             a.iter().map(|d| (d.name.as_str(), d)).collect();
+
+        let mut max_util: Option<f64> = None;
+        let mut max_await: Option<f64> = None;
 
         for b_dev in b {
             let Some(a_dev) = a_by_name.get(b_dev.name.as_str()) else { continue };
@@ -80,7 +100,9 @@ impl DiskCollector {
             if let (Some(a_io), Some(b_io)) = (a_dev.io_time_ms, b_dev.io_time_ms) {
                 let io_t_delta = b_io.saturating_sub(a_io) as f64;
                 let util = (io_t_delta / (elapsed_secs * 1000.0)) * 100.0;
-                push(&mut signals, &format!("disk.{}.util_pct", b_dev.name), util.min(100.0), Unit::Pct, now);
+                let util = util.min(100.0);
+                push(&mut signals, &format!("disk.{}.util_pct", b_dev.name), util, Unit::Pct, now);
+                max_util = Some(max_util.unwrap_or(f64::NEG_INFINITY).max(util));
 
                 let read_t_delta = b_dev.read_time_ms.unwrap_or(0).saturating_sub(a_dev.read_time_ms.unwrap_or(0)) as f64;
                 let write_t_delta = b_dev.write_time_ms.unwrap_or(0).saturating_sub(a_dev.write_time_ms.unwrap_or(0)) as f64;
@@ -91,8 +113,17 @@ impl DiskCollector {
                     0.0
                 };
                 push(&mut signals, &format!("disk.{}.await_ms", b_dev.name), await_ms, Unit::MillisPerOp, now);
+                max_await = Some(max_await.unwrap_or(f64::NEG_INFINITY).max(await_ms));
             }
         }
+
+        if let Some(v) = max_util {
+            push(&mut signals, "disk.max_util_pct", v, Unit::Pct, now);
+        }
+        if let Some(v) = max_await {
+            push(&mut signals, "disk.max_await_ms", v, Unit::MillisPerOp, now);
+        }
+
         signals
     }
 }

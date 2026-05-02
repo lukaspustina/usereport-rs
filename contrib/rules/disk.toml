@@ -1,15 +1,15 @@
 [[rule]]
 id = "disk.utilization_saturated"
-when = "disk.util_pct > 90"
+when = "disk.max_util_pct > 90"
 severity = "warn"
-summary = "Disk %util above 90% — block device saturated."
-evidence = ["disk.util_pct"]
+summary = "Disk %util above 90% on at least one device — block device saturated."
+evidence = ["disk.max_util_pct"]
 suggest = ["iostat -x 1 5", "iotop -ao", "biolatency 1 5"]
 
 [[rule]]
 id = "disk.await_elevated"
-when = "disk.await_ms > 100"
+when = "disk.max_await_ms > 100"
 severity = "warn"
-summary = "Disk request latency above 100 ms."
-evidence = ["disk.await_ms"]
+summary = "Disk request latency above 100 ms on at least one device."
+evidence = ["disk.max_await_ms"]
 suggest = ["iostat -x 1 5", "biolatency 1 5"]

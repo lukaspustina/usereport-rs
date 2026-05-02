@@ -78,6 +78,10 @@ impl NetworkCollector {
             push(&mut signals, "net.tw_count", tw as f64, Unit::Count, now);
         }
 
+        // connect_failures — delta of cumulative AttemptFails counter
+        let fail_delta = b.tcp_attempt_fails.saturating_sub(a.tcp_attempt_fails);
+        push(&mut signals, "net.connect_failures", fail_delta as f64, Unit::Count, now);
+
         signals
     }
 }
@@ -212,6 +216,27 @@ mod tests {
         if let SignalValue::F64(v) = retrans.value {
             assert!((v - 6.0).abs() < 0.01, "retrans_pct = {}", v);
         }
+    }
+
+    #[test]
+    fn from_net_snapshots_emits_connect_failures_delta() {
+        let a = NetSnapshot {
+            rx_drops: std::collections::HashMap::new(),
+            tcp_out_segs: 0,
+            tcp_retrans_segs: 0,
+            tcp_attempt_fails: 10,
+            tcp_tw_count: None,
+        };
+        let b = NetSnapshot {
+            rx_drops: std::collections::HashMap::new(),
+            tcp_out_segs: 0,
+            tcp_retrans_segs: 0,
+            tcp_attempt_fails: 13,
+            tcp_tw_count: None,
+        };
+        let signals = NetworkCollector::from_net_snapshots(&a, &b, 1.0);
+        let fail = signals.iter().find(|s| s.id == "net.connect_failures").unwrap();
+        assert_eq!(fail.value, SignalValue::F64(3.0));
     }
 
     #[test]

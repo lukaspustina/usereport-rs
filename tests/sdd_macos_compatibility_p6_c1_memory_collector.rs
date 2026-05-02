@@ -38,6 +38,7 @@ fn p6_signals_from_mem_snapshot_produces_required_signals() {
         swap_total_mb: 2048.0,
         swap_used_mb: 512.0,
         swap_free_mb: 1536.0,
+        swap_in_pages: None,
     };
     let signals = MemoryCollector::signals_from_mem_snapshot(&snap).expect("should not error");
     let ids: Vec<&str> = signals.iter().map(|s| s.id.as_str()).collect();
@@ -58,6 +59,7 @@ fn p6_signals_from_mem_snapshot_available_mb_only_when_some() {
         swap_total_mb: 0.0,
         swap_used_mb: 0.0,
         swap_free_mb: 0.0,
+        swap_in_pages: None,
     };
     let sigs = MemoryCollector::signals_from_mem_snapshot(&snap_none).expect("ok");
     let ids: Vec<&str> = sigs.iter().map(|s| s.id.as_str()).collect();

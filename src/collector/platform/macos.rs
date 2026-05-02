@@ -130,9 +130,10 @@ pub fn read_net_snapshot() -> Option<NetSnapshot> {
     let rx_drops = parse_netstat_drops(&netstat_i);
 
     let netstat_s = run("netstat", &["-s", "-p", "tcp"]).unwrap_or_default();
-    let (tcp_out_segs, tcp_retrans_segs, tcp_tw_count) = parse_netstat_tcp_stats(&netstat_s);
+    let (tcp_out_segs, tcp_retrans_segs, tcp_attempt_fails, tcp_tw_count) =
+        parse_netstat_tcp_stats(&netstat_s);
 
-    Some(NetSnapshot { rx_drops, tcp_out_segs, tcp_retrans_segs, tcp_tw_count })
+    Some(NetSnapshot { rx_drops, tcp_out_segs, tcp_retrans_segs, tcp_attempt_fails, tcp_tw_count })
 }
 
 /// Parse `netstat -i -b -n`: skip header lines, skip lo0, take last field as Idrop.
@@ -163,10 +164,11 @@ fn parse_netstat_drops(s: &str) -> HashMap<String, u64> {
     map
 }
 
-/// Parse `netstat -s -p tcp` for out_segs, retrans_segs, tw_count.
-fn parse_netstat_tcp_stats(s: &str) -> (u64, u64, Option<u64>) {
+/// Parse `netstat -s -p tcp` for out_segs, retrans_segs, attempt_fails, tw_count.
+fn parse_netstat_tcp_stats(s: &str) -> (u64, u64, u64, Option<u64>) {
     let mut out_segs = 0u64;
     let mut retrans_segs = 0u64;
+    let mut attempt_fails = 0u64;
     let mut tw_count = None;
 
     for line in s.lines() {
@@ -183,13 +185,19 @@ fn parse_netstat_tcp_stats(s: &str) -> (u64, u64, Option<u64>) {
                 retrans_segs = n;
             }
         }
+        // "42 bad connection attempt"
+        if trimmed.contains("bad connection attempt") {
+            if let Some(n) = first_int(trimmed) {
+                attempt_fails = n;
+            }
+        }
         // "99 connections in TIME_WAIT"
         if trimmed.contains("connections in TIME_WAIT") {
             tw_count = first_int(trimmed);
         }
     }
 
-    (out_segs, retrans_segs, tw_count)
+    (out_segs, retrans_segs, attempt_fails, tw_count)
 }
 
 fn first_int(s: &str) -> Option<u64> {
@@ -230,6 +238,7 @@ pub fn read_mem_snapshot() -> Option<MemSnapshot> {
         swap_total_mb,
         swap_used_mb,
         swap_free_mb,
+        swap_in_pages: pages.get("Swapins").copied(),
     })
 }
 
@@ -310,6 +319,8 @@ Pages inactive:                        11111.
 Pages speculative:                      2222.
 Pages wired down:                       8888.
 Pages purgeable:                        3333.
+Swapins:                                 500.
+Swapouts:                                200.
 ";
 
     #[test]
@@ -319,6 +330,7 @@ Pages purgeable:                        3333.
         assert_eq!(pages.get("Pages free"), Some(&12345));
         assert_eq!(pages.get("Pages active"), Some(&56789));
         assert_eq!(pages.get("Pages wired down"), Some(&8888));
+        assert_eq!(pages.get("Swapins"), Some(&500));
     }
 
     #[test]
@@ -343,14 +355,16 @@ Pages purgeable:                        3333.
 tcp:
 \t12345 packets sent
 \t\t678 data packets (9012 bytes) retransmitted
+\t42 bad connection attempt
 \t99 connections in TIME_WAIT
 ";
 
     #[test]
     fn parse_netstat_tcp_stats_parses_fixture() {
-        let (out_segs, retrans, tw) = parse_netstat_tcp_stats(NETSTAT_TCP_FIXTURE);
+        let (out_segs, retrans, fails, tw) = parse_netstat_tcp_stats(NETSTAT_TCP_FIXTURE);
         assert_eq!(out_segs, 12345, "tcp_out_segs");
         assert_eq!(retrans, 678, "tcp_retrans_segs");
+        assert_eq!(fails, 42, "tcp_attempt_fails");
         assert_eq!(tw, Some(99), "tcp_tw_count");
     }
 

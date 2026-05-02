@@ -60,6 +60,7 @@ fn platform_snapshot_types_clone_and_debug() {
         swap_total_mb: 2048.0,
         swap_used_mb: 0.0,
         swap_free_mb: 2048.0,
+        swap_in_pages: None,
     };
     let _cloned_mem = mem.clone();
 
@@ -83,6 +84,7 @@ fn platform_snapshot_types_clone_and_debug() {
         rx_drops: std::collections::HashMap::new(),
         tcp_out_segs: 1000,
         tcp_retrans_segs: 10,
+        tcp_attempt_fails: 0,
         tcp_tw_count: Some(50),
     };
     let _cloned_net = net.clone();

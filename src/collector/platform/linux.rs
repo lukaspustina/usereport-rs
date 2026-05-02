@@ -68,12 +68,12 @@ pub fn read_net_snapshot() -> Option<NetSnapshot> {
     let rx_drops = parse_rx_drops(&dev);
 
     let snmp = std::fs::read_to_string("/proc/net/snmp").unwrap_or_default();
-    let (tcp_out_segs, tcp_retrans_segs) = parse_tcp_snmp(&snmp);
+    let (tcp_out_segs, tcp_retrans_segs, tcp_attempt_fails) = parse_tcp_snmp(&snmp);
 
     let sockstat = std::fs::read_to_string("/proc/net/sockstat").unwrap_or_default();
     let tcp_tw_count = parse_tw_count(&sockstat);
 
-    Some(NetSnapshot { rx_drops, tcp_out_segs, tcp_retrans_segs, tcp_tw_count })
+    Some(NetSnapshot { rx_drops, tcp_out_segs, tcp_retrans_segs, tcp_attempt_fails, tcp_tw_count })
 }
 
 fn parse_rx_drops(s: &str) -> HashMap<String, u64> {
@@ -96,7 +96,7 @@ fn parse_rx_drops(s: &str) -> HashMap<String, u64> {
     map
 }
 
-fn parse_tcp_snmp(s: &str) -> (u64, u64) {
+fn parse_tcp_snmp(s: &str) -> (u64, u64, u64) {
     let mut header: Vec<&str> = Vec::new();
     let mut values: Vec<&str> = Vec::new();
     for line in s.lines() {
@@ -110,7 +110,7 @@ fn parse_tcp_snmp(s: &str) -> (u64, u64) {
         }
     }
     if header.is_empty() || values.len() != header.len() {
-        return (0, 0);
+        return (0, 0, 0);
     }
     let get = |name: &str| -> u64 {
         header
@@ -120,7 +120,7 @@ fn parse_tcp_snmp(s: &str) -> (u64, u64) {
             .and_then(|v| v.parse().ok())
             .unwrap_or(0)
     };
-    (get("OutSegs"), get("RetransSegs"))
+    (get("OutSegs"), get("RetransSegs"), get("AttemptFails"))
 }
 
 fn parse_tw_count(s: &str) -> Option<u64> {
@@ -175,7 +175,21 @@ pub fn read_mem_snapshot() -> Option<MemSnapshot> {
         return None;
     }
     let stdout = String::from_utf8_lossy(&out.stdout);
-    parse_free_m_output(&stdout)
+    let mut snap = parse_free_m_output(&stdout)?;
+    snap.swap_in_pages = std::fs::read_to_string("/proc/vmstat")
+        .ok()
+        .as_deref()
+        .and_then(parse_pswpin);
+    Some(snap)
+}
+
+fn parse_pswpin(s: &str) -> Option<u64> {
+    for line in s.lines() {
+        if let Some(rest) = line.strip_prefix("pswpin ") {
+            return rest.trim().parse().ok();
+        }
+    }
+    None
 }
 
 fn parse_free_m_output(s: &str) -> Option<MemSnapshot> {
@@ -218,6 +232,7 @@ fn parse_free_m_output(s: &str) -> Option<MemSnapshot> {
         swap_total_mb: swap_total,
         swap_used_mb: swap_used,
         swap_free_mb: swap_free,
+        swap_in_pages: None, // populated by caller from /proc/vmstat
     })
 }
 
@@ -345,6 +360,26 @@ mod tests {
         assert_eq!(snap.free_mb, 4983.0);
         assert_eq!(snap.available_mb, Some(7191.0));
         assert_eq!(snap.swap_total_mb, 7977.0);
+    }
+
+    #[test]
+    fn parse_tcp_snmp_extracts_attempt_fails() {
+        let s = "Tcp: RtoAlgorithm RtoMin RtoMax MaxConn ActiveOpens PassiveOpens AttemptFails EstabResets CurrEstab InSegs OutSegs RetransSegs InErrs OutRsts InCsumErrors\nTcp: 1 200 120000 -1 161783 8 161547 9 21 2397185 7073859 446 0 161597 0\n";
+        let (out, retrans, fails) = parse_tcp_snmp(s);
+        assert_eq!(out, 7073859);
+        assert_eq!(retrans, 446);
+        assert_eq!(fails, 161547);
+    }
+
+    #[test]
+    fn parse_pswpin_extracts_value() {
+        let s = "pswpout 0\npswpin 42\nnr_free_pages 12345\n";
+        assert_eq!(parse_pswpin(s), Some(42));
+    }
+
+    #[test]
+    fn parse_pswpin_returns_none_when_absent() {
+        assert_eq!(parse_pswpin("nr_free_pages 1\n"), None);
     }
 
     #[test]

@@ -45,6 +45,10 @@ pub struct NetSnapshot {
     pub rx_drops: HashMap<String, u64>,
     pub tcp_out_segs: u64,
     pub tcp_retrans_segs: u64,
+    /// Cumulative failed TCP connection attempts (`Tcp: AttemptFails` on Linux;
+    /// `bad connection attempt` count on macOS). Used as a delta between two
+    /// snapshots to emit `net.connect_failures`.
+    pub tcp_attempt_fails: u64,
     /// `None` when unavailable (macOS: parse failure only; Linux: sockstat missing).
     pub tcp_tw_count: Option<u64>,
 }
@@ -66,6 +70,9 @@ pub struct MemSnapshot {
     pub swap_total_mb: f64,
     pub swap_used_mb: f64,
     pub swap_free_mb: f64,
+    /// Cumulative pages swapped in since boot (`pswpin` on Linux; `Swapins` on
+    /// macOS). Used as a delta between two snapshots to emit `vmstat.swap_in`.
+    pub swap_in_pages: Option<u64>,
 }
 
 #[derive(Debug, Clone)]
