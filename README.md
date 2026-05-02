@@ -63,6 +63,7 @@ No daemons. No agents. No cloud. One binary, one command.
   - [LLM-ready output](#llm-ready-output)
   - [`explain`](#explain--know-what-youre-looking-at)
 - [Installation](#installation)
+  - [Dependencies (Ubuntu 24.04)](#dependencies-ubuntu-2404)
 - [Quick start](#quick-start)
 - [Output formats](#output-formats)
 - [Configuration](#configuration)
@@ -556,6 +557,10 @@ usereport --profile-cpu 30s --output html -O report.html
 
 Runs `perf record` for 30 seconds, folds the stacks with [inferno](https://github.com/jonhoo/inferno), and embeds the SVG directly in the HTML report. No extra steps. No separate files. Falls back to an `info` finding when `perf` isn't available.
 
+<p align="center">
+  <a href="docs/linux-cpu-flamegraph.jpg"><img src="https://raw.githubusercontent.com/lukaspustina/usereport-rs/master/docs/linux-cpu-flamegraph.jpg" width="96%" /></a>
+</p>
+
 ### LLM-ready output
 
 ```sh
@@ -604,6 +609,23 @@ cargo install --all-features usereport-rs
 ```
 
 Requires Rust 1.85+. Install via [rustup](https://rustup.rs) if needed.
+
+### Dependencies (Ubuntu 24.04)
+
+The binary runs without any dependencies. Optional tools unlock additional signals:
+
+```sh
+# mpstat, pidstat, iostat, sar — CPU/disk/network profiling commands
+sudo apt install sysstat
+
+# perf — CPU flamegraph (--profile-cpu)
+sudo apt install linux-tools-common linux-tools-$(uname -r)
+
+# BCC tools — eBPF collectors (--bpf): runqlat, biolatency, tcpretrans, execsnoop, cachestat
+sudo apt install bpfcc-tools
+```
+
+Run `usereport check` to see which tools are present on your system.
 
 ---
 
