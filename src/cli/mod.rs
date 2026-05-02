@@ -27,7 +27,7 @@ use std::{
     collections::HashSet,
     fs::File,
     io::{IsTerminal, Read, Write},
-    path::PathBuf,
+    path::{Path, PathBuf},
     str::FromStr,
     sync::mpsc::{self, Sender},
     thread::JoinHandle,
@@ -172,6 +172,24 @@ pub enum Subcommand {
         /// Profile to check (checks all profiles when omitted).
         #[arg(short = 'p', long)]
         profile: Option<String>,
+    },
+    /// Re-render a previously captured JSON report in any output format.
+    /// Reads from a file or stdin when no path is given.
+    Convert {
+        /// Path to a JSON report produced by `--output json`. Reads stdin when absent.
+        input: Option<PathBuf>,
+        /// Output format
+        #[arg(short, long, value_enum, default_value = "markdown")]
+        output: OutputType,
+        /// Custom Jinja2 template file (required when --output template).
+        #[arg(long)]
+        output_template: Option<String>,
+        /// Write rendered output to a file; defaults to stdout.
+        #[arg(short = 'O', long)]
+        output_file: Option<PathBuf>,
+        /// HMAC-redact hostnames, IPs, and MACs (only meaningful with --output llm).
+        #[arg(long)]
+        redact: bool,
     },
 }
 
@@ -449,6 +467,19 @@ fn run_subcommand(cmd: &Subcommand) -> miette::Result<()> {
             run_explain(id, &config)
         }
         Subcommand::Check { .. } => unreachable!("Check is handled before run_subcommand"),
+        Subcommand::Convert {
+            input,
+            output,
+            output_template,
+            output_file,
+            redact,
+        } => run_convert(
+            input.as_deref(),
+            output,
+            output_template.as_deref(),
+            output_file.as_deref(),
+            *redact,
+        ),
     }
 }
 
@@ -637,6 +668,55 @@ fn run_diff(a_path: &PathBuf, b_path: &PathBuf, output: &str) -> miette::Result<
             diff::render_text(&report, &mut handle).into_diagnostic()?;
         }
     }
+    Ok(())
+}
+
+fn run_convert(
+    input: Option<&Path>,
+    output: &OutputType,
+    output_template: Option<&str>,
+    output_file: Option<&Path>,
+    redact: bool,
+) -> miette::Result<()> {
+    let report: AnalysisReport = match input {
+        Some(path) => {
+            let bytes = std::fs::read(path)
+                .into_diagnostic()
+                .with_context(|| format!("read {}", path.display()))?;
+            serde_json::from_slice(&bytes)
+                .into_diagnostic()
+                .with_context(|| format!("parse {}", path.display()))?
+        }
+        None => serde_json::from_reader(std::io::stdin())
+            .into_diagnostic()
+            .context("parse JSON report from stdin")?,
+    };
+
+    let mut writer = output_writer(&output_file.map(PathBuf::from))?;
+
+    if *output == OutputType::Llm {
+        let mut llm_out = LlmOutput::from_report(&report);
+        if redact {
+            let redactor = Redactor::from_env();
+            llm_out = redactor.redact_output(llm_out);
+        }
+        serde_json::to_writer(writer, &llm_out)
+            .into_diagnostic()
+            .context("failed to write LLM JSON")?;
+    } else {
+        let output_template_string = output_template.map(String::from);
+        let mut buf: Vec<u8> = Vec::new();
+        create_renderer::<Box<dyn Write + Send>>(output, output_template_string.as_ref())?
+            .render(&report, Box::new(&mut buf) as Box<dyn Write + Send>)
+            .into_diagnostic()
+            .context("failed to render report")?;
+        let rendered = String::from_utf8(buf)
+            .into_diagnostic()
+            .context("rendered output is not UTF-8")?;
+        let is_tty = output_file.is_none() && std::io::stdout().is_terminal();
+        render_for_output(&rendered, &mut *writer, is_tty, output)?;
+    }
+
     Ok(())
 }
 
