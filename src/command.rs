@@ -57,6 +57,10 @@ pub struct Command {
     /// Timeout for command execution, defaults to 1 sec if not set
     pub(crate) timeout_sec: Option<u64>,
     pub(crate) links: Option<Vec<Link>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) install_hint: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) what_to_look_for: Option<String>,
 }
 
 impl Command {
@@ -69,6 +73,8 @@ impl Command {
             command: command.into(),
             timeout_sec: None,
             links: None,
+            install_hint: None,
+            what_to_look_for: None,
         }
     }
 
@@ -90,6 +96,16 @@ impl Command {
     /// Get description of command
     pub fn description(&self) -> Option<&str> {
         self.description.as_deref()
+    }
+
+    /// Get install hint for the command binary
+    pub fn install_hint(&self) -> Option<&str> {
+        self.install_hint.as_deref()
+    }
+
+    /// Get guidance on what to look for in the command output
+    pub fn what_to_look_for(&self) -> Option<&str> {
+        self.what_to_look_for.as_deref()
     }
 
     /// Set title of command
@@ -120,6 +136,22 @@ impl Command {
     pub fn with_links<T: Into<Option<Vec<Link>>>>(self, links: T) -> Command {
         Command {
             links: links.into(),
+            ..self
+        }
+    }
+
+    /// Set install hint for the command binary
+    pub(crate) fn with_install_hint(self, v: impl Into<String>) -> Self {
+        Command {
+            install_hint: Some(v.into()),
+            ..self
+        }
+    }
+
+    /// Set guidance on what to look for in the command output
+    pub(crate) fn with_what_to_look_for(self, v: impl Into<String>) -> Self {
+        Command {
+            what_to_look_for: Some(v.into()),
             ..self
         }
     }
