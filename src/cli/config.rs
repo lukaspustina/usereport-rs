@@ -1,4 +1,5 @@
 use crate::command::Command;
+use crate::report_context::ProfileFollowup;
 
 use serde::{Deserialize, Serialize};
 use std::{
@@ -266,6 +267,8 @@ pub struct Profile {
     pub name: String,
     pub commands: Vec<String>,
     pub description: Option<String>,
+    #[serde(default)]
+    pub followup: Vec<ProfileFollowup>,
 }
 
 impl Profile {
@@ -286,6 +289,7 @@ impl Profile {
             name,
             commands,
             description,
+            followup: Vec::new(),
         }
     }
 }

@@ -2,7 +2,7 @@ use crate::{
     Command, CommandResult, Runner,
     baseline::{BaselineRecord, annotate, outlier_findings},
     collector::{CollectCtx, Collector},
-    finding::{Finding, sort_findings},
+    finding::{Finding, Severity, sort_findings},
     pattern::PatternEngine,
     rule::RuleEngine,
     runner,
@@ -10,6 +10,7 @@ use crate::{
 };
 
 pub use crate::finding::ThresholdInfo;
+pub use crate::report_context::{CpuVitalSigns, DiskVitalSigns, MemoryVitalSigns, NetworkVitalSigns, ProfileFollowup, UseCoverageEntry, VitalSigns};
 
 use chrono::{DateTime, Local};
 use serde::{Deserialize, Serialize};
@@ -148,6 +149,9 @@ impl<'a, I: IntoIterator<Item = &'a Command> + Copy> Analysis<'a, I> {
             findings,
             checked_ok,
             signal_thresholds,
+            vital_signs: VitalSigns::default(),
+            use_coverage: Vec::new(),
+            followup_recommendations: Vec::new(),
             flamegraph_svg: None,
         })
     }
@@ -228,6 +232,12 @@ pub struct AnalysisReport {
     pub(crate) checked_ok: Vec<String>,
     #[serde(default)]
     pub signal_thresholds: HashMap<String, ThresholdInfo>,
+    #[serde(default)]
+    pub vital_signs: VitalSigns,
+    #[serde(default)]
+    pub use_coverage: Vec<UseCoverageEntry>,
+    #[serde(default)]
+    pub followup_recommendations: Vec<ProfileFollowup>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) flamegraph_svg: Option<String>,
 }
@@ -250,6 +260,9 @@ impl AnalysisReport {
             findings: Vec::new(),
             checked_ok: Vec::new(),
             signal_thresholds: HashMap::new(),
+            vital_signs: VitalSigns::default(),
+            use_coverage: Vec::new(),
+            followup_recommendations: Vec::new(),
             flamegraph_svg: None,
         }
     }
@@ -277,6 +290,9 @@ impl AnalysisReport {
             findings,
             checked_ok,
             signal_thresholds: HashMap::new(),
+            vital_signs: VitalSigns::default(),
+            use_coverage: Vec::new(),
+            followup_recommendations: Vec::new(),
             flamegraph_svg: None,
         }
     }
@@ -375,6 +391,132 @@ impl Context {
     pub fn date_time(&self) -> &DateTime<Local> {
         &self.date_time
     }
+}
+
+/// Compute vital signs from collected signals and findings.
+///
+/// Extracts per-resource metric values and the highest severity from findings
+/// whose evidence references signals in that resource's namespace.
+pub fn compute_vital_signs(signals: &[Signal], findings: &[Finding]) -> VitalSigns {
+    use crate::signal::SignalValue;
+
+    let cpu_iowait = signals
+        .iter()
+        .find(|s| s.id == "cpu.iowait_pct")
+        .and_then(|s| match s.value {
+            SignalValue::F64(v) => Some(v),
+            SignalValue::I64(v) => Some(v as f64),
+            _ => None,
+        });
+
+    let mem_used = signals
+        .iter()
+        .find(|s| s.id == "mem.used_pct")
+        .and_then(|s| match s.value {
+            SignalValue::F64(v) => Some(v),
+            SignalValue::I64(v) => Some(v as f64),
+            _ => None,
+        });
+
+    let disk_util = signals
+        .iter()
+        .find(|s| s.id == "disk.util_pct")
+        .and_then(|s| match s.value {
+            SignalValue::F64(v) => Some(v),
+            SignalValue::I64(v) => Some(v as f64),
+            _ => None,
+        });
+
+    let net_util = signals
+        .iter()
+        .find(|s| s.id == "net.util_pct")
+        .and_then(|s| match s.value {
+            SignalValue::F64(v) => Some(v),
+            SignalValue::I64(v) => Some(v as f64),
+            _ => None,
+        });
+
+    let severity_for = |prefix: &str| -> Option<Severity> {
+        findings
+            .iter()
+            .filter(|f| f.evidence.iter().any(|e| e.signal_id.starts_with(prefix)))
+            .map(|f| f.severity)
+            .min_by_key(|s| s.rank())
+    };
+
+    VitalSigns {
+        cpu: CpuVitalSigns {
+            iowait_pct: cpu_iowait,
+            severity: severity_for("cpu."),
+            trend: None,
+        },
+        memory: MemoryVitalSigns {
+            used_pct: mem_used,
+            severity: severity_for("mem."),
+        },
+        disk: DiskVitalSigns {
+            util_pct: disk_util,
+            severity: severity_for("disk."),
+        },
+        network: NetworkVitalSigns {
+            util_pct: net_util,
+            severity: severity_for("net."),
+        },
+    }
+}
+
+const USE_DIMENSIONS: &[(&str, &str)] = &[
+    ("cpu", "utilization"),
+    ("cpu", "saturation"),
+    ("cpu", "errors"),
+    ("memory", "utilization"),
+    ("memory", "saturation"),
+    ("memory", "errors"),
+    ("disk", "utilization"),
+    ("disk", "saturation"),
+    ("disk", "errors"),
+    ("network", "utilization"),
+    ("network", "saturation"),
+    ("network", "errors"),
+];
+
+/// Compute USE coverage from command results.
+///
+/// Always returns all 12 (resource × aspect) entries. An entry is covered when
+/// at least one command with that use_dimension returned a non-SkippedMissing result.
+pub fn compute_use_coverage(results: &[CommandResult]) -> Vec<UseCoverageEntry> {
+    use std::collections::HashMap;
+    let mut covered: HashMap<(String, String), bool> = HashMap::new();
+
+    for result in results {
+        let cmd = match result {
+            CommandResult::Success { command, .. } => command,
+            CommandResult::Failed { command, .. } => command,
+            CommandResult::Timeout { command, .. } => command,
+            CommandResult::Error { command, .. } => command,
+            CommandResult::SkippedMissing { command, .. } => command,
+        };
+        if let Some(dim) = cmd.use_dimension() {
+            let key = (dim.resource.clone(), dim.aspect.clone());
+            let succeeded = !matches!(result, CommandResult::SkippedMissing { .. });
+            let entry = covered.entry(key).or_insert(false);
+            if succeeded {
+                *entry = true;
+            }
+        }
+    }
+
+    USE_DIMENSIONS
+        .iter()
+        .map(|(resource, aspect)| {
+            let key = (resource.to_string(), aspect.to_string());
+            UseCoverageEntry {
+                resource: resource.to_string(),
+                aspect: aspect.to_string(),
+                covered: covered.get(&key).copied().unwrap_or(false),
+            }
+        })
+        .collect()
 }
 
 #[cfg(test)]

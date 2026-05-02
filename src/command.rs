@@ -1,3 +1,4 @@
+pub use crate::report_context::UseDimension;
 use chrono::Local;
 use log::{debug, trace};
 use serde::{Deserialize, Serialize};
@@ -61,6 +62,8 @@ pub struct Command {
     pub(crate) install_hint: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) what_to_look_for: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) use_dimension: Option<UseDimension>,
 }
 
 impl Command {
@@ -75,6 +78,7 @@ impl Command {
             links: None,
             install_hint: None,
             what_to_look_for: None,
+            use_dimension: None,
         }
     }
 
@@ -141,7 +145,7 @@ impl Command {
     }
 
     /// Set install hint for the command binary
-    pub(crate) fn with_install_hint(self, v: impl Into<String>) -> Self {
+    pub fn with_install_hint(self, v: impl Into<String>) -> Self {
         Command {
             install_hint: Some(v.into()),
             ..self
@@ -149,9 +153,20 @@ impl Command {
     }
 
     /// Set guidance on what to look for in the command output
-    pub(crate) fn with_what_to_look_for(self, v: impl Into<String>) -> Self {
+    pub fn with_what_to_look_for(self, v: impl Into<String>) -> Self {
         Command {
             what_to_look_for: Some(v.into()),
+            ..self
+        }
+    }
+
+    pub fn use_dimension(&self) -> Option<&UseDimension> {
+        self.use_dimension.as_ref()
+    }
+
+    pub fn with_use_dimension(self, v: UseDimension) -> Self {
+        Command {
+            use_dimension: Some(v),
             ..self
         }
     }

@@ -48,10 +48,14 @@ pub mod signal;
 /// Named workload rule packs (Phase 8+).
 pub mod workload;
 
+/// Shared report context types (Phase 4+).
+pub mod report_context;
+
 pub use analysis::{Analysis, AnalysisReport, Context};
 #[cfg(feature = "bin")]
 pub use cli::config::Config;
 pub use command::{Command, CommandResult};
+pub use report_context::UseDimension;
 pub use finding::{Evidence, Finding, FindingKind, Severity, ThresholdInfo};
 pub use renderer::{JsonRenderer, Renderer, TemplateRenderer};
 pub use runner::{Runner, ThreadRunner};

@@ -17,6 +17,32 @@
 > **{{ findings[0].severity }}** — {{ findings[0].summary }}
 {%- endif %}
 
+## Vital Signs
+
+| Resource | Value | Severity |
+|----------|-------|----------|
+{%- set cpu_profiled = vital_signs.cpu.iowait_pct is not none or vital_signs.cpu.severity is not none %}
+| CPU | {% if vital_signs.cpu.iowait_pct is not none %}iowait {{ vital_signs.cpu.iowait_pct | round(1) }}%{% elif cpu_profiled %}—{% else %}[not profiled]{% endif %} | {% if vital_signs.cpu.severity is not none %}{{ vital_signs.cpu.severity }}{% elif cpu_profiled %}—{% else %}[not profiled]{% endif %} |
+{%- set mem_profiled = vital_signs.memory.used_pct is not none or vital_signs.memory.severity is not none %}
+| Memory | {% if vital_signs.memory.used_pct is not none %}used {{ vital_signs.memory.used_pct | round(1) }}%{% elif mem_profiled %}—{% else %}[not profiled]{% endif %} | {% if vital_signs.memory.severity is not none %}{{ vital_signs.memory.severity }}{% elif mem_profiled %}—{% else %}[not profiled]{% endif %} |
+{%- set disk_profiled = vital_signs.disk.util_pct is not none or vital_signs.disk.severity is not none %}
+| Disk | {% if vital_signs.disk.util_pct is not none %}util {{ vital_signs.disk.util_pct | round(1) }}%{% elif disk_profiled %}—{% else %}[not profiled]{% endif %} | {% if vital_signs.disk.severity is not none %}{{ vital_signs.disk.severity }}{% elif disk_profiled %}—{% else %}[not profiled]{% endif %} |
+{%- set net_profiled = vital_signs.network.util_pct is not none or vital_signs.network.severity is not none %}
+| Network | {% if vital_signs.network.util_pct is not none %}util {{ vital_signs.network.util_pct | round(1) }}%{% elif net_profiled %}—{% else %}[not profiled]{% endif %} | {% if vital_signs.network.severity is not none %}{{ vital_signs.network.severity }}{% elif net_profiled %}—{% else %}[not profiled]{% endif %} |
+
+{%- if use_coverage %}
+## USE Coverage
+
+| Resource | Utilization | Saturation | Errors |
+|----------|-------------|------------|--------|
+{%- for resource in ["cpu", "memory", "disk", "network"] %}
+{%- set util = use_coverage | selectattr("resource", "equalto", resource) | selectattr("aspect", "equalto", "utilization") | first %}
+{%- set sat  = use_coverage | selectattr("resource", "equalto", resource) | selectattr("aspect", "equalto", "saturation") | first %}
+{%- set err  = use_coverage | selectattr("resource", "equalto", resource) | selectattr("aspect", "equalto", "errors") | first %}
+| {{ resource }} | {{ "✓" if util and util.covered else "✗" }} | {{ "✓" if sat and sat.covered else "✗" }} | {{ "✓" if err and err.covered else "✗" }} |
+{%- endfor %}
+
+{% endif -%}
 ## Host Information
 
 {% for result in hostinfo_results -%}
@@ -70,6 +96,15 @@
 {% endfor %}
 {% endif %}
 {% endfor -%}
+{% endif -%}
+{%- set fired_ids = findings | map(attribute="id") | list %}
+{%- set active_followups = followup_recommendations | selectattr("finding", "in", fired_ids) | list %}
+{%- if active_followups %}
+## Where to investigate next
+
+{% for fu in active_followups -%}
+- **{{ fu.recommend }}** — {{ fu.reason }}
+{% endfor %}
 {% endif -%}
 {%- if checked_ok %}
 ## Healthy
@@ -135,3 +170,6 @@ The following signals were evaluated and found within normal thresholds:
 ---
 
 *[Linux Performance Analysis in 60,000 Milliseconds](https://medium.com/netflix-techblog/linux-performance-analysis-in-60-000-milliseconds-accc10403c55)*
+{% if findings %}
+> **Tip:** run `usereport diff <before.json> <after.json>` to compare two reports after remediating findings.
+{% endif %}
