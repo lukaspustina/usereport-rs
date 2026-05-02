@@ -17,8 +17,9 @@ It follows Brendan Gregg's [USE methodology](http://www.brendangregg.com/usemeth
 </p>
 
 ```sh
-cargo binstall usereport-rs   # install
-usereport                     # run — Markdown report to stdout in seconds
+cargo binstall usereport-rs                          # install
+usereport                                            # structured report to stdout
+usereport --output llm --redact | your-ai "diagnose" # pipe redacted context to any LLM
 ```
 
 ---
