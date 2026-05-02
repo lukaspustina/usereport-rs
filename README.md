@@ -38,6 +38,115 @@ No daemons. No agents. No cloud. One binary, one command.
 
 ---
 
+## Demo
+
+### Findings in Markdown (default output)
+
+```
+$ usereport
+
+# Use Report - myhost
+
+## Summary
+- Host: `myhost`
+- Kernel: `Linux 6.8.0-51-generic x86_64`
+- Top concern: **Warn** — Free memory below 10% of total.
+
+## Findings
+
+### [Warn] mem.pressure
+Free memory below 10% of total.
+
+Evidence:
+- `mem.free_pct` = 0.69
+- `mem.free_mb` = 131.0 MB
+- `mem.total_mb` = 18893 MB
+
+Next steps:
+- `ps -eo pid,rss,cmd --sort=-rss | head -20`
+- `cat /proc/meminfo`
+```
+
+### Signals and findings as JSON
+
+```sh
+$ usereport --output json | jq '{signals: [.signals[].id], findings: [.findings[].id]}'
+```
+
+```json
+{
+  "signals": [
+    "host.cpu_count", "host.mem_total_bytes", "host.load_avg_1m",
+    "cpu.usr_pct", "cpu.sys_pct", "cpu.idle_pct",
+    "net.rx_drops", "net.retrans_pct",
+    "mem.total_mb", "mem.used_mb", "mem.free_mb", "mem.free_pct",
+    "swap.total_mb", "swap.used_mb", "swap.free_mb"
+  ],
+  "findings": ["mem.pressure"]
+}
+```
+
+### Exit code in CI
+
+```sh
+$ usereport --exit-on warn; echo "exit: $?"
+exit: 1   # mem.pressure (Warn) fired
+
+$ usereport --exit-on crit; echo "exit: $?"
+exit: 0   # no Crit findings
+```
+
+### Explain any finding or signal
+
+```sh
+$ usereport explain mem.pressure
+
+ID:       mem.pressure
+Severity: Warn
+Summary:  Free memory below 10% of total.
+
+To investigate:
+  ps -eo pid,rss,cmd --sort=-rss | head -20
+  cat /proc/meminfo
+```
+
+### LLM-ready output with redaction
+
+```sh
+$ usereport --output llm --redact | jq '{schema_version, hostname: .host.hostname, findings: [.findings[].id]}'
+```
+
+```json
+{
+  "schema_version": "1",
+  "hostname": "66b11e02cb5b987d50fca84ad73670c4",
+  "findings": ["mem.pressure"]
+}
+```
+
+The hostname (and any IPs or MACs) is replaced with a stable HMAC hash — same host always produces the same hash, but nothing leaves the machine in plaintext.
+
+### Baseline comparison
+
+```sh
+# Record a clean snapshot
+$ usereport baseline record --name green
+
+# Later, compare — anomalies (|z| > 3) become automatic findings
+$ usereport --baseline green --output json | jq '.signals[] | select(.baseline != null) | {id, z_score: .baseline.z_score}'
+```
+
+### Diff two runs
+
+```sh
+$ usereport --output json > before.json
+# ... reproduce the incident ...
+$ usereport --output json > after.json
+$ usereport diff before.json after.json
+```
+
+---
+
 ## Features
 
 ### Direct kernel signal collection _(Linux)_
