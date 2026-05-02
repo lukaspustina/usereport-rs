@@ -87,7 +87,7 @@ fn ac_phase8_5_postgres_rules_fire_on_fixture_signals() {
         },
     ];
 
-    let findings = engine.run(&signals, &ctx);
+    let (findings, _) = engine.run(&signals, &ctx, &std::collections::HashMap::new());
     assert!(
         !findings.is_empty(),
         "at least one postgres rule must fire against the fixture; rules = {:?}",
@@ -122,7 +122,7 @@ fn ac_phase8_6_none_workload_same_as_default() {
     let merged_engine = RuleEngine::new(merged);
 
     // With no signals, both produce empty findings.
-    let base_findings = base_engine.run(&[], &ctx);
-    let merged_findings = merged_engine.run(&[], &ctx);
+    let (base_findings, _) = base_engine.run(&[], &ctx, &std::collections::HashMap::new());
+    let (merged_findings, _) = merged_engine.run(&[], &ctx, &std::collections::HashMap::new());
     assert_eq!(base_findings.len(), merged_findings.len());
 }

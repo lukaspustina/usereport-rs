@@ -6,6 +6,12 @@
 *{{ key }}:* {{ value }}
 {% endfor -%}
 *Repetitions:* {{ repetitions }} · *Parallelism:* {{ max_parallel_commands }}
+{%- set ns = namespace(has_skipped=false) %}
+{%- for run in command_results %}
+{%- for result in run %}
+{%- if result.SkippedMissing %}{% set ns.has_skipped = true %}{% endif %}
+{%- endfor %}
+{%- endfor %}
 {%- if findings %}
 
 > **{{ findings[0].severity }}** — {{ findings[0].summary }}
@@ -26,6 +32,23 @@
 
 {% endif -%}
 {% endfor -%}
+{%- if ns.has_skipped %}
+## Coverage Gaps
+
+> findings may be incomplete — the following tools were not found on PATH
+
+| Command | Missing Binary | Install |
+|---------|----------------|---------|
+{%- for run in command_results %}
+{%- for result in run %}
+{%- if result.SkippedMissing %}
+{%- set s = result.SkippedMissing %}
+| `{{ s.command.name }}` | `{{ s.binary }}` | {{ s.command.install_hint or "—" }} |
+{%- endif %}
+{%- endfor %}
+{%- endfor %}
+
+{% endif -%}
 {% if findings -%}
 ## Findings
 
@@ -47,6 +70,15 @@
 {% endfor %}
 {% endif %}
 {% endfor -%}
+{% endif -%}
+{%- if checked_ok %}
+## Healthy
+
+The following signals were evaluated and found within normal thresholds:
+
+{% for id in checked_ok -%}
+- `{{ id }}`
+{% endfor %}
 {% endif -%}
 {% for run in command_results -%}
 ## Command Results{% if command_results | length > 1 %} — Run {{ loop.index }}{% endif %}
@@ -93,10 +125,11 @@
 {% if signals -%}
 ## Signals
 
-| ID | Value | Trend |
-|----|-------|-------|
+| ID | Value | Trend | Threshold |
+|----|-------|-------|-----------|
 {% for s in signals -%}
-| `{{ s.id }}` | {{ s.value }} | {{ s.stats.trend if s.stats else "—" }} |
+{%- set thr = signal_thresholds[s.id] %}
+| `{{ s.id }}` | {{ s.value }} | {{ s.stats.trend if s.stats else "—" }} | {% if thr %}{{ thr.op }} {{ thr.value }} ({{ thr.severity }}){% else %}—{% endif %} |
 {% endfor %}
 {% endif -%}
 ---

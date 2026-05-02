@@ -38,13 +38,21 @@ pub struct Evidence {
 }
 
 impl Severity {
-    fn rank(self) -> u8 {
+    pub fn rank(self) -> u8 {
         match self {
             Severity::Crit => 0,
             Severity::Warn => 1,
             Severity::Info => 2,
         }
     }
+}
+
+/// Threshold info for one signal, extracted from rule predicates.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ThresholdInfo {
+    pub severity: Severity,
+    pub op: String,
+    pub value: f64,
 }
 
 /// Sort findings in-place per SDD §101: severity Crit → Warn → Info, then

@@ -52,7 +52,7 @@ pub use analysis::{Analysis, AnalysisReport, Context};
 #[cfg(feature = "bin")]
 pub use cli::config::Config;
 pub use command::{Command, CommandResult};
-pub use finding::{Evidence, Finding, FindingKind, Severity};
+pub use finding::{Evidence, Finding, FindingKind, Severity, ThresholdInfo};
 pub use renderer::{JsonRenderer, Renderer, TemplateRenderer};
 pub use runner::{Runner, ThreadRunner};
 pub use signal::{Signal, SignalValue, Unit};

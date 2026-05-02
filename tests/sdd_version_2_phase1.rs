@@ -97,7 +97,7 @@ fn ac_2_rule_predicate_match_emits_finding() {
 
     let signals = vec![make_signal("vmstat.r", 8.0)];
     let engine = RuleEngine::new(vec![rule]);
-    let findings = engine.run(&signals, &ctx(4));
+    let (findings, _) = engine.run(&signals, &ctx(4), &std::collections::HashMap::new());
 
     assert_eq!(findings.len(), 1, "exactly one finding expected");
     let f = &findings[0];
@@ -135,7 +135,7 @@ fn ac_3_rule_predicate_non_match_emits_no_finding() {
 
     let signals = vec![make_signal("vmstat.r", 2.0)];
     let engine = RuleEngine::new(vec![rule]);
-    let findings = engine.run(&signals, &ctx(4));
+    let (findings, _) = engine.run(&signals, &ctx(4), &std::collections::HashMap::new());
 
     assert!(findings.is_empty(), "no finding expected, got: {:?}", findings);
 }
@@ -157,7 +157,7 @@ fn ac_3_rule_with_absent_signal_emits_no_finding() {
 
     let signals: Vec<Signal> = vec![];
     let engine = RuleEngine::new(vec![rule]);
-    let findings = engine.run(&signals, &ctx(4));
+    let (findings, _) = engine.run(&signals, &ctx(4), &std::collections::HashMap::new());
 
     assert!(findings.is_empty(), "absent signal must not produce finding");
 }
@@ -303,8 +303,8 @@ fn ac_7_rule_engine_is_deterministic_across_runs() {
     let signals = vec![make_signal("vmstat.r", 8.0), make_signal("mem.free_pct", 5.0)];
 
     let engine = RuleEngine::new(rules);
-    let first = engine.run(&signals, &ctx(4));
-    let second = engine.run(&signals, &ctx(4));
+    let (first, _) = engine.run(&signals, &ctx(4), &std::collections::HashMap::new());
+    let (second, _) = engine.run(&signals, &ctx(4), &std::collections::HashMap::new());
 
     assert_eq!(first.len(), second.len(), "finding count differs");
     for (a, b) in first.iter().zip(second.iter()) {

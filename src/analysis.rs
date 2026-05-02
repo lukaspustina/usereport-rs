@@ -9,6 +9,8 @@ use crate::{
     signal::Signal,
 };
 
+pub use crate::finding::ThresholdInfo;
+
 use chrono::{DateTime, Local};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fmt::Debug, path::PathBuf, time::Duration};
@@ -129,7 +131,12 @@ impl<'a, I: IntoIterator<Item = &'a Command> + Copy> Analysis<'a, I> {
         let hostinfo_results = self.run_commands(self.hostinfos)?;
         let command_results = self.run_commands_rep(self.commands, self.repetitions)?;
 
-        let (signals, findings) = self.run_diagnostics();
+        let (signals, findings, checked_ok) = self.run_diagnostics();
+        let signal_thresholds = self
+            .rule_engine
+            .as_ref()
+            .map(|e| e.signal_thresholds())
+            .unwrap_or_default();
 
         Ok(AnalysisReport {
             context,
@@ -139,14 +146,15 @@ impl<'a, I: IntoIterator<Item = &'a Command> + Copy> Analysis<'a, I> {
             max_parallel_commands: self.max_parallel_commands,
             signals,
             findings,
-            checked_ok: Vec::new(),
+            checked_ok,
+            signal_thresholds,
             flamegraph_svg: None,
         })
     }
 
-    fn run_diagnostics(&self) -> (Vec<Signal>, Vec<Finding>) {
+    fn run_diagnostics(&self) -> (Vec<Signal>, Vec<Finding>, Vec<String>) {
         if self.collectors.is_empty() && self.rule_engine.is_none() && self.baseline_records.is_empty() {
-            return (Vec::new(), Vec::new());
+            return (Vec::new(), Vec::new(), Vec::new());
         }
         let ctx = CollectCtx {
             duration: self.sample_duration,
@@ -165,9 +173,9 @@ impl<'a, I: IntoIterator<Item = &'a Command> + Copy> Analysis<'a, I> {
         if !self.baseline_records.is_empty() {
             annotate(&mut signals, &self.baseline_records);
         }
-        let mut findings = match &self.rule_engine {
-            Some(engine) => engine.run(&signals, &ctx),
-            None => Vec::new(),
+        let (mut findings, checked_ok) = match &self.rule_engine {
+            Some(engine) => engine.run(&signals, &ctx, &HashMap::new()),
+            None => (Vec::new(), Vec::new()),
         };
         if let Some(pe) = &self.pattern_engine {
             findings.extend(pe.run(&signals, &ctx));
@@ -178,7 +186,7 @@ impl<'a, I: IntoIterator<Item = &'a Command> + Copy> Analysis<'a, I> {
         if !findings.is_empty() {
             sort_findings(&mut findings);
         }
-        (signals, findings)
+        (signals, findings, checked_ok)
     }
 
     fn run_commands_rep(&self, commands: I, repetitions: usize) -> Result<Vec<Vec<CommandResult>>> {
@@ -211,6 +219,8 @@ pub struct AnalysisReport {
     pub(crate) findings: Vec<Finding>,
     #[serde(default)]
     pub(crate) checked_ok: Vec<String>,
+    #[serde(default)]
+    pub signal_thresholds: HashMap<String, ThresholdInfo>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) flamegraph_svg: Option<String>,
 }
@@ -232,6 +242,7 @@ impl AnalysisReport {
             signals: Vec::new(),
             findings: Vec::new(),
             checked_ok: Vec::new(),
+            signal_thresholds: HashMap::new(),
             flamegraph_svg: None,
         }
     }
@@ -258,6 +269,7 @@ impl AnalysisReport {
             signals,
             findings,
             checked_ok,
+            signal_thresholds: HashMap::new(),
             flamegraph_svg: None,
         }
     }

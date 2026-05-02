@@ -13,6 +13,7 @@
 //! Phase 1 supports bare signal paths and `host.*` paths. SampleStats suffixes
 //! (`.p50`, `.p95`, ...) and z-score paths are deferred to Phase 4.
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
@@ -20,7 +21,7 @@ use thiserror::Error;
 
 use crate::baseline::stats::sample_stats;
 use crate::collector::CollectCtx;
-use crate::finding::{Evidence, Finding, FindingKind, Severity, sort_findings};
+use crate::finding::{Evidence, Finding, FindingKind, Severity, ThresholdInfo, sort_findings};
 use crate::signal::{Signal, SignalValue, Trend};
 
 pub mod builtin;
@@ -462,9 +463,15 @@ impl RuleEngine {
         &self.rules
     }
 
-    pub fn run(&self, signals: &[Signal], ctx: &CollectCtx) -> Vec<Finding> {
+    pub fn run(
+        &self,
+        signals: &[Signal],
+        ctx: &CollectCtx,
+        _source_map: &HashMap<String, Vec<String>>,
+    ) -> (Vec<Finding>, Vec<String>) {
         let index = SignalIndex::build(signals);
         let mut findings = Vec::new();
+        let mut checked_ok: Vec<String> = Vec::new();
         for rule in &self.rules {
             if rule.when.evaluate(&index, ctx) {
                 let evidence = rule
@@ -480,10 +487,55 @@ impl RuleEngine {
                     evidence,
                     suggest: rule.suggest.clone(),
                 });
+            } else {
+                for sid in &rule.evidence_ids {
+                    if !checked_ok.contains(sid) {
+                        checked_ok.push(sid.clone());
+                    }
+                }
             }
         }
         sort_findings(&mut findings);
-        findings
+        checked_ok.sort();
+        (findings, checked_ok)
+    }
+
+    pub fn signal_thresholds(&self) -> HashMap<String, ThresholdInfo> {
+        let mut map = HashMap::new();
+        for rule in &self.rules {
+            extract_cmp_thresholds(&rule.when, rule.severity, &mut map);
+        }
+        map
+    }
+}
+
+fn extract_cmp_thresholds(pred: &Predicate, severity: Severity, map: &mut HashMap<String, ThresholdInfo>) {
+    match pred {
+        Predicate::Cmp { path, op, rhs } => {
+            if let Rhs::Value(Value::Number(v)) = rhs {
+                let signal_id = path.join(".");
+                map.entry(signal_id).or_insert(ThresholdInfo {
+                    severity,
+                    op: op_to_str(*op).to_string(),
+                    value: *v,
+                });
+            }
+        }
+        Predicate::And(a, b) | Predicate::Or(a, b) => {
+            extract_cmp_thresholds(a, severity, map);
+            extract_cmp_thresholds(b, severity, map);
+        }
+    }
+}
+
+fn op_to_str(op: Op) -> &'static str {
+    match op {
+        Op::Gt => ">",
+        Op::Lt => "<",
+        Op::Ge => ">=",
+        Op::Le => "<=",
+        Op::Eq => "==",
+        Op::Ne => "!=",
     }
 }
 
@@ -736,7 +788,7 @@ mod tests {
         };
         let signals = vec![signal("a", 5.0), signal("b", 5.0)];
         let engine = RuleEngine::new(vec![rule]);
-        let findings = engine.run(&signals, &ctx());
+        let (findings, _) = engine.run(&signals, &ctx(), &HashMap::new());
         assert_eq!(findings.len(), 1);
         assert_eq!(findings[0].id, "compound.test");
     }

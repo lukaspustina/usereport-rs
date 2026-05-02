@@ -298,7 +298,7 @@ fn ac_phase4_9_trend_rule_finding_evidence_cites_signal() {
     let signal = make_sampled_signal("cpu.load", vals);
     let signals = vec![signal];
 
-    let findings = engine.run(&signals, &ctx());
+    let (findings, _) = engine.run(&signals, &ctx(), &std::collections::HashMap::new());
     assert_eq!(findings.len(), 1, "expected exactly one finding; got {:?}", findings);
 
     let f = &findings[0];

@@ -58,7 +58,7 @@ suggest = []
 
     // p99 of 1..=100 is ≈ 99.01 > 90 → should fire
     let sig = dummy_signal_with_samples("lat", (1..=100).map(|i| i as f64).collect());
-    let findings = engine.run(&[sig], &ctx);
+    let (findings, _) = engine.run(&[sig], &ctx, &std::collections::HashMap::new());
     assert_eq!(findings.len(), 1, "expected 1 finding, got {}", findings.len());
     assert_eq!(findings[0].id, "test.high_p99_latency");
     assert_eq!(findings[0].severity, Severity::Warn);
@@ -83,7 +83,7 @@ suggest = []
     let ctx = CollectCtx::default();
 
     let sig = dummy_signal_with_samples("lat", (1..=100).map(|i| i as f64).collect());
-    let findings = engine.run(&[sig], &ctx);
+    let (findings, _) = engine.run(&[sig], &ctx, &std::collections::HashMap::new());
     assert!(findings.is_empty(), "expected no findings, got {}", findings.len());
 }
 
@@ -149,7 +149,7 @@ mod bpf_tests {
 
         let engine = RuleEngine::new(bpf_rules());
         let ctx = CollectCtx::default();
-        let findings = engine.run(&signals, &ctx);
+        let (findings, _) = engine.run(&signals, &ctx, &std::collections::HashMap::new());
 
         assert_eq!(
             findings.len(),
