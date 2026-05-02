@@ -462,8 +462,8 @@ fn markdown_template_renders_summary_and_findings_sections() {
     let s = String::from_utf8(out).unwrap();
 
     assert!(
-        s.contains("## Summary"),
-        "rendered output missing `## Summary` block:\n{}",
+        s.contains("# Use Report"),
+        "rendered output missing `# Use Report` header:\n{}",
         s
     );
     assert!(
