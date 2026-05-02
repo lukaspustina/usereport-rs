@@ -440,8 +440,8 @@ On Linux, `usereport` reads the kernel directly for the signals that matter most
 
 | Signal | Source |
 |--------|--------|
-| `cpu.usr_pct`, `cpu.iowait_pct`, `cpu.runqueue` | `/proc/stat` |
-| `disk.util_pct`, `disk.await_ms` | `/proc/diskstats` |
+| `cpu.usr_pct`, `cpu.iowait_pct`, `vmstat.r` | `/proc/stat` |
+| `disk.max_util_pct`, `disk.max_await_ms` (per-device: `disk.<dev>.util_pct`, …) | `/proc/diskstats` |
 | `net.rx_drops`, `net.retrans_pct`, `net.tw_count` | `/proc/net/dev` + `/proc/net/snmp` + `/proc/net/sockstat` |
 | `net.max_cpu_irq_pct` | `/proc/interrupts` |
 | `cpu.freq_ratio`, `cpu.temp_celsius` | `/sys/devices/system/cpu/*/cpufreq/` + thermal zones |
@@ -484,7 +484,7 @@ Record a healthy snapshot. Every future run is compared against it automatically
 
 ```sh
 # Capture a baseline on a healthy Tuesday
-usereport --output json | usereport baseline record --name tuesday
+usereport baseline record --name tuesday
 
 # Next Friday at 3am when alerts fire:
 usereport --baseline tuesday --output html -O incident.html
