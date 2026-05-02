@@ -13,7 +13,7 @@ pub fn extract_signals(command_name: &str, stdout: &str, extracts: &[CommandExtr
             out.push(Signal {
                 id: extract.signal_id.clone(),
                 value: SignalValue::I64(count as i64),
-                unit: extract.unit.clone(),
+                unit: extract.unit,
                 at: chrono::Local::now(),
                 samples: None,
                 stats: None,
@@ -59,7 +59,7 @@ pub fn extract_signals(command_name: &str, stdout: &str, extracts: &[CommandExtr
         out.push(Signal {
             id: extract.signal_id.clone(),
             value: SignalValue::F64(result),
-            unit: extract.unit.clone(),
+            unit: extract.unit,
             at: chrono::Local::now(),
             samples: None,
             stats: None,

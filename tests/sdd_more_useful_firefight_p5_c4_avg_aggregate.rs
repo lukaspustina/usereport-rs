@@ -5,7 +5,7 @@
 
 use usereport::cli::config::{Aggregate, CommandExtract};
 use usereport::extract::extract_signals;
-use usereport::signal::{SignalValue, Unit};
+use usereport::signal::Unit;
 
 #[test]
 fn avg_aggregate_computes_mean() {

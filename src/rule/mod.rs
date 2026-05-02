@@ -82,17 +82,7 @@ pub enum Value {
 
 impl Predicate {
     pub fn parse(input: &str) -> Result<Self> {
-        let tokens = tokenize(input).map_err(Error::Predicate)?;
-        let mut parser = Parser { tokens, pos: 0 };
-        let p = parser.parse_expr()?;
-        if parser.pos != parser.tokens.len() {
-            return Err(Error::Predicate(format!(
-                "trailing tokens at position {}: {:?}",
-                parser.pos,
-                &parser.tokens[parser.pos..]
-            )));
-        }
-        Ok(p)
+        expr.parse(input.trim()).map_err(|e| Error::Predicate(e.to_string()))
     }
 
     pub fn evaluate(&self, signals_index: &SignalIndex<'_>, ctx: &CollectCtx) -> bool {
@@ -224,227 +214,104 @@ impl<'a> SignalIndex<'a> {
     }
 }
 
-// --- Tokenizer + Parser ------------------------------------------------------
+// --- Parser (winnow) ---------------------------------------------------------
 
-#[derive(Debug, Clone, PartialEq)]
-enum Tok {
-    Ident(String),
-    Number(f64),
-    Str(String),
-    Bool(bool),
-    Op(Op),
-    And,
-    Or,
-    Dot,
-    LParen,
-    RParen,
+use winnow::{
+    ModalResult, Parser as _,
+    ascii::{float, multispace0, multispace1},
+    combinator::{alt, delimited, repeat, separated},
+    token::take_while,
+};
+
+fn ident<'i>(input: &mut &'i str) -> ModalResult<&'i str> {
+    take_while(1.., |c: char| c.is_alphanumeric() || c == '_')
+        .verify(|s: &&str| s.chars().next().is_some_and(|c| c.is_alphabetic() || c == '_'))
+        .parse_next(input)
 }
 
-fn tokenize(s: &str) -> std::result::Result<Vec<Tok>, String> {
-    let bytes = s.as_bytes();
-    let mut i = 0;
-    let mut tokens = Vec::new();
-    while i < bytes.len() {
-        let c = bytes[i] as char;
-        if c.is_whitespace() {
-            i += 1;
-            continue;
-        }
-        if c == '.' {
-            tokens.push(Tok::Dot);
-            i += 1;
-            continue;
-        }
-        if c == '(' {
-            tokens.push(Tok::LParen);
-            i += 1;
-            continue;
-        }
-        if c == ')' {
-            tokens.push(Tok::RParen);
-            i += 1;
-            continue;
-        }
-        if c == '"' || c == '\'' {
-            let quote = c;
-            let start = i + 1;
-            i += 1;
-            while i < bytes.len() && bytes[i] as char != quote {
-                i += 1;
-            }
-            if i >= bytes.len() {
-                return Err("unterminated string literal".into());
-            }
-            let lit = std::str::from_utf8(&bytes[start..i]).map_err(|e| e.to_string())?;
-            tokens.push(Tok::Str(lit.to_string()));
-            i += 1; // skip closing quote
-            continue;
-        }
-        if c.is_ascii_digit() || (c == '-' && i + 1 < bytes.len() && (bytes[i + 1] as char).is_ascii_digit()) {
-            let start = i;
-            i += 1;
-            while i < bytes.len() {
-                let cc = bytes[i] as char;
-                if cc.is_ascii_digit() || cc == '.' {
-                    i += 1;
-                } else {
-                    break;
-                }
-            }
-            let lit = std::str::from_utf8(&bytes[start..i]).map_err(|e| e.to_string())?;
-            let n: f64 = lit.parse().map_err(|e: std::num::ParseFloatError| e.to_string())?;
-            tokens.push(Tok::Number(n));
-            continue;
-        }
-        if c == '>' || c == '<' || c == '=' || c == '!' {
-            let next = bytes.get(i + 1).map(|&b| b as char);
-            let op = match (c, next) {
-                ('>', Some('=')) => {
-                    i += 2;
-                    Op::Ge
-                }
-                ('<', Some('=')) => {
-                    i += 2;
-                    Op::Le
-                }
-                ('=', Some('=')) => {
-                    i += 2;
-                    Op::Eq
-                }
-                ('!', Some('=')) => {
-                    i += 2;
-                    Op::Ne
-                }
-                ('>', _) => {
-                    i += 1;
-                    Op::Gt
-                }
-                ('<', _) => {
-                    i += 1;
-                    Op::Lt
-                }
-                _ => return Err(format!("unexpected character at {}: {:?}", i, c)),
-            };
-            tokens.push(Tok::Op(op));
-            continue;
-        }
-        if c.is_alphabetic() || c == '_' {
-            let start = i;
-            while i < bytes.len() {
-                let cc = bytes[i] as char;
-                if cc.is_alphanumeric() || cc == '_' {
-                    i += 1;
-                } else {
-                    break;
-                }
-            }
-            let lit = std::str::from_utf8(&bytes[start..i]).map_err(|e| e.to_string())?;
-            let upper = lit.to_ascii_uppercase();
-            let tok = match upper.as_str() {
-                "AND" => Tok::And,
-                "OR" => Tok::Or,
-                "TRUE" => Tok::Bool(true),
-                "FALSE" => Tok::Bool(false),
-                _ => Tok::Ident(lit.to_string()),
-            };
-            tokens.push(tok);
-            continue;
-        }
-        return Err(format!("unexpected character {:?} at position {}", c, i));
-    }
-    Ok(tokens)
+fn bare_ident<'i>(input: &mut &'i str) -> ModalResult<&'i str> {
+    ident
+        .verify(|s: &&str| !matches!(s.to_ascii_uppercase().as_str(), "AND" | "OR" | "TRUE" | "FALSE"))
+        .parse_next(input)
 }
 
-struct Parser {
-    tokens: Vec<Tok>,
-    pos: usize,
+fn path(input: &mut &str) -> ModalResult<Vec<String>> {
+    separated(1.., bare_ident.map(|s: &str| s.to_string()), '.').parse_next(input)
 }
 
-impl Parser {
-    fn parse_expr(&mut self) -> Result<Predicate> {
-        let mut left = self.parse_term()?;
-        loop {
-            let op = match self.tokens.get(self.pos) {
-                Some(Tok::And) => "AND",
-                Some(Tok::Or) => "OR",
-                _ => break,
-            };
-            self.pos += 1;
-            let right = self.parse_term()?;
-            left = if op == "AND" {
-                Predicate::And(Box::new(left), Box::new(right))
-            } else {
-                Predicate::Or(Box::new(left), Box::new(right))
-            };
-        }
-        Ok(left)
-    }
+fn cmp_op(input: &mut &str) -> ModalResult<Op> {
+    alt((
+        ">=".value(Op::Ge),
+        "<=".value(Op::Le),
+        "==".value(Op::Eq),
+        "!=".value(Op::Ne),
+        ">".value(Op::Gt),
+        "<".value(Op::Lt),
+    ))
+    .parse_next(input)
+}
 
-    fn parse_term(&mut self) -> Result<Predicate> {
-        let path = self.parse_path()?;
-        let op = match self.next_owned() {
-            Some(Tok::Op(o)) => o,
-            other => {
-                return Err(Error::Predicate(format!(
-                    "expected comparison operator, got {:?}",
-                    other
-                )));
-            }
-        };
-        let rhs = match self.tokens.get(self.pos).cloned() {
-            Some(Tok::Number(n)) => {
-                self.pos += 1;
-                Rhs::Value(Value::Number(n))
-            }
-            Some(Tok::Bool(b)) => {
-                self.pos += 1;
-                Rhs::Value(Value::Bool(b))
-            }
-            Some(Tok::Str(s)) => {
-                self.pos += 1;
-                Rhs::Value(Value::Str(s))
-            }
-            Some(Tok::Ident(_)) => {
-                // Path-on-RHS: e.g. `vmstat.r > host.cpu_count`.
-                let path = self.parse_path()?;
-                Rhs::Path(path)
-            }
-            other => return Err(Error::Predicate(format!("expected value or path, got {:?}", other))),
-        };
-        Ok(Predicate::Cmp { path, op, rhs })
-    }
+fn bool_literal(input: &mut &str) -> ModalResult<bool> {
+    ident
+        .verify_map(|s: &str| match s.to_ascii_uppercase().as_str() {
+            "TRUE" => Some(true),
+            "FALSE" => Some(false),
+            _ => None,
+        })
+        .parse_next(input)
+}
 
-    fn parse_path(&mut self) -> Result<Vec<String>> {
-        let mut segments = Vec::new();
-        match self.next_owned() {
-            Some(Tok::Ident(s)) => segments.push(s),
-            other => {
-                return Err(Error::Predicate(format!(
-                    "expected identifier at start of path, got {:?}",
-                    other
-                )));
-            }
-        }
-        while matches!(self.tokens.get(self.pos), Some(Tok::Dot)) {
-            self.pos += 1;
-            match self.next_owned() {
-                Some(Tok::Ident(s)) => segments.push(s),
-                other => {
-                    return Err(Error::Predicate(format!(
-                        "expected identifier after '.', got {:?}",
-                        other
-                    )));
-                }
-            }
-        }
-        Ok(segments)
-    }
+fn quoted_string(input: &mut &str) -> ModalResult<String> {
+    alt((
+        delimited('"', take_while(0.., |c: char| c != '"'), '"'),
+        delimited('\'', take_while(0.., |c: char| c != '\''), '\''),
+    ))
+    .map(|s: &str| s.to_string())
+    .parse_next(input)
+}
 
-    fn next_owned(&mut self) -> Option<Tok> {
-        let t = self.tokens.get(self.pos)?.clone();
-        self.pos += 1;
-        Some(t)
-    }
+fn number(input: &mut &str) -> ModalResult<f64> {
+    float(input)
+}
+
+fn rhs(input: &mut &str) -> ModalResult<Rhs> {
+    alt((
+        bool_literal.map(|b| Rhs::Value(Value::Bool(b))),
+        number.map(|n| Rhs::Value(Value::Number(n))),
+        quoted_string.map(|s| Rhs::Value(Value::Str(s))),
+        path.map(Rhs::Path),
+    ))
+    .parse_next(input)
+}
+
+fn term(input: &mut &str) -> ModalResult<Predicate> {
+    let (lhs, _, op, _, rhs) = (path, multispace0, cmp_op, multispace0, rhs).parse_next(input)?;
+    Ok(Predicate::Cmp { path: lhs, op, rhs })
+}
+
+fn infix_op(input: &mut &str) -> ModalResult<bool> {
+    delimited(
+        multispace1,
+        ident.verify_map(|s: &str| match s.to_ascii_uppercase().as_str() {
+            "AND" => Some(true),
+            "OR" => Some(false),
+            _ => None,
+        }),
+        multispace1,
+    )
+    .parse_next(input)
+}
+
+fn expr(input: &mut &str) -> ModalResult<Predicate> {
+    let first = term.parse_next(input)?;
+    let rest: Vec<(bool, Predicate)> = repeat(0.., (infix_op, term)).parse_next(input)?;
+    Ok(rest.into_iter().fold(first, |left, (is_and, right)| {
+        if is_and {
+            Predicate::And(Box::new(left), Box::new(right))
+        } else {
+            Predicate::Or(Box::new(left), Box::new(right))
+        }
+    }))
 }
 
 // --- Rule engine -------------------------------------------------------------
