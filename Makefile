@@ -18,6 +18,7 @@ CARGO_FLAGS ?=
 .PHONY: all build check test lint ci pre-push clean \
         fmt fmt-check clippy doc \
         audit deny machete \
+        workflows \
         help
 
 # ══════════════════════════════════════════════════════════════════
@@ -73,6 +74,16 @@ deny: ## Run cargo deny
 
 machete: ## Check for unused dependencies
 	$(CARGO) machete
+
+# ══════════════════════════════════════════════════════════════════
+#  GitHub
+# ══════════════════════════════════════════════════════════════════
+
+workflows: ## GitHub Actions status (latest run per workflow)
+	@export GH_PAGER=cat; \
+	JQ='group_by(.workflowName) | map(max_by(.createdAt)) | sort_by(.workflowName) | .[] | [(.conclusion // .status), .workflowName, (.createdAt | fromdateiso8601 | strflocaltime("%d.%m.%Y %H:%M")), .displayTitle, .url] | @tsv'; \
+	AWK='{ icon = "?"; col = "\033[37m"; if ($$1 == "success") { icon = "✓"; col = "\033[32m" } else if ($$1 == "failure") { icon = "✗"; col = "\033[31m" } else if ($$1 == "cancelled") { icon = "⊘"; col = "\033[37m" } else if ($$1 == "in_progress") { icon = "⏵"; col = "\033[33m" } else if ($$1 == "queued") { icon = "⋯"; col = "\033[33m" } title = $$4; if (length(title) > 40) title = substr(title, 1, 37) "..."; printf "  %s%s\033[0m %-24.24s  %s  %-40s  \033[2m%s\033[0m\n", col, icon, $$2, $$3, title, $$5 }'; \
+	gh run list -L 30 --json status,conclusion,workflowName,displayTitle,createdAt,url 2>/dev/null | jq -r "$$JQ" | awk -F'\t' "$$AWK"
 
 # ══════════════════════════════════════════════════════════════════
 #  CI pipelines
