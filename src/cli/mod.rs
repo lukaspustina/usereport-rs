@@ -49,6 +49,7 @@ const HELP_STYLES: Styles = Styles::styled()
 #[derive(Debug, Parser)]
 #[command(
     author,
+    version,
     about,
     after_help = "Set RUST_LOG=debug for verbose output, e.g.: RUST_LOG=debug usereport",
     styles = HELP_STYLES,
@@ -93,6 +94,8 @@ pub struct Opt {
     #[arg(short, long)]
     debug: bool,
     /// Exit-code policy based on the highest-severity finding produced.
+    /// Exit codes: never=always 0; warn=1 on Warn+; crit=2 on Crit only
+    /// (Warn findings exit 0 under crit policy).
     #[arg(long, value_enum, default_value = "never")]
     exit_on: ExitOn,
     /// Target cgroup v2 path for the cgroup collector (e.g. /sys/fs/cgroup/system.slice/myservice.service)
@@ -126,13 +129,13 @@ pub struct Opt {
     filter_commands: Vec<String>,
     /// Apply HMAC-SHA-256 redaction to `--output llm` output. Redacts
     /// hostnames, IPv4/IPv6 addresses, and MAC addresses. Uses
-    /// `USEREPORT_REDACT_SALT` env var; falls back to a compile-time constant
-    /// (provides weak privacy — hashes are not secret).
+    /// USEREPORT_REDACT_SALT env var; without it, a built-in constant is used
+    /// and hashes are identical across all usereport instances (not private).
     #[arg(long)]
     redact: bool,
     /// Enable eBPF opt-in collectors (runqlat, biolatency, tcpretrans, execsnoop,
     /// cachestat). Requires bpf feature. Emits an Info finding per tool not found
-    /// in PATH and exits 0.
+    /// in PATH.
     #[cfg(feature = "bpf")]
     #[arg(long)]
     bpf: bool,
@@ -159,6 +162,7 @@ pub enum Subcommand {
         action: BaselineAction,
     },
     /// Diff two AnalysisReport JSON files.
+    #[command(after_help = "Example: usereport diff before.json after.json")]
     Diff {
         #[arg(value_name = "BEFORE", help = "Path to the first (before) JSON report produced by --output json")]
         a: PathBuf,
@@ -174,11 +178,13 @@ pub enum Subcommand {
     },
     /// Print the definition, what raises it, what to investigate, and links for a rule or signal ID.
     /// When no ID is given, lists all known topics.
+    #[command(after_help = "Example: usereport explain net.retransmit_elevated")]
     Explain {
         #[arg(value_name = "ID", help = "Rule ID, signal ID, or command name to explain")]
         id: Option<String>,
     },
     /// Check whether all binaries used by the selected profile(s) are installed on $PATH.
+    #[command(after_help = "Example: usereport check --profile net")]
     Check {
         /// Profile to check (checks all profiles when omitted).
         #[arg(short = 'p', long)]
@@ -186,6 +192,7 @@ pub enum Subcommand {
     },
     /// Re-render a previously captured JSON report in any output format.
     /// Reads from a file or stdin when no path is given.
+    #[command(after_help = "Example: usereport convert incident.json --output html -O report.html")]
     Convert {
         /// Path to a JSON report produced by `--output json`. Reads stdin when absent.
         input: Option<PathBuf>,
@@ -207,18 +214,29 @@ pub enum Subcommand {
 #[derive(Debug, clap::Subcommand)]
 pub enum BaselineAction {
     /// Capture the current run as a named baseline.
+    #[command(after_help = "Example: usereport baseline record --name prod-healthy")]
     Record {
         #[arg(long, value_name = "NAME", default_value = "default", help = "Label for this baseline snapshot (defaults to \"default\")")]
         name: Option<String>,
+        /// Overwrite an existing baseline with the same name.
+        #[arg(long)]
+        force: bool,
     },
     /// List stored baselines.
-    List,
+    #[command(after_help = "Example: usereport baseline list")]
+    List {
+        /// Output format: `text` (default) or `json`.
+        #[arg(long, default_value = "text", value_parser = clap::builder::PossibleValuesParser::new(["text", "json"]))]
+        output: String,
+    },
     /// Show a stored baseline's contents.
+    #[command(after_help = "Example: usereport baseline show --name prod-healthy")]
     Show {
         #[arg(value_name = "NAME", help = "Name of the baseline to display")]
         name: String,
     },
     /// Delete a stored baseline.
+    #[command(after_help = "Example: usereport baseline delete --name old-baseline --force")]
     Delete {
         #[arg(value_name = "NAME", help = "Name of the baseline to delete")]
         name: String,
@@ -257,7 +275,7 @@ impl FromStr for OutputType {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_ref() {
             "hbs" => {
-                eprintln!("warning: --output hbs is deprecated; use --output template");
+                eprintln!("Warning: --output hbs is deprecated; use --output template");
                 Ok(OutputType::Template)
             }
             "template" => Ok(OutputType::Template),
@@ -520,7 +538,9 @@ fn show_commands(config: &Config) {
             c.description().unwrap_or("-").to_string(),
         ]);
     }
-    println!("{table}");
+    let stdout = std::io::stdout();
+    let mut handle = stdout.lock();
+    let _ = writeln!(handle, "{table}");
 }
 
 fn run_subcommand(cmd: &Subcommand) -> miette::Result<()> {
@@ -701,10 +721,23 @@ fn run_baseline(action: &BaselineAction) -> miette::Result<()> {
     let store = BaselineStore::xdg()
         .map_err(|e| miette::miette!("locate baseline directory: {}", e))?;
     match action {
-        BaselineAction::Record { name } => {
+        BaselineAction::Record { name, force } => {
             let label = name.as_deref().unwrap_or("default");
-            if store.dir().join(format!("{}.json", label)).exists() {
-                eprintln!("Warning: overwriting existing baseline '{}'", label);
+            if label.trim().is_empty() {
+                return Err(miette!("baseline name must not be empty"));
+            }
+            if !force {
+                let exists = store
+                    .load(label)
+                    .into_diagnostic()
+                    .with_context(|| format!("check baseline '{}'", label))?
+                    .is_some();
+                if exists {
+                    return Err(miette!(
+                        "baseline '{}' already exists; use --force to overwrite",
+                        label
+                    ));
+                }
             }
             let signals = collect_signals_for_baseline();
             store
@@ -718,10 +751,12 @@ fn run_baseline(action: &BaselineAction) -> miette::Result<()> {
                 label
             );
         }
-        BaselineAction::List => {
+        BaselineAction::List { output } => {
             let names = store.list().into_diagnostic().context("list baselines")?;
             if names.is_empty() {
-                println!("No baselines recorded");
+                println!("No baselines recorded.\nRun 'usereport baseline record --name <name>' to create one.");
+            } else if output == "json" {
+                println!("{}", serde_json::to_string(&names).into_diagnostic()?);
             } else {
                 for name in names {
                     println!("{}", name);
@@ -734,7 +769,10 @@ fn run_baseline(action: &BaselineAction) -> miette::Result<()> {
             .with_context(|| format!("load baseline '{}'", name))?
         {
             Some(record) => println!("{}", serde_json::to_string_pretty(&record).into_diagnostic()?),
-            None => return Err(miette!("baseline '{}' not found", name)),
+            None => return Err(miette!(
+                "baseline '{}' not found\nRun 'usereport baseline list' to see available baselines.",
+                name
+            )),
         },
         BaselineAction::Delete { name, force } => {
             if !force {
@@ -796,7 +834,7 @@ fn run_convert(
     redact: bool,
 ) -> miette::Result<()> {
     if redact && *output != OutputType::Llm {
-        eprintln!("warning: --redact has no effect unless --output llm is also set");
+        eprintln!("Warning: --redact has no effect unless --output llm is also set");
     }
     if *output == OutputType::Template && output_template.is_none() {
         return Err(miette!("--output template requires --output-template <PATH>"));
@@ -909,9 +947,9 @@ pub fn run_explain(id: &str, config: &Config) -> miette::Result<()> {
 
     // Look up builtin collector signals
     if let Some((_, desc)) = builtin_collector_signals().iter().find(|(sid, _)| *sid == id) {
-        writeln!(handle, "Signal ID: {id}").into_diagnostic()?;
+        writeln!(handle, "Signal ID:   {id}").into_diagnostic()?;
+        writeln!(handle, "Emitted by:  built-in collector").into_diagnostic()?;
         writeln!(handle, "Description: {desc}").into_diagnostic()?;
-        writeln!(handle, "Emitted by: built-in collector").into_diagnostic()?;
         return Ok(());
     }
 
@@ -938,13 +976,64 @@ pub fn run_explain(id: &str, config: &Config) -> miette::Result<()> {
 
 pub fn builtin_collector_signals() -> &'static [(&'static str, &'static str)] {
     &[
-        ("dmesg.blocked_task_count",  "blocked tasks detected since last log rotate"),
-        ("dmesg.fs_error_count",  "filesystem errors since last log rotate"),
-        ("dmesg.io_error_count",  "I/O error events since last log rotate"),
-        ("dmesg.mce_count",       "machine check exception events"),
-        ("dmesg.nic_flap_count",  "NIC link-state flap events"),
-        ("dmesg.segfault_count",  "segfault events since last log rotate"),
-        ("interrupts.max_cpu_pct", "max per-CPU interrupt load"),
+        // CpuCollector
+        ("cpu.usr_pct", "CPU user-space time (%)"),
+        ("cpu.sys_pct", "CPU kernel time (%)"),
+        ("cpu.idle_pct", "CPU idle time (%)"),
+        ("cpu.iowait_pct", "CPU time waiting on I/O (%)"),
+        ("cpu.ctxt_per_sec", "Context switches per second"),
+        ("vmstat.r", "Runnable processes (vmstat r column)"),
+        // CpuFreqCollector
+        ("cpu.freq_ratio", "Current CPU frequency / max frequency ratio"),
+        ("cpu.temp_celsius", "Maximum CPU temperature (°C)"),
+        // HostCollector
+        ("host.cpu_count", "Logical CPU count"),
+        ("host.mem_total_bytes", "Total physical memory (bytes)"),
+        ("host.load_avg_1m", "1-minute load average"),
+        // MemoryCollector
+        ("mem.total_mb", "Total RAM (MB)"),
+        ("mem.used_mb", "Used RAM (MB)"),
+        ("mem.free_mb", "Free RAM (MB)"),
+        ("mem.available_mb", "Available RAM (MB, Linux only)"),
+        ("mem.free_pct", "Free RAM (%)"),
+        ("swap.total_mb", "Total swap space (MB)"),
+        ("swap.used_mb", "Used swap space (MB)"),
+        ("swap.free_mb", "Free swap space (MB)"),
+        ("vmstat.swap_in", "Pages swapped in since last sample"),
+        // NetworkCollector
+        ("net.rx_drops", "Total RX drop counter across interfaces"),
+        ("net.retrans_pct", "TCP retransmit ratio (%)"),
+        ("net.tw_count", "TCP TIME_WAIT socket count"),
+        ("net.connect_failures", "TCP connection attempt failures"),
+        ("net.estab_resets", "TCP established-connection resets"),
+        // DiskCollector
+        ("disk.max_util_pct", "Highest per-device disk utilisation (%)"),
+        ("disk.max_await_ms", "Highest per-device I/O latency (ms)"),
+        // InterruptsCollector
+        ("net.max_cpu_irq_pct", "Highest per-CPU NIC interrupt load (%)"),
+        // CgroupCollector
+        ("cgroup.memory_bytes", "cgroup memory usage (bytes)"),
+        ("cgroup.memory_limit_bytes", "cgroup memory limit (bytes)"),
+        ("cgroup.oom_kills", "cgroup OOM kill count"),
+        ("cgroup.pids_current", "cgroup current PID count"),
+        ("cgroup.cpu_throttled_usec", "cgroup CPU throttle time (µs)"),
+        // DmesgCollector
+        ("dmesg.oom_count", "OOM kill events in dmesg"),
+        ("dmesg.blocked_task_count", "Blocked-task (hung-task) events in dmesg"),
+        ("dmesg.fs_error_count", "Filesystem error events in dmesg"),
+        ("dmesg.segfault_count", "Segfault events in dmesg"),
+        ("dmesg.mce_count", "Machine-check exception events in dmesg"),
+        ("dmesg.nic_flap_count", "NIC link-flap events in dmesg"),
+        ("dmesg.io_error_count", "I/O error events in dmesg"),
+        // BpfCollector (feature-gated; IDs are dynamic but documented here)
+        ("bpf.runqlat.usecs", "Run-queue latency p50 (µs)"),
+        ("bpf.biolatency.usecs", "Block I/O latency p50 (µs)"),
+        ("bpf.cachestat.usecs", "Page-cache hit latency p50 (µs)"),
+        ("bpf.runqlat.available", "Whether runqlat is available in PATH"),
+        ("bpf.biolatency.available", "Whether biolatency is available in PATH"),
+        ("bpf.tcpretrans.available", "Whether tcpretrans is available in PATH"),
+        ("bpf.execsnoop.available", "Whether execsnoop is available in PATH"),
+        ("bpf.cachestat.available", "Whether cachestat is available in PATH"),
     ]
 }
 
@@ -1031,12 +1120,29 @@ fn run_explain_inner(rule: &Rule, is_tty: bool, out: &mut dyn Write) -> miette::
 /// Run CPU profiling for `duration_secs` seconds using perf (or bpftrace when
 /// `use_bpf` is true and bpftrace is on PATH). Returns `Ok(Some(svg))` on
 /// success, `Ok(None)` when no profiling tool is available.
-fn generate_flamegraph(duration_secs: u64, _use_bpf: bool) -> miette::Result<Option<String>> {
+fn generate_flamegraph(duration_secs: u64, use_bpf: bool) -> miette::Result<Option<String>> {
     let has_perf = which::which("perf").is_ok();
     let has_bpftrace = which::which("bpftrace").is_ok();
 
     if !has_perf && !has_bpftrace {
         return Ok(None);
+    }
+
+    let try_bpftrace_first = use_bpf && has_bpftrace;
+
+    if try_bpftrace_first {
+        let script =
+            format!("profile:hz:99 {{ @[comm, kstack, ustack] = count(); }} interval:s:{duration_secs} {{ exit(); }}");
+        let out = std::process::Command::new("bpftrace")
+            .args(["-f", "folded", "-e", &script])
+            .stderr(std::process::Stdio::null())
+            .output()
+            .into_diagnostic()
+            .context("failed to run bpftrace")?;
+
+        if !out.stdout.is_empty() {
+            return generate_svg_from_folded(&out.stdout);
+        }
     }
 
     if has_perf {
@@ -1101,7 +1207,7 @@ fn generate_svg_from_perf_script(perf_output: &[u8]) -> miette::Result<Option<St
     folder
         .collapse(perf_output, &mut collapsed)
         .into_diagnostic()
-        .context("inferno collapse failed")?;
+        .context("stack folding failed")?;
 
     let collapsed_str = String::from_utf8_lossy(&collapsed);
     let lines: Vec<&str> = collapsed_str.lines().filter(|l| !l.is_empty()).collect();
@@ -1112,7 +1218,7 @@ fn generate_svg_from_perf_script(perf_output: &[u8]) -> miette::Result<Option<St
     let mut svg = Vec::new();
     flamegraph::from_lines(&mut flamegraph::Options::default(), lines, &mut svg)
         .into_diagnostic()
-        .context("inferno flamegraph failed")?;
+        .context("flamegraph rendering failed")?;
     Ok(Some(String::from_utf8(svg).into_diagnostic()?))
 }
 
@@ -1128,7 +1234,7 @@ fn generate_svg_from_folded(folded: &[u8]) -> miette::Result<Option<String>> {
     let mut svg = Vec::new();
     flamegraph::from_lines(&mut flamegraph::Options::default(), lines, &mut svg)
         .into_diagnostic()
-        .context("inferno flamegraph failed")?;
+        .context("flamegraph rendering failed")?;
     Ok(Some(String::from_utf8(svg).into_diagnostic()?))
 }
 
@@ -1243,7 +1349,10 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> miette::Re
             .with_context(|| format!("load baseline '{}'", name))?
         {
             Some(record) => analysis = analysis.with_baseline_records(vec![record]),
-            None => return Err(miette!("baseline '{}' not found", name)),
+            None => return Err(miette!(
+                "baseline '{}' not found\nRun 'usereport baseline list' to see available baselines.",
+                name
+            )),
         }
     }
 
