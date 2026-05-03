@@ -630,12 +630,23 @@ fn run_check(config: &Config, profile_filter: Option<&str>) -> miette::Result<()
     let mut handle = stdout.lock();
     let missing = run_check_inner(&checks, is_tty, &mut handle)?;
 
-    if missing > 0 {
+    // Profiling and bpf tools are opt-in; their absence is advisory and should
+    // not make the check exit non-zero.
+    let advisory_missing = checks
+        .iter()
+        .filter(|(cat, _, bin)| {
+            (cat == "profiling" || cat == "bpf")
+                && !(which::which(bin).is_ok() || std::path::Path::new(bin.as_str()).exists())
+        })
+        .count();
+
+    let required_missing = missing.saturating_sub(advisory_missing);
+    if required_missing > 0 {
         eprintln!("Tip: run 'usereport explain <name>' for install instructions, or check your PATH.");
         return Err(miette::miette!(
             "{} {} not found",
-            missing,
-            if missing == 1 { "binary" } else { "binaries" }
+            required_missing,
+            if required_missing == 1 { "binary" } else { "binaries" }
         ));
     }
     Ok(())
@@ -898,18 +909,27 @@ pub fn run_explain_list(config: &Config) -> miette::Result<()> {
         .flat_map(|cmd| cmd.extract().iter().map(|ex| ex.signal_id.as_str()))
         .collect();
 
+    let mut seen = std::collections::HashSet::new();
     let mut known: Vec<String> = Vec::new();
+    let mut push = |entry: String| {
+        if seen.insert(entry.clone()) {
+            known.push(entry);
+        }
+    };
     for c in &config.commands {
-        known.push(format!("  {} (command)", c.name()));
+        push(format!("  {} (command)", c.name()));
     }
     for r in &all_rules {
-        known.push(format!("  {} (rule)", r.id));
+        push(format!("  {} (rule)", r.id));
     }
     for sid in &all_signal_ids {
-        known.push(format!("  {} (signal)", sid));
+        push(format!("  {} (signal)", sid));
     }
     for (sid, _) in builtin_collector_signals() {
-        known.push(format!("  {} (collector signal)", sid));
+        push(format!("  {} (collector signal)", sid));
+    }
+    for (name, _, _) in builtin_profiling_tools() {
+        push(format!("  {} (profiling tool)", name));
     }
     known.sort();
     writeln!(handle, "Known topics:\n{}", known.join("\n")).into_diagnostic()?;
@@ -963,18 +983,35 @@ pub fn run_explain(id: &str, config: &Config) -> miette::Result<()> {
         return Ok(());
     }
 
+    // Look up profiling tools
+    if let Some((_, desc, hint)) = builtin_profiling_tools().iter().find(|(name, _, _)| *name == id) {
+        writeln!(handle, "Tool:        {id}").into_diagnostic()?;
+        writeln!(handle, "Description: {desc}").into_diagnostic()?;
+        writeln!(handle, "Install:     {hint}").into_diagnostic()?;
+        return Ok(());
+    }
+
+    let mut seen = std::collections::HashSet::new();
     let mut known: Vec<String> = Vec::new();
+    let mut push_known = |entry: String| {
+        if seen.insert(entry.clone()) {
+            known.push(entry);
+        }
+    };
     for c in &config.commands {
-        known.push(format!("  {} (command)", c.name()));
+        push_known(format!("  {} (command)", c.name()));
     }
     for r in &all_rules {
-        known.push(format!("  {} (rule)", r.id));
+        push_known(format!("  {} (rule)", r.id));
     }
     for (sid, _) in &all_signal_ids {
-        known.push(format!("  {} (signal)", sid));
+        push_known(format!("  {} (signal)", sid));
     }
     for (sid, _) in builtin_collector_signals() {
-        known.push(format!("  {} (collector signal)", sid));
+        push_known(format!("  {} (collector signal)", sid));
+    }
+    for (name, _, _) in builtin_profiling_tools() {
+        push_known(format!("  {} (profiling tool)", name));
     }
     known.sort();
     Err(miette!("unknown topic '{}'\n\nKnown topics:\n{}", id, known.join("\n"),))
@@ -1040,6 +1077,22 @@ pub fn builtin_collector_signals() -> &'static [(&'static str, &'static str)] {
         ("bpf.tcpretrans.available", "Whether tcpretrans is available in PATH"),
         ("bpf.execsnoop.available", "Whether execsnoop is available in PATH"),
         ("bpf.cachestat.available", "Whether cachestat is available in PATH"),
+    ]
+}
+
+/// (name, description, install hint)
+pub fn builtin_profiling_tools() -> &'static [(&'static str, &'static str, &'static str)] {
+    &[
+        (
+            "perf",
+            "Linux perf: CPU profiling, flame graphs via --profile-cpu",
+            "apt-get install linux-perf  # or linux-tools-$(uname -r)",
+        ),
+        (
+            "bpftrace",
+            "bpftrace: high-level eBPF tracing, used as fallback for CPU profiling",
+            "apt-get install bpftrace",
+        ),
     ]
 }
 
