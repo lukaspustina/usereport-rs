@@ -204,6 +204,7 @@ usereport --output llm --redact | jq '{schema_version, hostname: .host.hostname,
 ```json
 {
   "schema_version": "1",
+  "date_time": "2026-05-03T14:22:05+02:00",
   "hostname": "66b11e02cb5b987d50fca84ad73670c4",
   "findings": ["mem.pressure"]
 }
@@ -337,9 +338,9 @@ Signals changed:
   net.retrans_pct        2.3  →    0.1   (-2.2)
 
 Findings only in before.json:
-  [Crit] time_wait_exhaustion
-  [Warn] net.time_wait_high
-  [Warn] net.retransmit_elevated
+  [CRIT] time_wait_exhaustion
+  [WARN] net.time_wait_high
+  [WARN] net.retransmit_elevated
 
 Findings only in after.json:
   (none)
@@ -501,8 +502,8 @@ Signals changed:
   cpu.temp_celsius  94.0   →  61.0   (-33.0)
 
 Findings only in before-fix.json:
-  [Warn] cpu.frequency_throttling
-  [Warn] Anomaly: cpu.freq_ratio
+  [WARN] cpu.frequency_throttling
+  [WARN] Anomaly: cpu.freq_ratio
 
 Findings only in after-fix.json:
   (none)
