@@ -182,13 +182,13 @@ fn ac_phase2_7_outlier_findings_warn_and_crit_thresholds() {
         z_score: 4.0,
     });
 
-    // Signal with z-score = 7.0 → crit (|z|>6)
+    // Signal with z-score = 7.01 → crit (|z|>7.0)
     let mut crit_signal = make_signal("mem.free_pct", 1.0);
     crit_signal.baseline = Some(BaselineStats {
         p50: 50.0,
         p95: 60.0,
         mad: 5.0,
-        z_score: -7.0,
+        z_score: -7.01,
     });
 
     // Signal with z-score = 1.0 → no finding (within ±3)
