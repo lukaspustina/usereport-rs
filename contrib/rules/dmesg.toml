@@ -18,6 +18,6 @@ suggest = ["dmesg -T | grep blocked", "ps -eo state,pid,cmd | awk '$1 ~ /D/'"]
 id = "dmesg.fs_errors"
 when = "dmesg.fs_error_count > 0"
 severity = "crit"
-summary = "Filesystem errors logged (EXT4 / XFS)."
+summary = "Filesystem errors detected in kernel log."
 evidence = ["dmesg.fs_error_count"]
 suggest = ["dmesg -T | grep -Ei 'ext4|xfs.*error'", "smartctl --scan"]

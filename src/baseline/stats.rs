@@ -31,8 +31,7 @@ pub fn mad(values: &[f64]) -> Option<f64> {
 
 /// Modified z-score (per Iglewicz & Hoaglin, 1993). The 0.6745 factor
 /// rescales MAD to match the standard normal under Gaussian-like data.
-/// Note: the caller uses thresholds of 3.0 and 6.0 (not the paper's
-/// recommended 3.5) — documented as approximate standard-deviation units.
+/// Callers use `Z_WARN_THRESHOLD` (3.5) and `Z_CRIT_THRESHOLD` (7.0).
 pub fn z_score(value: f64, p50: f64, mad: f64) -> f64 {
     if mad == 0.0 {
         return 0.0;
@@ -142,5 +141,32 @@ mod tests {
     #[test]
     fn percentile_single_value() {
         assert_eq!(percentile(&[42.0], 95.0), Some(42.0));
+    }
+
+    #[test]
+    fn mad_zero_when_all_same() {
+        let v = [5.0, 5.0, 5.0, 5.0];
+        assert_eq!(mad(&v), Some(0.0));
+    }
+
+    #[test]
+    fn median_two_elements() {
+        assert_eq!(median(&[3.0, 7.0]), Some(5.0));
+    }
+
+    #[test]
+    fn z_score_with_mad_zero() {
+        let z = z_score(100.0, 50.0, 0.0);
+        assert_eq!(z, 0.0);
+        assert!(!z.is_nan());
+        assert!(!z.is_infinite());
+    }
+
+    #[test]
+    fn percentile_boundary() {
+        let v = [1.0, 2.0, 3.0, 4.0, 5.0];
+        // p=0.0 → first element (min), p=100.0 → last element (max)
+        assert_eq!(percentile(&v, 0.0), Some(1.0));
+        assert_eq!(percentile(&v, 100.0), Some(5.0));
     }
 }

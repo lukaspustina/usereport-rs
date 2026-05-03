@@ -38,7 +38,7 @@ impl DmesgCollector {
             .map(|(id, count)| Signal {
                 id: id.to_string(),
                 value: SignalValue::F64(*count as f64),
-                unit: Unit::None,
+                unit: Unit::Count,
                 at: now,
                 samples: None,
                 stats: None,

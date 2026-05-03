@@ -199,7 +199,7 @@ impl BaselineStore {
             })?;
         let _guard = ExclusiveLock::acquire(&file, &path)?;
 
-        // Read existing valid records.
+        // Read existing valid records using the same (locked) file descriptor.
         let mut existing: Vec<BaselineRecord> = Vec::new();
         let reader = BufReader::new(&file);
         for line in reader.lines() {
@@ -217,16 +217,17 @@ impl BaselineStore {
         let start = existing.len().saturating_sub(window_n);
         let kept = &existing[start..];
 
-        // Rewrite the file (truncate + write).
-        let mut writer = OpenOptions::new()
-            .create(true)
-            .write(true)
-            .truncate(true)
-            .open(&path)
-            .map_err(|e| Error::Io {
-                path: path.clone(),
-                source: e,
-            })?;
+        // Rewrite using the same file descriptor: truncate then write from the
+        // start. This keeps the exclusive lock held across the full read+write.
+        file.set_len(0).map_err(|e| Error::Io {
+            path: path.clone(),
+            source: e,
+        })?;
+        (&file).seek(SeekFrom::Start(0)).map_err(|e| Error::Io {
+            path: path.clone(),
+            source: e,
+        })?;
+        let mut writer = std::io::BufWriter::new(&file);
         for r in kept {
             let line = serde_json::to_string(r)?;
             writeln!(writer, "{}", line).map_err(|e| Error::Io {

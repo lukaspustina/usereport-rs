@@ -8,7 +8,12 @@
 //!
 //! `annotate(&mut signals, &records)` populates `Signal.baseline` with p50,
 //! p95, MAD, and z_score derived from the records. `outlier_findings(&signals)`
-//! turns annotated z-scores into auto findings (`|z|>3` → warn, `|z|>6` → crit).
+//! turns annotated z-scores into auto findings (`|z|>Z_WARN_THRESHOLD` → warn,
+//! `|z|>Z_CRIT_THRESHOLD` → crit).
+
+// Modified z-score thresholds per Iglewicz & Hoaglin (1993)
+const Z_WARN_THRESHOLD: f64 = 3.5;
+const Z_CRIT_THRESHOLD: f64 = 7.0;
 
 use crate::finding::{Evidence, Finding, FindingKind, Severity};
 use crate::signal::{BaselineStats, Signal, SignalValue};
@@ -54,8 +59,9 @@ pub fn annotate(signals: &mut [Signal], records: &[BaselineRecord]) {
     }
 }
 
-/// Per SDD §116: signals whose `|z_score| > 3` produce automatic warn findings;
-/// `|z_score| > 6` produces crit findings. Findings cite the signal id.
+/// Per SDD §116: signals whose `|z_score| > Z_WARN_THRESHOLD` produce automatic
+/// warn findings; `|z_score| > Z_CRIT_THRESHOLD` produces crit findings.
+/// Findings cite the signal id.
 pub fn outlier_findings(signals: &[Signal]) -> Vec<Finding> {
     let mut findings = Vec::new();
     for sig in signals {
@@ -64,9 +70,9 @@ pub fn outlier_findings(signals: &[Signal]) -> Vec<Finding> {
             None => continue,
         };
         let abs_z = baseline.z_score.abs();
-        let severity = if abs_z > 6.0 {
+        let severity = if abs_z > Z_CRIT_THRESHOLD {
             Severity::Crit
-        } else if abs_z > 3.0 {
+        } else if abs_z > Z_WARN_THRESHOLD {
             Severity::Warn
         } else {
             continue;
@@ -81,11 +87,20 @@ pub fn outlier_findings(signals: &[Signal]) -> Vec<Finding> {
             kind: FindingKind::Rule,
             severity,
             summary: format!(
-                "{} is {:.2} standard deviations from baseline (p50={:.3}, mad={:.3})",
-                sig.id, baseline.z_score.abs(), baseline.p50, baseline.mad
+                "{} is significantly outside its normal range (z-score: {:.2}, baseline median: {:.3})",
+                sig.id,
+                baseline.z_score.abs(),
+                baseline.p50
             ),
             evidence,
-            suggest: vec![],
+            suggest: vec![
+                format!(
+                    "Check whether recent changes, deployments, or configuration changes explain the anomaly in '{}'.",
+                    sig.id
+                ),
+                "Run 'usereport baseline record' after verifying the system is healthy to update the baseline."
+                    .to_string(),
+            ],
         });
     }
     findings
@@ -112,42 +127,53 @@ mod tests {
     }
 
     #[test]
-    fn z_below_3_no_finding() {
-        assert!(outlier_findings(&[signal_with_z("x", 2.99)]).is_empty());
+    fn z_below_warn_threshold_no_finding() {
+        assert!(outlier_findings(&[signal_with_z("x", 3.49)]).is_empty());
     }
 
     #[test]
-    fn z_exactly_3_no_finding() {
-        // boundary: > 3, not ≥ 3
-        assert!(outlier_findings(&[signal_with_z("x", 3.0)]).is_empty());
+    fn z_exactly_warn_threshold_no_finding() {
+        // boundary: > Z_WARN_THRESHOLD (3.5), not >=
+        assert!(outlier_findings(&[signal_with_z("x", 3.5)]).is_empty());
     }
 
     #[test]
-    fn z_above_3_fires_warn() {
-        let findings = outlier_findings(&[signal_with_z("x", 3.01)]);
+    fn z_above_warn_threshold_fires_warn() {
+        let findings = outlier_findings(&[signal_with_z("x", 3.51)]);
         assert_eq!(findings.len(), 1);
         assert_eq!(findings[0].severity, Severity::Warn);
     }
 
     #[test]
-    fn z_exactly_6_fires_warn_not_crit() {
-        // boundary: > 6, not ≥ 6
-        let findings = outlier_findings(&[signal_with_z("x", 6.0)]);
+    fn z_exactly_crit_threshold_fires_warn_not_crit() {
+        // boundary: > Z_CRIT_THRESHOLD (7.0), not >=
+        let findings = outlier_findings(&[signal_with_z("x", 7.0)]);
         assert_eq!(findings.len(), 1);
-        assert_eq!(findings[0].severity, Severity::Warn, "z=6.0 should be Warn, not Crit");
+        assert_eq!(findings[0].severity, Severity::Warn, "z=7.0 should be Warn, not Crit");
     }
 
     #[test]
-    fn z_above_6_fires_crit() {
-        let findings = outlier_findings(&[signal_with_z("x", 6.01)]);
+    fn z_above_crit_threshold_fires_crit() {
+        let findings = outlier_findings(&[signal_with_z("x", 7.01)]);
         assert_eq!(findings.len(), 1);
         assert_eq!(findings[0].severity, Severity::Crit);
     }
 
     #[test]
-    fn negative_z_above_3_fires_warn() {
+    fn negative_z_above_warn_threshold_fires_warn() {
         let findings = outlier_findings(&[signal_with_z("x", -4.0)]);
         assert_eq!(findings.len(), 1);
         assert_eq!(findings[0].severity, Severity::Warn);
+    }
+
+    #[test]
+    fn finding_has_suggest_and_natural_summary() {
+        let findings = outlier_findings(&[signal_with_z("my.signal", 4.0)]);
+        assert_eq!(findings.len(), 1);
+        assert_eq!(findings[0].suggest.len(), 2);
+        assert!(findings[0].suggest[0].contains("my.signal"));
+        assert!(findings[0].summary.contains("my.signal"));
+        assert!(findings[0].summary.contains("z-score"));
+        assert!(findings[0].summary.contains("baseline median"));
     }
 }
