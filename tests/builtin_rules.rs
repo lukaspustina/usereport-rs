@@ -166,22 +166,34 @@ fn mem_swap_in_above_zero_fires() {
 
 #[test]
 fn disk_utilization_saturated_fires_above_threshold() {
-    assert!(fires("disk.utilization_saturated", vec![signal("disk.max_util_pct", 95.0)]));
+    assert!(fires(
+        "disk.utilization_saturated",
+        vec![signal("disk.max_util_pct", 95.0)]
+    ));
 }
 
 #[test]
 fn disk_utilization_saturated_does_not_fire_below_threshold() {
-    assert!(!fires("disk.utilization_saturated", vec![signal("disk.max_util_pct", 80.0)]));
+    assert!(!fires(
+        "disk.utilization_saturated",
+        vec![signal("disk.max_util_pct", 80.0)]
+    ));
 }
 
 #[test]
 fn disk_utilization_at_threshold_does_not_fire() {
-    assert!(!fires("disk.utilization_saturated", vec![signal("disk.max_util_pct", 90.0)]));
+    assert!(!fires(
+        "disk.utilization_saturated",
+        vec![signal("disk.max_util_pct", 90.0)]
+    ));
 }
 
 #[test]
 fn disk_utilization_just_above_threshold_fires() {
-    assert!(fires("disk.utilization_saturated", vec![signal("disk.max_util_pct", 90.001)]));
+    assert!(fires(
+        "disk.utilization_saturated",
+        vec![signal("disk.max_util_pct", 90.001)]
+    ));
 }
 
 // =============================================================================
@@ -314,12 +326,18 @@ fn dmesg_oom_kill_above_zero_fires() {
 
 #[test]
 fn dmesg_blocked_tasks_at_zero_does_not_fire() {
-    assert!(!fires("dmesg.blocked_tasks", vec![signal("dmesg.blocked_task_count", 0.0)]));
+    assert!(!fires(
+        "dmesg.blocked_tasks",
+        vec![signal("dmesg.blocked_task_count", 0.0)]
+    ));
 }
 
 #[test]
 fn dmesg_blocked_tasks_above_zero_fires() {
-    assert!(fires("dmesg.blocked_tasks", vec![signal("dmesg.blocked_task_count", 1.0)]));
+    assert!(fires(
+        "dmesg.blocked_tasks",
+        vec![signal("dmesg.blocked_task_count", 1.0)]
+    ));
 }
 
 // =============================================================================
@@ -341,7 +359,10 @@ fn dmesg_fs_errors_above_zero_fires() {
 // =============================================================================
 
 fn ctx_with_cpu_count(cpu_count: usize) -> CollectCtx {
-    CollectCtx { cpu_count, ..CollectCtx::default() }
+    CollectCtx {
+        cpu_count,
+        ..CollectCtx::default()
+    }
 }
 
 fn fires_with_ctx(rule_id: &str, signals: Vec<Signal>, ctx: CollectCtx) -> bool {

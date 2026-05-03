@@ -103,8 +103,7 @@ impl PatternEngine {
         let mut findings = Vec::new();
         for pattern in &self.patterns {
             if pattern.when.evaluate(&idx, ctx) {
-                let referenced: std::collections::HashSet<String> =
-                    pattern.when.signal_ids().into_iter().collect();
+                let referenced: std::collections::HashSet<String> = pattern.when.signal_ids().into_iter().collect();
                 let evidence = collect_evidence(signals, &referenced, ctx);
                 findings.push(Finding {
                     id: pattern.id.clone(),
@@ -118,6 +117,41 @@ impl PatternEngine {
         }
         findings
     }
+}
+
+fn collect_evidence(
+    signals: &[Signal],
+    referenced: &std::collections::HashSet<String>,
+    ctx: &CollectCtx,
+) -> Vec<Evidence> {
+    let mut evidence: Vec<Evidence> = signals
+        .iter()
+        .filter(|s| referenced.contains(&s.id))
+        .map(|s| Evidence {
+            signal_id: s.id.clone(),
+            observed: s.value.clone(),
+            source_commands: Vec::new(),
+        })
+        .collect();
+
+    // Include host.* signals that come from CollectCtx rather than the signal slice.
+    for id in referenced {
+        if id.starts_with("host.") {
+            let observed = match id.as_str() {
+                "host.cpu_count" => Some(SignalValue::I64(ctx.cpu_count as i64)),
+                _ => None,
+            };
+            if let Some(observed) = observed {
+                evidence.push(Evidence {
+                    signal_id: id.clone(),
+                    observed,
+                    source_commands: Vec::new(),
+                });
+            }
+        }
+    }
+
+    evidence
 }
 
 #[cfg(test)]
@@ -158,41 +192,10 @@ summary = "test pattern"
         }];
         let ctx = crate::collector::CollectCtx::default();
         let findings = merged.run(&signals, &ctx);
-        assert_eq!(findings.len(), 2, "extend_from should merge all patterns from both engines");
+        assert_eq!(
+            findings.len(),
+            2,
+            "extend_from should merge all patterns from both engines"
+        );
     }
-}
-
-fn collect_evidence(
-    signals: &[Signal],
-    referenced: &std::collections::HashSet<String>,
-    ctx: &CollectCtx,
-) -> Vec<Evidence> {
-    let mut evidence: Vec<Evidence> = signals
-        .iter()
-        .filter(|s| referenced.contains(&s.id))
-        .map(|s| Evidence {
-            signal_id: s.id.clone(),
-            observed: s.value.clone(),
-            source_commands: Vec::new(),
-        })
-        .collect();
-
-    // Include host.* signals that come from CollectCtx rather than the signal slice.
-    for id in referenced {
-        if id.starts_with("host.") {
-            let observed = match id.as_str() {
-                "host.cpu_count" => Some(SignalValue::I64(ctx.cpu_count as i64)),
-                _ => None,
-            };
-            if let Some(observed) = observed {
-                evidence.push(Evidence {
-                    signal_id: id.clone(),
-                    observed,
-                    source_commands: Vec::new(),
-                });
-            }
-        }
-    }
-
-    evidence
 }

@@ -6,7 +6,7 @@
 //!
 //! Verifies the fix introduced in html.j2: `{{ s.reason | e }}`.
 
-use usereport::{AnalysisReport, CommandResult, TemplateRenderer};
+use usereport::{AnalysisReport, TemplateRenderer};
 
 #[test]
 fn html_xss_hostinfo_error_reason_escaped() {
@@ -60,8 +60,7 @@ fn html_xss_hostinfo_error_reason_escaped() {
         "signal_thresholds": {}
     });
 
-    let report: AnalysisReport = serde_json::from_str(&report_json.to_string())
-        .expect("deserialize AnalysisReport");
+    let report: AnalysisReport = serde_json::from_str(&report_json.to_string()).expect("deserialize AnalysisReport");
 
     let mut buf = Vec::new();
     renderer

@@ -16,10 +16,7 @@ fn root_output_xyz_excludes_text_from_suggestions() {
         .expect("run binary");
 
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        !output.status.success(),
-        "expected non-zero exit; stderr: {stderr}"
-    );
+    assert!(!output.status.success(), "expected non-zero exit; stderr: {stderr}");
     for expected in ["template", "html", "json", "markdown", "llm"] {
         assert!(
             stderr.contains(expected),

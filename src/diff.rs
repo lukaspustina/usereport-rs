@@ -149,7 +149,11 @@ pub fn render_text<W: std::io::Write>(d: &DiffReport, label_a: &str, label_b: &s
             let before = fmt_num(sd.value_in_a);
             let after = fmt_num(sd.value_in_b);
             let delta = fmt_num_signed(sd.delta);
-            writeln!(w, "  {:<30} {:>10}  \u{2192}  {:>10}   ({})", sd.signal_id, before, after, delta)?;
+            writeln!(
+                w,
+                "  {:<30} {:>10}  \u{2192}  {:>10}   ({})",
+                sd.signal_id, before, after, delta
+            )?;
         }
     }
     writeln!(w)?;
@@ -194,7 +198,11 @@ pub fn render_text<W: std::io::Write>(d: &DiffReport, label_a: &str, label_b: &s
         writeln!(w, "  (none)")?;
     } else {
         for sc in &d.findings_severity_changed {
-            writeln!(w, "  [{} \u{2192} {}] {}", sc.severity_in_a, sc.severity_in_b, sc.finding_id)?;
+            writeln!(
+                w,
+                "  [{} \u{2192} {}] {}",
+                sc.severity_in_a, sc.severity_in_b, sc.finding_id
+            )?;
         }
     }
     Ok(())

@@ -9,9 +9,9 @@
 //! This test fails to compile today because PatternEngine::empty() and
 //! extend_from() do not yet exist. That is the correct RED state.
 
+use usereport::collector::CollectCtx;
 use usereport::pattern::PatternEngine;
 use usereport::signal::{Signal, SignalValue, Unit};
-use usereport::{Analysis, Context, ThreadRunner};
 
 #[test]
 fn pattern_engine_fires_time_wait_exhaustion() {
@@ -19,8 +19,7 @@ fn pattern_engine_fires_time_wait_exhaustion() {
     // PatternEngine::empty() and extend_from() do not exist yet — this
     // causes a compile error, which is the intended RED state.
     let mut engine = PatternEngine::empty();
-    let loaded =
-        PatternEngine::from_toml(include_str!("../contrib/patterns/time_wait.toml")).unwrap();
+    let loaded = PatternEngine::from_toml(include_str!("../contrib/patterns/time_wait.toml")).unwrap();
     engine.extend_from(loaded);
 
     // Synthetic signals that satisfy: net.tw_count > 28000 AND net.connect_failures > 0
@@ -54,7 +53,6 @@ fn pattern_engine_fires_time_wait_exhaustion() {
     //
     // The cleanest way to inject synthetic signals without a subprocess is to
     // call PatternEngine::run directly and assert on its output.
-    use usereport::collector::CollectCtx;
     let ctx = CollectCtx::default();
     let findings = engine.run(&signals, &ctx);
 

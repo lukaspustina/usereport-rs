@@ -122,7 +122,12 @@ mod tests {
             stats: None,
             baseline: None,
         };
-        s.baseline = Some(BaselineStats { p50: 1.0, p95: 2.0, mad: 0.1, z_score: z });
+        s.baseline = Some(BaselineStats {
+            p50: 1.0,
+            p95: 2.0,
+            mad: 0.1,
+            z_score: z,
+        });
         s
     }
 

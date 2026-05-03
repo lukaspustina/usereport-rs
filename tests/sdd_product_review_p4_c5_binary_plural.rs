@@ -9,8 +9,16 @@
 use std::io::Write as _;
 
 fn make_config_with_commands(commands: &[&str]) -> String {
-    let mut toml = String::from("[defaults]\nmax_parallel_commands = 1\nrepetitions = 1\n\n[[profile]]\nname = \"default\"\ncommands = [");
-    toml.push_str(&commands.iter().map(|c| format!("\"{}\"", c)).collect::<Vec<_>>().join(", "));
+    let mut toml = String::from(
+        "[defaults]\nmax_parallel_commands = 1\nrepetitions = 1\n\n[[profile]]\nname = \"default\"\ncommands = [",
+    );
+    toml.push_str(
+        &commands
+            .iter()
+            .map(|c| format!("\"{}\"", c))
+            .collect::<Vec<_>>()
+            .join(", "),
+    );
     toml.push_str("]\n\n");
     for cmd in commands {
         toml.push_str(&format!(

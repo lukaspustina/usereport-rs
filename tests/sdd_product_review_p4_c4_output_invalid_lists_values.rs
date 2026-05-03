@@ -12,10 +12,7 @@ fn output_invalid_lists_valid_values() {
         .expect("run binary");
 
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        !output.status.success(),
-        "expected non-zero exit; stderr: {stderr}"
-    );
+    assert!(!output.status.success(), "expected non-zero exit; stderr: {stderr}");
     let has_valid_value = ["markdown", "html", "json", "template", "llm"]
         .iter()
         .any(|v| stderr.contains(v));

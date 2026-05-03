@@ -15,10 +15,7 @@ fn profile_name_appears_in_error() {
         .expect("run binary");
 
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        !output.status.success(),
-        "expected non-zero exit; stderr: {stderr}"
-    );
+    assert!(!output.status.success(), "expected non-zero exit; stderr: {stderr}");
     assert!(
         stderr.to_lowercase().contains("profile"),
         "expected stderr to contain 'profile'; got: {stderr}"

@@ -42,8 +42,7 @@ when = "host.load_avg_1m >= 0"
         "expected exit 0; stderr: {stderr}\nstdout: {stdout}"
     );
 
-    let report: serde_json::Value =
-        serde_json::from_str(&stdout).expect("stdout must be valid JSON");
+    let report: serde_json::Value = serde_json::from_str(&stdout).expect("stdout must be valid JSON");
 
     let findings = report
         .get("findings")

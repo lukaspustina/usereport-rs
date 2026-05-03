@@ -115,7 +115,10 @@ fn ac_phase3_1_cpu_delta_emits_pct_signals_summing_to_100() {
 #[test]
 fn ac_phase3_1_cpu_delta_emits_runqueue_from_procs_running() {
     let signals = CpuCollector::from_proc_stat_snapshots(PROC_STAT_T0, PROC_STAT_T1, 1.0);
-    let r = signals.iter().find(|s| s.id == "cpu.run_queue").expect("cpu.run_queue present");
+    let r = signals
+        .iter()
+        .find(|s| s.id == "cpu.run_queue")
+        .expect("cpu.run_queue present");
     match r.value {
         SignalValue::F64(v) => assert_eq!(v as i64, 8),
         SignalValue::I64(v) => assert_eq!(v, 8),

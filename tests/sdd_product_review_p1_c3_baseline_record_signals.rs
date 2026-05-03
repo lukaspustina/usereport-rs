@@ -35,11 +35,7 @@ fn baseline_record_stores_non_empty_signals() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let baseline_path = tmp
-        .path()
-        .join("usereport")
-        .join("baselines")
-        .join("smoke.json");
+    let baseline_path = tmp.path().join("usereport").join("baselines").join("smoke.json");
 
     assert!(
         baseline_path.exists(),
@@ -48,8 +44,7 @@ fn baseline_record_stores_non_empty_signals() {
     );
 
     let contents = std::fs::read(&baseline_path).expect("read baseline file");
-    let record: BaselineRecord =
-        serde_json::from_slice(&contents).expect("parse baseline JSON");
+    let record: BaselineRecord = serde_json::from_slice(&contents).expect("parse baseline JSON");
 
     assert!(
         !record.signals.is_empty(),

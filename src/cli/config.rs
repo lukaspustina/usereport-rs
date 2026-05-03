@@ -153,7 +153,9 @@ impl Config {
         self.profiles
             .iter()
             .find(|x| x.name == profile_name)
-            .ok_or_else(|| Error::NoSuchProfile { name: profile_name.to_string() })
+            .ok_or_else(|| Error::NoSuchProfile {
+                name: profile_name.to_string(),
+            })
     }
 
     pub fn commands_for_hostinfo(&self) -> Vec<Command> {
@@ -401,7 +403,10 @@ command = "uname -a"
         let result = config.validate();
         assert_that!(result, err(anything()));
         let msg = result.unwrap_err().to_string();
-        assert!(msg.contains("baseline_rolling_n"), "error should mention baseline_rolling_n; got: {msg}");
+        assert!(
+            msg.contains("baseline_rolling_n"),
+            "error should mention baseline_rolling_n; got: {msg}"
+        );
     }
 
     #[test]

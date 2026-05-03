@@ -47,7 +47,13 @@ fn diff_output_typo_rejected() {
     }
 
     let output = std::process::Command::new(env!("CARGO_BIN_EXE_usereport"))
-        .args(["diff", a_path.to_str().unwrap(), b_path.to_str().unwrap(), "--output", "jsn"])
+        .args([
+            "diff",
+            a_path.to_str().unwrap(),
+            b_path.to_str().unwrap(),
+            "--output",
+            "jsn",
+        ])
         .output()
         .expect("run binary");
 

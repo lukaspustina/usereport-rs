@@ -77,7 +77,9 @@ impl Redactor {
             .into_iter()
             .map(|mut excerpt| {
                 if !hostname.is_empty() {
-                    excerpt.output = excerpt.output.replace(&hostname, &format!("[redacted:{}]", &redacted_hostname));
+                    excerpt.output = excerpt
+                        .output
+                        .replace(&hostname, &format!("[redacted:{}]", &redacted_hostname));
                 }
                 excerpt.output = self.redact_text(&excerpt.output);
                 excerpt

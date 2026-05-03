@@ -143,7 +143,10 @@ fn socket_leak_does_not_fire_when_only_high_tw_count() {
 
 #[test]
 fn thundering_herd_fires_when_both_predicates_true() {
-    let ctx = CollectCtx { cpu_count: 4, ..CollectCtx::default() };
+    let ctx = CollectCtx {
+        cpu_count: 4,
+        ..CollectCtx::default()
+    };
     assert!(fires(
         "thundering_herd",
         vec![signal("cpu.run_queue", 5.0), signal("cpu.sys_pct", 35.0)],
@@ -153,7 +156,10 @@ fn thundering_herd_fires_when_both_predicates_true() {
 
 #[test]
 fn thundering_herd_does_not_fire_when_only_high_sys_pct() {
-    let ctx = CollectCtx { cpu_count: 4, ..CollectCtx::default() };
+    let ctx = CollectCtx {
+        cpu_count: 4,
+        ..CollectCtx::default()
+    };
     assert!(!fires(
         "thundering_herd",
         vec![signal("cpu.run_queue", 2.0), signal("cpu.sys_pct", 35.0)],

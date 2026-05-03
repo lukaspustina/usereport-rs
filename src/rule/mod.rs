@@ -380,8 +380,7 @@ impl RuleEngine {
                     suggest: rule.suggest.clone(),
                 });
             } else {
-                let present_ids: std::collections::HashSet<&str> =
-                    signals.iter().map(|s| s.id.as_str()).collect();
+                let present_ids: std::collections::HashSet<&str> = signals.iter().map(|s| s.id.as_str()).collect();
                 // Only mark a signal as checked-ok if it was actually present
                 // in the signal slice; absent signals were never evaluated.
                 for sid in &rule.evidence_ids {
@@ -582,10 +581,7 @@ impl RulesLoader {
                                     severity: Severity::Warn,
                                     summary: format!("skipped malformed rule file {}: {}", path.display(), e),
                                     evidence: vec![],
-                                    suggest: vec![format!(
-                                        "Check the TOML syntax in {}",
-                                        path.display()
-                                    )],
+                                    suggest: vec![format!("Check the TOML syntax in {}", path.display())],
                                 }),
                             },
                             Err(e) => load_findings.push(Finding {
@@ -594,10 +590,7 @@ impl RulesLoader {
                                 severity: Severity::Warn,
                                 summary: format!("skipped unreadable rule file {}: {}", path.display(), e),
                                 evidence: vec![],
-                                suggest: vec![format!(
-                                    "Check file permissions on {}",
-                                    path.display()
-                                )],
+                                suggest: vec![format!("Check file permissions on {}", path.display())],
                             }),
                         }
                     }
@@ -611,10 +604,7 @@ impl RulesLoader {
                     severity: Severity::Warn,
                     summary: format!("could not read rules directory {}: {}", dir.display(), e),
                     evidence: vec![],
-                    suggest: vec![format!(
-                        "Check directory permissions on {}",
-                        dir.display()
-                    )],
+                    suggest: vec![format!("Check directory permissions on {}", dir.display())],
                 }),
             }
         }

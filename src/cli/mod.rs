@@ -10,8 +10,8 @@ use crate::{
     diff,
     finding::{Finding, Severity},
     llm::LlmOutput,
-    renderer,
     pattern::PatternEngine,
+    renderer,
     rule::{Rule, RuleEngine, RulesLoader, builtin::builtin_rules},
     workload::load_workload_rules,
 };
@@ -164,9 +164,15 @@ pub enum Subcommand {
     /// Diff two AnalysisReport JSON files.
     #[command(after_help = "Example: usereport diff before.json after.json")]
     Diff {
-        #[arg(value_name = "BEFORE", help = "Path to the first (before) JSON report produced by --output json")]
+        #[arg(
+            value_name = "BEFORE",
+            help = "Path to the first (before) JSON report produced by --output json"
+        )]
         a: PathBuf,
-        #[arg(value_name = "AFTER", help = "Path to the second (after) JSON report produced by --output json")]
+        #[arg(
+            value_name = "AFTER",
+            help = "Path to the second (after) JSON report produced by --output json"
+        )]
         b: PathBuf,
         /// Output format: `text` (default) or `json`.
         #[arg(long, default_value = "text", value_parser = |s: &str| match s {
@@ -216,7 +222,12 @@ pub enum BaselineAction {
     /// Capture the current run as a named baseline.
     #[command(after_help = "Example: usereport baseline record --name prod-healthy")]
     Record {
-        #[arg(long, value_name = "NAME", default_value = "default", help = "Label for this baseline snapshot (defaults to \"default\")")]
+        #[arg(
+            long,
+            value_name = "NAME",
+            default_value = "default",
+            help = "Label for this baseline snapshot (defaults to \"default\")"
+        )]
         name: Option<String>,
         /// Overwrite an existing baseline with the same name.
         #[arg(long)]
@@ -341,9 +352,10 @@ pub fn compute_exit_code(exit_on: ExitOn, findings: &[Finding]) -> i32 {
     match exit_on {
         ExitOn::Never => 0,
         ExitOn::Info => {
-            if findings.iter().any(|f| {
-                matches!(f.severity, Severity::Info | Severity::Warn | Severity::Crit)
-            }) {
+            if findings
+                .iter()
+                .any(|f| matches!(f.severity, Severity::Info | Severity::Warn | Severity::Crit))
+            {
                 1
             } else {
                 0
@@ -717,13 +729,14 @@ fn collect_signals_for_baseline() -> Vec<crate::Signal> {
 }
 
 fn run_baseline(action: &BaselineAction) -> miette::Result<()> {
-    let store = BaselineStore::xdg()
-        .map_err(|e| miette::miette!("locate baseline directory: {}", e))?;
+    let store = BaselineStore::xdg().map_err(|e| miette::miette!("locate baseline directory: {}", e))?;
     match action {
         BaselineAction::Record { name, force } => {
             let label = name.as_deref().unwrap_or("default");
             if label.trim().is_empty() {
-                return Err(miette!("Baseline name is required — use --name <NAME> (e.g. --name prod-healthy)."));
+                return Err(miette!(
+                    "Baseline name is required — use --name <NAME> (e.g. --name prod-healthy)."
+                ));
             }
             if !force {
                 let exists = store
@@ -732,10 +745,7 @@ fn run_baseline(action: &BaselineAction) -> miette::Result<()> {
                     .with_context(|| format!("check baseline '{}'", label))?
                     .is_some();
                 if exists {
-                    return Err(miette!(
-                        "baseline '{}' already exists; use --force to overwrite",
-                        label
-                    ));
+                    return Err(miette!("baseline '{}' already exists; use --force to overwrite", label));
                 }
             }
             let signals = collect_signals_for_baseline();
@@ -768,17 +778,16 @@ fn run_baseline(action: &BaselineAction) -> miette::Result<()> {
             .with_context(|| format!("load baseline '{}'", name))?
         {
             Some(record) => println!("{}", serde_json::to_string_pretty(&record).into_diagnostic()?),
-            None => return Err(miette!(
-                "baseline '{}' not found\nRun 'usereport baseline list' to see available baselines.",
-                name
-            )),
+            None => {
+                return Err(miette!(
+                    "baseline '{}' not found\nRun 'usereport baseline list' to see available baselines.",
+                    name
+                ));
+            }
         },
         BaselineAction::Delete { name, force } => {
             if !force {
-                return Err(miette!(
-                    "Pass --force to confirm deletion of baseline '{}'.",
-                    name
-                ));
+                return Err(miette!("Pass --force to confirm deletion of baseline '{}'.", name));
             }
             store
                 .delete(name)
@@ -859,7 +868,9 @@ fn run_convert(
         serde_json::to_writer(&mut *writer, &llm_out)
             .into_diagnostic()
             .context("failed to write LLM JSON")?;
-        writeln!(&mut *writer).into_diagnostic().context("write LLM JSON newline")?;
+        writeln!(&mut *writer)
+            .into_diagnostic()
+            .context("write LLM JSON newline")?;
     } else {
         let output_template_string = output_template.map(String::from);
         let mut buf: Vec<u8> = Vec::new();
@@ -966,11 +977,7 @@ pub fn run_explain(id: &str, config: &Config) -> miette::Result<()> {
         known.push(format!("  {} (collector signal)", sid));
     }
     known.sort();
-    Err(miette!(
-        "unknown topic '{}'\n\nKnown topics:\n{}",
-        id,
-        known.join("\n"),
-    ))
+    Err(miette!("unknown topic '{}'\n\nKnown topics:\n{}", id, known.join("\n"),))
 }
 
 pub fn builtin_collector_signals() -> &'static [(&'static str, &'static str)] {
@@ -1080,7 +1087,8 @@ fn run_explain_inner(rule: &Rule, is_tty: bool, out: &mut dyn Write) -> miette::
         Severity::Crit => "CRIT",
         Severity::Warn => "WARN",
         Severity::Info => "INFO",
-    }.to_string();
+    }
+    .to_string();
     let severity_str = if is_tty {
         use owo_colors::OwoColorize as _;
         match rule.severity {
@@ -1292,7 +1300,9 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> miette::Re
     let mut all_rules = rules_result.rules;
     #[cfg(not(feature = "bpf"))]
     if opt.bpf {
-        return Err(miette::miette!("--bpf requires a binary compiled with --features bpf. To build with BPF support: cargo install usereport-rs --features bpf"));
+        return Err(miette::miette!(
+            "--bpf requires a binary compiled with --features bpf. To build with BPF support: cargo install usereport-rs --features bpf"
+        ));
     }
     #[cfg(feature = "bpf")]
     if opt.bpf {
@@ -1352,10 +1362,12 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> miette::Re
             .with_context(|| format!("load baseline '{}'", name))?
         {
             Some(record) => analysis = analysis.with_baseline_records(vec![record]),
-            None => return Err(miette!(
-                "baseline '{}' not found\nRun 'usereport baseline list' to see available baselines.",
-                name
-            )),
+            None => {
+                return Err(miette!(
+                    "baseline '{}' not found\nRun 'usereport baseline list' to see available baselines.",
+                    name
+                ));
+            }
         }
     }
 
@@ -1381,17 +1393,20 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> miette::Re
         if opt.output != OutputType::Html {
             eprintln!("Warning: --profile-cpu flamegraph is only embedded in --output html; skipping profiling.");
         } else {
-        let dur = parse_duration(profile_dur)?;
-        let dur_secs = dur.as_secs().max(1);
-        #[cfg(feature = "bpf")]
-        let use_bpf = opt.bpf;
-        #[cfg(not(feature = "bpf"))]
-        let use_bpf = false;
-        eprintln!("Profiling CPU for {} — this will block for the full duration…", profile_dur);
-        match generate_flamegraph(dur_secs, use_bpf) {
-            Ok(Some(svg)) => report = report.with_flamegraph(svg),
-            Ok(None) => {
-                report.findings.push(Finding {
+            let dur = parse_duration(profile_dur)?;
+            let dur_secs = dur.as_secs().max(1);
+            #[cfg(feature = "bpf")]
+            let use_bpf = opt.bpf;
+            #[cfg(not(feature = "bpf"))]
+            let use_bpf = false;
+            eprintln!(
+                "Profiling CPU for {} — this will block for the full duration…",
+                profile_dur
+            );
+            match generate_flamegraph(dur_secs, use_bpf) {
+                Ok(Some(svg)) => report = report.with_flamegraph(svg),
+                Ok(None) => {
+                    report.findings.push(Finding {
                     id: "profile.cpu.unavailable".to_string(),
                     kind: crate::finding::FindingKind::Rule,
                     severity: Severity::Info,
@@ -1401,10 +1416,10 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> miette::Re
                     evidence: Vec::new(),
                     suggest: vec!["Install linux-perf or bpftrace and re-run.".to_string()],
                 });
-            }
-            Err(e) => {
-                log::warn!("flamegraph generation failed: {}", e);
-                report.findings.push(Finding {
+                }
+                Err(e) => {
+                    log::warn!("flamegraph generation failed: {}", e);
+                    report.findings.push(Finding {
                     id: "profile.flamegraph.error".to_string(),
                     kind: crate::finding::FindingKind::Rule,
                     severity: Severity::Warn,
@@ -1414,8 +1429,8 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> miette::Re
                         "Verify perf or bpftrace is installed and you have sufficient permissions (may need sudo).".to_string(),
                     ],
                 });
+                }
             }
-        }
         } // else html
     }
 
@@ -1430,7 +1445,9 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> miette::Re
         serde_json::to_writer(&mut *writer, &llm_out)
             .into_diagnostic()
             .context("failed to write LLM JSON")?;
-        writeln!(&mut *writer).into_diagnostic().context("write LLM JSON newline")?;
+        writeln!(&mut *writer)
+            .into_diagnostic()
+            .context("write LLM JSON newline")?;
     } else {
         let mut buf: Vec<u8> = Vec::new();
         renderer
@@ -1538,7 +1555,10 @@ fn create_command_filter(command_spec: &[String]) -> (HashSet<&str>, HashSet<&st
             }
             _ => {
                 if !cs.is_empty() {
-                    eprintln!("Warning: filter '{}' has no '+' or '-' prefix and will be ignored. Use '+{}' to add or '-{}' to remove a command.", cs, cs, cs);
+                    eprintln!(
+                        "Warning: filter '{}' has no '+' or '-' prefix and will be ignored. Use '+{}' to add or '-{}' to remove a command.",
+                        cs, cs, cs
+                    );
                 }
             }
         }

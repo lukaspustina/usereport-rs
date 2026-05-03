@@ -36,6 +36,9 @@ fn vital_signs_computed_from_signals_and_findings() {
     };
     let vs = compute_vital_signs(&signals, &[finding]);
     let got = vs.cpu.active_pct.expect("active_pct must be set (iowait fallback)");
-    assert!((got - 23.4).abs() < 0.001, "active_pct must be 23.4 (iowait fallback), got {got}");
+    assert!(
+        (got - 23.4).abs() < 0.001,
+        "active_pct must be 23.4 (iowait fallback), got {got}"
+    );
     assert_eq!(vs.cpu.severity, Some(Severity::Warn), "cpu severity must be Warn");
 }
