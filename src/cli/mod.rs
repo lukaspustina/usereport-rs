@@ -94,7 +94,8 @@ pub struct Opt {
     #[arg(short, long)]
     debug: bool,
     /// Exit-code policy based on the highest-severity finding produced.
-    /// Exit codes: never=always 0; warn=1 on Warn+; crit=2 on Crit only
+    /// Exit codes: never=always 0; info=1 on any finding (Info, Warn, or Crit);
+    /// warn=1 on Warn+; crit=2 on Crit only
     /// (Warn findings exit 0 under crit policy).
     #[arg(long, value_enum, default_value = "never")]
     exit_on: ExitOn,
@@ -118,7 +119,7 @@ pub struct Opt {
     show_commands: bool,
     /// Annotate signals with a named baseline (loaded from
     /// ${XDG_DATA_HOME}/usereport/baselines/<NAME>.json) and emit
-    /// auto-outlier findings (|z|>3 → warn, |z|>6 → crit).
+    /// auto-outlier findings (|z|>3.5 → warn, |z|>7.0 → crit).
     /// See also: 'usereport baseline record --name <NAME>' to create a baseline.
     #[arg(long, value_name = "NAME")]
     pub baseline: Option<String>,
@@ -136,7 +137,6 @@ pub struct Opt {
     /// Enable eBPF opt-in collectors (runqlat, biolatency, tcpretrans, execsnoop,
     /// cachestat). Requires bpf feature. Emits an Info finding per tool not found
     /// in PATH.
-    #[cfg(feature = "bpf")]
     #[arg(long)]
     bpf: bool,
     /// Load a named workload rule pack and merge it with the base rules.
@@ -252,7 +252,7 @@ impl Opt {
             return Err(miette!("Output template requires --output-template <PATH>"));
         }
         if self.redact && self.output != OutputType::Llm {
-            eprintln!("Warning: --redact has no effect unless --output llm is also set");
+            return Err(miette!("--redact is only valid with --output llm"));
         }
         Ok(self)
     }
@@ -507,15 +507,10 @@ fn show_output_template(opt: &Opt) -> miette::Result<()> {
         OutputType::Html => println!("{}", defaults::HTML_TEMPLATE),
         OutputType::Markdown => println!("{}", defaults::MD_TEMPLATE),
         OutputType::Json | OutputType::Llm | OutputType::Text => {
-            eprintln!(
-                "No template for --output {}: this format uses built-in serialization, not a Jinja2 template.",
-                match opt.output {
-                    OutputType::Json => "json",
-                    OutputType::Llm => "llm",
-                    OutputType::Text => "text",
-                    _ => unreachable!(),
-                }
-            );
+            return Err(miette::miette!(
+                "--show-output-template is not applicable for --output {:?}: this format uses built-in serialization",
+                opt.output
+            ));
         }
     }
     Ok(())
@@ -624,9 +619,12 @@ fn run_check(config: &Config, profile_filter: Option<&str>) -> miette::Result<()
     let missing = run_check_inner(&checks, is_tty, &mut handle)?;
 
     if missing > 0 {
-        eprintln!("{} {} not found", missing, if missing == 1 { "binary" } else { "binaries" });
         eprintln!("Tip: run 'usereport explain <name>' for install instructions, or check your PATH.");
-        std::process::exit(1);
+        return Err(miette::miette!(
+            "{} {} not found",
+            missing,
+            if missing == 1 { "binary" } else { "binaries" }
+        ));
     }
     Ok(())
 }
@@ -706,6 +704,7 @@ fn collect_signals_for_baseline() -> Vec<crate::Signal> {
         Box::new(CgroupCollector::new()),
         Box::new(CpuFreqCollector::new()),
         Box::new(InterruptsCollector::new()),
+        Box::new(DmesgCollector::new()),
     ];
     let mut signals = Vec::new();
     for c in &collectors {
@@ -724,7 +723,7 @@ fn run_baseline(action: &BaselineAction) -> miette::Result<()> {
         BaselineAction::Record { name, force } => {
             let label = name.as_deref().unwrap_or("default");
             if label.trim().is_empty() {
-                return Err(miette!("baseline name must not be empty"));
+                return Err(miette!("Baseline name is required — use --name <NAME> (e.g. --name prod-healthy)."));
             }
             if !force {
                 let exists = store
@@ -777,7 +776,7 @@ fn run_baseline(action: &BaselineAction) -> miette::Result<()> {
         BaselineAction::Delete { name, force } => {
             if !force {
                 return Err(miette!(
-                    "Deletion requires confirmation. Re-run with --force to proceed:\n  usereport baseline delete --force {}",
+                    "Pass --force to confirm deletion of baseline '{}'.",
                     name
                 ));
             }
@@ -982,7 +981,7 @@ pub fn builtin_collector_signals() -> &'static [(&'static str, &'static str)] {
         ("cpu.idle_pct", "CPU idle time (%)"),
         ("cpu.iowait_pct", "CPU time waiting on I/O (%)"),
         ("cpu.ctxt_per_sec", "Context switches per second"),
-        ("vmstat.r", "Runnable processes (vmstat r column)"),
+        ("cpu.run_queue", "Runnable processes in the run queue"),
         // CpuFreqCollector
         ("cpu.freq_ratio", "Current CPU frequency / max frequency ratio"),
         ("cpu.temp_celsius", "Maximum CPU temperature (°C)"),
@@ -999,7 +998,7 @@ pub fn builtin_collector_signals() -> &'static [(&'static str, &'static str)] {
         ("swap.total_mb", "Total swap space (MB)"),
         ("swap.used_mb", "Used swap space (MB)"),
         ("swap.free_mb", "Free swap space (MB)"),
-        ("vmstat.swap_in", "Pages swapped in since last sample"),
+        ("vmstat.swap_in", "Pages swapped in from disk"),
         // NetworkCollector
         ("net.rx_drops", "Total RX drop counter across interfaces"),
         ("net.retrans_pct", "TCP retransmit ratio (%)"),
@@ -1291,6 +1290,10 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> miette::Re
     }
     let rules_result = loader.load();
     let mut all_rules = rules_result.rules;
+    #[cfg(not(feature = "bpf"))]
+    if opt.bpf {
+        return Err(miette::miette!("--bpf requires a binary compiled with --features bpf. To build with BPF support: cargo install usereport-rs --features bpf"));
+    }
     #[cfg(feature = "bpf")]
     if opt.bpf {
         collectors.push(Box::new(BpfCollector::new()));
@@ -1384,6 +1387,7 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> miette::Re
         let use_bpf = opt.bpf;
         #[cfg(not(feature = "bpf"))]
         let use_bpf = false;
+        eprintln!("Profiling CPU for {} — this will block for the full duration…", profile_dur);
         match generate_flamegraph(dur_secs, use_bpf) {
             Ok(Some(svg)) => report = report.with_flamegraph(svg),
             Ok(None) => {
@@ -1684,7 +1688,6 @@ mod tests {
             duration: None,
             interval: None,
             redact: false,
-            #[cfg(feature = "bpf")]
             bpf: false,
             workload: "none".to_string(),
             profile_cpu: None,
