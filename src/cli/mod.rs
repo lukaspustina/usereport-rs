@@ -649,6 +649,24 @@ fn run_check(config: &Config, profile_filter: Option<&str>) -> miette::Result<()
             if required_missing == 1 { "binary" } else { "binaries" }
         ));
     }
+
+    // On Linux, warn when sar is available but sysstat data collection is not active.
+    // usereport's own sar commands use live sampling and work without the daemon,
+    // but the user may want historical data and should know how to enable it.
+    #[cfg(target_os = "linux")]
+    if which::which("sar").is_ok() {
+        let has_data = std::fs::read_dir("/var/log/sysstat")
+            .map(|mut d| d.next().is_some())
+            .unwrap_or(false);
+        if !has_data {
+            eprintln!(
+                "Note: sysstat data collection is not active (/var/log/sysstat/ is empty or missing).\n\
+                 usereport's sar commands use live sampling and will work, but bare `sar` historical\n\
+                 data is unavailable. Enable with: systemctl enable --now sysstat"
+            );
+        }
+    }
+
     Ok(())
 }
 
