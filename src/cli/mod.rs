@@ -4,7 +4,8 @@ use crate::{
     baseline::BaselineStore,
     collector::{
         Collector, cgroup::CgroupCollector, cpu::CpuCollector, cpufreq::CpuFreqCollector, disk::DiskCollector,
-        host::HostCollector, interrupts::InterruptsCollector, memory::MemoryCollector, network::NetworkCollector,
+        dmesg::DmesgCollector, host::HostCollector, interrupts::InterruptsCollector, memory::MemoryCollector,
+        network::NetworkCollector,
     },
     diff,
     finding::{Finding, Severity},
@@ -94,8 +95,7 @@ pub struct Opt {
     /// Exit-code policy based on the highest-severity finding produced.
     #[arg(long, value_enum, default_value = "never")]
     exit_on: ExitOn,
-    /// Target cgroup path for the cgroup collector (Phase 3 wiring).
-    /// Example: --cgroup /sys/fs/cgroup/system.slice/foo.service
+    /// Target cgroup v2 path for the cgroup collector (e.g. /sys/fs/cgroup/system.slice/myservice.service)
     #[arg(long)]
     pub cgroup: Option<PathBuf>,
     /// Set profile to use
@@ -116,6 +116,7 @@ pub struct Opt {
     /// Annotate signals with a named baseline (loaded from
     /// ${XDG_DATA_HOME}/usereport/baselines/<NAME>.json) and emit
     /// auto-outlier findings (|z|>3 → warn, |z|>6 → crit).
+    /// See also: 'usereport baseline record --name <NAME>' to create a baseline.
     #[arg(long, value_name = "NAME")]
     pub baseline: Option<String>,
     /// Add or remove commands from selected profile by prefixing the command's name with '+' or
@@ -142,6 +143,7 @@ pub struct Opt {
     /// Run CPU profiling for DURATION (e.g. 10s, 1m) using perf or bpftrace,
     /// fold stacks with inferno, and embed the flamegraph SVG in the HTML report.
     /// Requires perf or bpftrace in PATH; emits an info finding when neither is found.
+    /// (Note: unrelated to --profile which selects the command profile)
     #[arg(long, value_name = "DURATION")]
     profile_cpu: Option<String>,
     /// Subcommand: `usereport baseline …`, `usereport diff`, or `usereport explain <id>`.
@@ -158,7 +160,9 @@ pub enum Subcommand {
     },
     /// Diff two AnalysisReport JSON files.
     Diff {
+        #[arg(value_name = "BEFORE", help = "Path to the first (before) JSON report produced by --output json")]
         a: PathBuf,
+        #[arg(value_name = "AFTER", help = "Path to the second (after) JSON report produced by --output json")]
         b: PathBuf,
         /// Output format: `text` (default) or `json`.
         #[arg(long, default_value = "text", value_parser = |s: &str| match s {
@@ -169,8 +173,11 @@ pub enum Subcommand {
         output: OutputType,
     },
     /// Print the definition, what raises it, what to investigate, and links for a rule or signal ID.
-    /// When the ID is unknown, lists all known rule IDs.
-    Explain { id: String },
+    /// When no ID is given, lists all known topics.
+    Explain {
+        #[arg(value_name = "ID", help = "Rule ID, signal ID, or command name to explain")]
+        id: Option<String>,
+    },
     /// Check whether all binaries used by the selected profile(s) are installed on $PATH.
     Check {
         /// Profile to check (checks all profiles when omitted).
@@ -201,15 +208,19 @@ pub enum Subcommand {
 pub enum BaselineAction {
     /// Capture the current run as a named baseline.
     Record {
-        #[arg(long)]
+        #[arg(long, value_name = "NAME", default_value = "default", help = "Label for this baseline snapshot (defaults to \"default\")")]
         name: Option<String>,
     },
     /// List stored baselines.
     List,
     /// Show a stored baseline's contents.
-    Show { name: String },
+    Show {
+        #[arg(value_name = "NAME", help = "Name of the baseline to display")]
+        name: String,
+    },
     /// Delete a stored baseline.
     Delete {
+        #[arg(value_name = "NAME", help = "Name of the baseline to delete")]
         name: String,
         /// Confirm the deletion.
         #[arg(long)]
@@ -223,7 +234,7 @@ impl Opt {
             return Err(miette!("Output template requires --output-template <PATH>"));
         }
         if self.redact && self.output != OutputType::Llm {
-            eprintln!("warning: --redact has no effect unless --output llm is also set");
+            eprintln!("Warning: --redact has no effect unless --output llm is also set");
         }
         Ok(self)
     }
@@ -295,6 +306,7 @@ impl clap::ValueEnum for OutputType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 pub enum ExitOn {
     Never,
+    Info,
     Warn,
     Crit,
 }
@@ -310,6 +322,15 @@ pub enum ExitOn {
 pub fn compute_exit_code(exit_on: ExitOn, findings: &[Finding]) -> i32 {
     match exit_on {
         ExitOn::Never => 0,
+        ExitOn::Info => {
+            if findings.iter().any(|f| {
+                matches!(f.severity, Severity::Info | Severity::Warn | Severity::Crit)
+            }) {
+                1
+            } else {
+                0
+            }
+        }
         ExitOn::Warn => {
             if findings
                 .iter()
@@ -359,7 +380,10 @@ pub fn main() -> miette::Result<()> {
             .context("could not load configuration file")?;
         // Validate lightly — skip profile/command cross-validation since explain
         // should work even with partial configs.
-        return run_explain(id, &config);
+        return match id.as_deref() {
+            Some(id_str) => run_explain(id_str, &config),
+            None => run_explain_list(&config),
+        };
     }
 
     // Phase 2: subcommand dispatch (baseline / diff). The default code path
@@ -447,7 +471,7 @@ pub fn show_profiles_inner(config: &Config, is_tty: bool, out: &mut dyn Write) {
 }
 
 fn show_output_template(opt: &Opt) -> miette::Result<()> {
-    let template = match opt.output {
+    match opt.output {
         OutputType::Template => {
             let template_file = opt
                 .output_template
@@ -460,16 +484,22 @@ fn show_output_template(opt: &Opt) -> miette::Result<()> {
                 .read_to_string(&mut txt)
                 .into_diagnostic()
                 .context("failed to read template file")?;
-            txt
+            println!("{}", txt);
         }
-        OutputType::Html => defaults::HTML_TEMPLATE.to_string(),
-        OutputType::Json => "".to_string(),
-        OutputType::Markdown => defaults::MD_TEMPLATE.to_string(),
-        OutputType::Llm => "".to_string(),
-        OutputType::Text => "".to_string(),
-    };
-
-    println!("{}", template);
+        OutputType::Html => println!("{}", defaults::HTML_TEMPLATE),
+        OutputType::Markdown => println!("{}", defaults::MD_TEMPLATE),
+        OutputType::Json | OutputType::Llm | OutputType::Text => {
+            eprintln!(
+                "No template for --output {}: this format uses built-in serialization, not a Jinja2 template.",
+                match opt.output {
+                    OutputType::Json => "json",
+                    OutputType::Llm => "llm",
+                    OutputType::Text => "text",
+                    _ => unreachable!(),
+                }
+            );
+        }
+    }
     Ok(())
 }
 
@@ -499,7 +529,10 @@ fn run_subcommand(cmd: &Subcommand) -> miette::Result<()> {
         Subcommand::Diff { a, b, output } => run_diff(a, b, output),
         Subcommand::Explain { id } => {
             let config = Config::from_str(defaults::CONFIG).expect("builtin default config is always valid");
-            run_explain(id, &config)
+            match id.as_deref() {
+                Some(id_str) => run_explain(id_str, &config),
+                None => run_explain_list(&config),
+            }
         }
         Subcommand::Check { .. } => unreachable!("Check is handled before run_subcommand"),
         Subcommand::Convert {
@@ -572,6 +605,7 @@ fn run_check(config: &Config, profile_filter: Option<&str>) -> miette::Result<()
 
     if missing > 0 {
         eprintln!("{} {} not found", missing, if missing == 1 { "binary" } else { "binaries" });
+        eprintln!("Tip: run 'usereport explain <name>' for install instructions, or check your PATH.");
         std::process::exit(1);
     }
     Ok(())
@@ -602,7 +636,7 @@ pub fn run_check_inner(
         if !found {
             missing += 1;
         }
-        let status_str = if found { "ok" } else { "MISSING" };
+        let status_str = if found { "OK" } else { "MISSING" };
         // Show category only on the first row of each group
         let category_cell = if *category != last_category {
             last_category.clone_from(category);
@@ -622,9 +656,9 @@ pub fn run_check_inner(
     // status column. Render plain, then inject color codes in a post-processing pass.
     let rendered = format!("{table}");
     let rendered = if is_tty {
-        let colored = regex::Regex::new(r"\bok\b( +│)")
+        let colored = regex::Regex::new(r"\bOK\b( +│)")
             .unwrap()
-            .replace_all(&rendered, "\x1b[32mok\x1b[0m$1")
+            .replace_all(&rendered, "\x1b[32mOK\x1b[0m$1")
             .into_owned();
         regex::Regex::new(r"\bMISSING\b( *│)")
             .unwrap()
@@ -640,9 +674,18 @@ pub fn run_check_inner(
 fn collect_signals_for_baseline() -> Vec<crate::Signal> {
     use crate::collector::{CollectCtx, Collector};
     let ctx = CollectCtx::default();
+    if std::io::IsTerminal::is_terminal(&std::io::stderr()) {
+        eprintln!("Recording baseline: collecting signals...");
+    }
     let collectors: Vec<Box<dyn Collector>> = vec![
         Box::new(HostCollector::new()),
         Box::new(CpuCollector::new()),
+        Box::new(MemoryCollector::new()),
+        Box::new(NetworkCollector::new()),
+        Box::new(DiskCollector::new()),
+        Box::new(CgroupCollector::new()),
+        Box::new(CpuFreqCollector::new()),
+        Box::new(InterruptsCollector::new()),
     ];
     let mut signals = Vec::new();
     for c in &collectors {
@@ -656,26 +699,29 @@ fn collect_signals_for_baseline() -> Vec<crate::Signal> {
 
 fn run_baseline(action: &BaselineAction) -> miette::Result<()> {
     let store = BaselineStore::xdg()
-        .into_diagnostic()
-        .context("locate baseline directory")?;
+        .map_err(|e| miette::miette!("locate baseline directory: {}", e))?;
     match action {
         BaselineAction::Record { name } => {
             let label = name.as_deref().unwrap_or("default");
+            if store.dir().join(format!("{}.json", label)).exists() {
+                eprintln!("Warning: overwriting existing baseline '{}'", label);
+            }
             let signals = collect_signals_for_baseline();
             store
                 .record(label, &signals)
                 .into_diagnostic()
                 .with_context(|| format!("record baseline '{}'", label))?;
             println!(
-                "recorded baseline '{}' at {}",
+                "recorded baseline '{}' at {}\nRun 'usereport --baseline {}' on future runs to compare against this baseline.",
                 label,
-                store.dir().join(format!("{}.json", label)).display()
+                store.dir().join(format!("{}.json", label)).display(),
+                label
             );
         }
         BaselineAction::List => {
             let names = store.list().into_diagnostic().context("list baselines")?;
             if names.is_empty() {
-                println!("No baselines recorded.");
+                println!("No baselines recorded");
             } else {
                 for name in names {
                     println!("{}", name);
@@ -794,6 +840,34 @@ fn run_convert(
     Ok(())
 }
 
+pub fn run_explain_list(config: &Config) -> miette::Result<()> {
+    let stdout = std::io::stdout();
+    let mut handle = stdout.lock();
+    let all_rules = builtin_rules();
+    let all_signal_ids: Vec<&str> = config
+        .commands
+        .iter()
+        .flat_map(|cmd| cmd.extract().iter().map(|ex| ex.signal_id.as_str()))
+        .collect();
+
+    let mut known: Vec<String> = Vec::new();
+    for c in &config.commands {
+        known.push(format!("  {} (command)", c.name()));
+    }
+    for r in &all_rules {
+        known.push(format!("  {} (rule)", r.id));
+    }
+    for sid in &all_signal_ids {
+        known.push(format!("  {} (signal)", sid));
+    }
+    for (sid, _) in builtin_collector_signals() {
+        known.push(format!("  {} (collector signal)", sid));
+    }
+    known.sort();
+    writeln!(handle, "Known topics:\n{}", known.join("\n")).into_diagnostic()?;
+    Ok(())
+}
+
 pub fn run_explain(id: &str, config: &Config) -> miette::Result<()> {
     let is_tty = std::io::stdout().is_terminal();
     let stdout = std::io::stdout();
@@ -833,6 +907,14 @@ pub fn run_explain(id: &str, config: &Config) -> miette::Result<()> {
         return Ok(());
     }
 
+    // Look up builtin collector signals
+    if let Some((_, desc)) = builtin_collector_signals().iter().find(|(sid, _)| *sid == id) {
+        writeln!(handle, "Signal ID: {id}").into_diagnostic()?;
+        writeln!(handle, "Description: {desc}").into_diagnostic()?;
+        writeln!(handle, "Emitted by: built-in collector").into_diagnostic()?;
+        return Ok(());
+    }
+
     let mut known: Vec<String> = Vec::new();
     for c in &config.commands {
         known.push(format!("  {} (command)", c.name()));
@@ -842,6 +924,9 @@ pub fn run_explain(id: &str, config: &Config) -> miette::Result<()> {
     }
     for (sid, _) in &all_signal_ids {
         known.push(format!("  {} (signal)", sid));
+    }
+    for (sid, _) in builtin_collector_signals() {
+        known.push(format!("  {} (collector signal)", sid));
     }
     known.sort();
     Err(miette!(
@@ -883,6 +968,12 @@ pub fn run_explain_command(cmd: &crate::command::Command, _is_tty: bool, out: &m
         writeln!(out, "  Aggregate: {}", extract.aggregate).into_diagnostic()?;
         writeln!(out, "  Unit:      {}", extract.unit).into_diagnostic()?;
         writeln!(out, "  Pattern:   {}", extract.pattern).into_diagnostic()?;
+    }
+    if let Some(hint) = cmd.install_hint() {
+        if !hint.is_empty() {
+            writeln!(out).into_diagnostic()?;
+            writeln!(out, "Install hint: {hint}").into_diagnostic()?;
+        }
     }
     if let Some(links) = cmd.links.as_deref() {
         if !links.is_empty() {
@@ -1079,6 +1170,7 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> miette::Re
         Box::new(MemoryCollector::new()),
         Box::new(InterruptsCollector::new()),
         Box::new(CgroupCollector::new()),
+        Box::new(DmesgCollector::new()),
     ];
     // Load builtin rules + user rules from $XDG_CONFIG_HOME/usereport/rules.d
     let user_rules_dir = std::env::var("XDG_CONFIG_HOME")
@@ -1174,6 +1266,9 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> miette::Re
 
     // --profile-cpu: generate flamegraph and attach to report.
     if let Some(profile_dur) = &opt.profile_cpu {
+        if opt.output != OutputType::Html {
+            eprintln!("Warning: --profile-cpu flamegraph is only embedded in --output html; skipping profiling.");
+        } else {
         let dur = parse_duration(profile_dur)?;
         let dur_secs = dur.as_secs().max(1);
         #[cfg(feature = "bpf")]
@@ -1194,8 +1289,21 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> miette::Re
                     suggest: vec!["Install linux-perf or bpftrace and re-run.".to_string()],
                 });
             }
-            Err(e) => log::warn!("flamegraph generation failed: {}", e),
+            Err(e) => {
+                log::warn!("flamegraph generation failed: {}", e);
+                report.findings.push(Finding {
+                    id: "profile.flamegraph.error".to_string(),
+                    kind: crate::finding::FindingKind::Rule,
+                    severity: Severity::Warn,
+                    summary: format!("CPU flamegraph could not be generated: {}", e),
+                    evidence: Vec::new(),
+                    suggest: vec![
+                        "Verify perf or bpftrace is installed and you have sufficient permissions (may need sudo).".to_string(),
+                    ],
+                });
+            }
         }
+        } // else html
     }
 
     if let Some(handle) = progress_handle {
@@ -1315,7 +1423,11 @@ fn create_command_filter(command_spec: &[String]) -> (HashSet<&str>, HashSet<&st
             Some('-') => {
                 remove.insert(&cs[1..]);
             }
-            _ => {}
+            _ => {
+                if !cs.is_empty() {
+                    eprintln!("Warning: filter '{}' has no '+' or '-' prefix and will be ignored. Use '+{}' to add or '-{}' to remove a command.", cs, cs, cs);
+                }
+            }
         }
     }
 

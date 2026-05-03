@@ -11,7 +11,9 @@ pub struct VitalSigns {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct CpuVitalSigns {
-    pub iowait_pct: Option<f64>,
+    /// Active CPU time (usr% + sys%). Reflects CPU saturation more accurately
+    /// than iowait alone, which only shows I/O-blocking time.
+    pub active_pct: Option<f64>,
     pub severity: Option<Severity>,
     pub trend: Option<String>,
 }

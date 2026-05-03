@@ -2,7 +2,7 @@
 name = "usereport-rs"
 version = "0.2.0"
 authors = ["Lukas Pustina <lukas@pustina.net>"]
-description = "Collect system information for the first 60 seconds of a performance analysis"
+description = "System performance analysis and reporting CLI"
 repository = "https://github.com/lukaspustina/usereport-rs.git"
 homepage = "https://github.com/lukaspustina/usereport-rs"
 documentation = "https://docs.rs/usereport-rs"

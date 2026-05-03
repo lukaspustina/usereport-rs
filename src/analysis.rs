@@ -411,14 +411,19 @@ impl Context {
 pub fn compute_vital_signs(signals: &[Signal], findings: &[Finding]) -> VitalSigns {
     use crate::signal::SignalValue;
 
-    let cpu_iowait = signals
-        .iter()
-        .find(|s| s.id == "cpu.iowait_pct")
-        .and_then(|s| match s.value {
+    let get_pct = |id: &str| -> Option<f64> {
+        signals.iter().find(|s| s.id == id).and_then(|s| match s.value {
             SignalValue::F64(v) => Some(v),
             SignalValue::I64(v) => Some(v as f64),
             _ => None,
-        });
+        })
+    };
+    let cpu_active = match (get_pct("cpu.usr_pct"), get_pct("cpu.sys_pct")) {
+        (Some(usr), Some(sys)) => Some(usr + sys),
+        (Some(usr), None) => Some(usr),
+        (None, Some(sys)) => Some(sys),
+        (None, None) => get_pct("cpu.iowait_pct"),
+    };
 
     let mem_used = signals
         .iter()
@@ -450,7 +455,7 @@ pub fn compute_vital_signs(signals: &[Signal], findings: &[Finding]) -> VitalSig
 
     VitalSigns {
         cpu: CpuVitalSigns {
-            iowait_pct: cpu_iowait,
+            active_pct: cpu_active,
             severity: severity_for("cpu."),
             trend: None,
         },

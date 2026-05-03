@@ -50,7 +50,7 @@ fn html_xss_hostinfo_error_reason_escaped() {
         "findings": [],
         "checked_ok": [],
         "vital_signs": {
-            "cpu": {"iowait_pct": null, "severity": null, "trend": null},
+            "cpu": {"active_pct": null, "severity": null, "trend": null},
             "memory": {"used_pct": null, "severity": null},
             "disk": {"util_pct": null, "severity": null},
             "network": {"util_pct": null, "severity": null}
