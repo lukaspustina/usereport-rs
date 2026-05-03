@@ -42,6 +42,8 @@ pub enum Unit {
     BytesPerSec,
     #[serde(alias = "count")]
     Count,
+    #[serde(alias = "mb")]
+    Megabytes,
     Iops,
     Microseconds,
     Hz,
@@ -56,6 +58,7 @@ impl fmt::Display for Unit {
             Unit::MillisPerOp => "ms",
             Unit::BytesPerSec => "bytes/s",
             Unit::Count => "count",
+            Unit::Megabytes => "MB",
             Unit::Iops => "iops",
             Unit::Microseconds => "µs",
             Unit::Hz => "hz",

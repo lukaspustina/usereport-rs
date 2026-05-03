@@ -73,10 +73,16 @@ impl PatternEngine {
                 id: def.id.clone(),
                 source: e,
             })?;
-            let severity = match def.severity.as_str() {
+            let severity = match def.severity.to_ascii_lowercase().as_str() {
                 "crit" => Severity::Crit,
                 "warn" => Severity::Warn,
-                _ => Severity::Info,
+                "info" => Severity::Info,
+                other => {
+                    return Err(Error::Predicate {
+                        id: def.id.clone(),
+                        source: crate::rule::Error::Predicate(format!("unknown severity: {}", other)),
+                    });
+                }
             };
             patterns.push(Pattern {
                 id: def.id,
@@ -95,7 +101,9 @@ impl PatternEngine {
         let mut findings = Vec::new();
         for pattern in &self.patterns {
             if pattern.when.evaluate(&idx, ctx) {
-                let evidence = collect_evidence(signals);
+                let referenced: std::collections::HashSet<String> =
+                    pattern.when.signal_ids().into_iter().collect();
+                let evidence = collect_evidence(signals, &referenced);
                 findings.push(Finding {
                     id: pattern.id.clone(),
                     kind: FindingKind::Pattern,
@@ -141,9 +149,10 @@ summary = "test pattern"
     }
 }
 
-fn collect_evidence(signals: &[Signal]) -> Vec<Evidence> {
+fn collect_evidence(signals: &[Signal], referenced: &std::collections::HashSet<String>) -> Vec<Evidence> {
     signals
         .iter()
+        .filter(|s| referenced.contains(&s.id))
         .map(|s| Evidence {
             signal_id: s.id.clone(),
             observed: s.value.clone(),
