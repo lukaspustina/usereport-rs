@@ -1,19 +1,19 @@
 class UsereportRs < Formula
-  desc "Collect system information for the first 60 seconds of a performance analysis"
+  desc "System performance analysis and reporting CLI"
   homepage "https://github.com/lukaspustina/usereport-rs"
-  version "0.2.0"
+  version "0.2.1"
   if OS.mac? && Hardware::CPU.arm?
-    url "https://github.com/lukaspustina/usereport-rs/releases/download/v0.2.0/usereport-rs-aarch64-apple-darwin.tar.xz"
-    sha256 "26fea778e606e5a6032ca196cbcc656afc1f39bdf44b1cd9790a1dead8a435de"
+    url "https://github.com/lukaspustina/usereport-rs/releases/download/v0.2.1/usereport-rs-aarch64-apple-darwin.tar.xz"
+    sha256 "402a2b4f6adff7f05380401d47f927a98b46348d06845ca1aee56db59ff107f5"
   end
   if OS.linux?
     if Hardware::CPU.arm?
-      url "https://github.com/lukaspustina/usereport-rs/releases/download/v0.2.0/usereport-rs-aarch64-unknown-linux-musl.tar.xz"
-      sha256 "123d9b36856f0bce08f99e8102662ab267d9c92ee699c5403a872fd7603eb8a4"
+      url "https://github.com/lukaspustina/usereport-rs/releases/download/v0.2.1/usereport-rs-aarch64-unknown-linux-musl.tar.xz"
+      sha256 "307e484377eb5e642472ec4d79a2088bb05738337213de9e28612bf9f58da35c"
     end
     if Hardware::CPU.intel?
-      url "https://github.com/lukaspustina/usereport-rs/releases/download/v0.2.0/usereport-rs-x86_64-unknown-linux-musl.tar.xz"
-      sha256 "37ecf581fb2ae397b38c38c267cd63e0488b2fa99c92f53484bbc393c392b5b5"
+      url "https://github.com/lukaspustina/usereport-rs/releases/download/v0.2.1/usereport-rs-x86_64-unknown-linux-musl.tar.xz"
+      sha256 "a242e5afe2ffda5498320fcc9dbd74b1455cd066ce1b4b7b45e3132c7e252b47"
     end
   end
   license "MIT"
