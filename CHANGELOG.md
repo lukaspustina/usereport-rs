@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.2.1] - 2026-05-03
+
+### Fixed
+- Exclude absent signals from `checked_ok` — workload rules no longer falsely claim uncollected signals are healthy (392b31a)
+- Pattern engine `collect_evidence` now includes `host.*` signals from CollectCtx; NaN/infinite values filtered in baseline stats (392b31a)
+- Add firing and boundary tests for all 5 previously untested built-in patterns and `cpu.runqueue_saturation` (392b31a)
+- CLI help text: correct `--baseline` z-score thresholds (3.5/7.0), document `--exit-on info`, fix `--bpf` error on non-bpf binaries (c5e56fb)
+- `--show-output-template` on json/llm now exits non-zero instead of silently succeeding (c5e56fb)
+- Add DmesgCollector to `baseline record` signal collection so dmesg drift detection works (c5e56fb)
+- `baseline delete` error message rewritten to tell user what to do rather than blame them (c5e56fb)
+- `usereport check` exits via miette error instead of raw `process::exit(1)` (c5e56fb)
+- `--redact` without `--output llm` now hard-errors in validate instead of warning mid-output (c5e56fb)
+- Add `date_time` field to `LlmOutput`; fix `Unit::Hz` display casing; HTML title capitalisation (e0cda56)
+- Vital signs "no data" cells now read "no data (collector unavailable)" (e0cda56)
+- diff text output: severity labels now uppercase (CRIT/WARN/INFO); missing signals-only and severity-changed sections added (e62c21b)
+- Phantom signal IDs `vmstat.r` and `vmstat.swap_out` removed from docs and `explain` registry (51168c5, f70e12f)
+- Multiple rule engine, template, CLI, and collector fixes from product review (42dac69, e534cb2, e4ac739, 148017d, 7a59f4e, ed1960d, 97ec3bb, a154c8c, ea3117d, b1e7c0e, 4ff4b74, fc7bca9)
+
+### Added
+- Pattern engine wired into analysis: `PatternEngine::empty()`, `extend_from()`, `run()` (0558b29)
+- LLM output now includes raw command excerpts; `diff --output` validated at parse time (8916dd7)
+- `usereport explain` resolves signal IDs; `Display` impls for `Aggregate` and `Unit` (b02fb51)
+- Error message quality pass: all user-facing errors now identify what failed and suggest next steps (c5ea399)
+- `cpu`, `io`, and `total` profiles aligned with USE methodology (ef53ebf)
+
+### Changed
+- Update cargo-deny skip list for `wit-bindgen` 0.46/0.51 transitive duplicate (16f3974)
+
 ## [0.2.0] - 2026-05-02
 
 ### Added
