@@ -102,7 +102,11 @@ usereport --duration 10s --interval 2s --profile cpu --output json | jq '.findin
 
 # Postgres host with baseline comparison and CI gate
 usereport --workload postgres --baseline prod-healthy --exit-on warn
+```
 
+> **Note:** `--workload postgres` requires custom `[[command.extract]]` entries in your config to emit `pg.*` signals. See [Workload-aware rules](#workload-aware-rules) for setup details.
+
+```sh
 # Everything, including eBPF histograms and an inline flamegraph
 sudo usereport --bpf --profile-cpu 30s --output html -O deep.html
 
@@ -217,7 +221,7 @@ usereport --output llm --redact | your-ai-cli "diagnose this and suggest fixes"
 # Record a clean snapshot
 usereport baseline record --name green
 
-# Later — anomalies (|z| > 3) become automatic findings
+# Later — anomalies (|z| > 3.5) become automatic findings
 usereport --baseline green --output json \
   | jq '.signals[] | select(.baseline != null) | {id, z_score: .baseline.z_score}'
 
@@ -498,7 +502,10 @@ Signals changed:
 
 Findings only in before-fix.json:
   [Warn] cpu.frequency_throttling
-  [Warn] Anomaly: cpu.freq_ratio (z_score 28.5)
+  [Warn] Anomaly: cpu.freq_ratio
+
+Findings only in after-fix.json:
+  (none)
 ```
 
 The batch job completed in 22 minutes on the next run.
@@ -569,7 +576,7 @@ Single-signal rules are fast. Multi-signal patterns catch the subtle failures:
 |---------|-----------------------|
 | `time_wait_exhaustion` | `net.tw_count > 28000` + `net.connect_failures > 0` |
 | `lock_contention` | `dmesg.blocked_task_count > 0` + `cpu.iowait_pct > 10` |
-| `thundering_herd` | `vmstat.r > host.cpu_count` + `cpu.sys_pct > 30` |
+| `thundering_herd` | `cpu.run_queue > host.cpu_count` + `cpu.sys_pct > 30` |
 | `socket_leak` | `net.tw_count > 10000` + `net.rx_drops > 0` |
 | `nfs_stall` | `dmesg.blocked_task_count > 0` + `cpu.iowait_pct > 20` |
 | `slab_leak` | `mem.free_pct < 10` + `dmesg.oom_count == 0` |
@@ -586,7 +593,7 @@ usereport baseline record --name tuesday
 usereport --baseline tuesday --output html -O incident.html
 ```
 
-Signals that deviate by a modified z-score above 3 get a `warn` finding. Above 6 get `crit`. (The modified z-score uses median and MAD rather than mean and standard deviation, making it robust to non-Gaussian data.) The finding shows you the baseline p50, the observed value, and the z-score — no guessing whether the deviation is meaningful.
+Signals that deviate by a modified z-score above 3.5 get a `warn` finding. Above 7.0 get `crit`. (The modified z-score uses median and MAD rather than mean and standard deviation, making it robust to non-Gaussian data.) The finding shows you the baseline p50, the observed value, and the z-score — no guessing whether the deviation is meaningful.
 
 ### Workload-aware rules
 
@@ -613,7 +620,7 @@ usereport --bpf   # runqlat, biolatency, tcpretrans, execsnoop, cachestat
 
 > **Note:** `--profile-cpu` flamegraphs are only embedded in `--output html`. With any other output format the profiling step is skipped.
 
-Emits histogram signals with full percentile stats (`p50`, `p95`, `p99`). Falls back gracefully — if a BCC tool isn't installed, you get an `info` finding with the install hint instead of an error.
+Emits histogram signals with full percentile stats (`p50`, `p95`, `p99`). Runs a full analysis — if a BCC tool isn't installed, you get an `info` finding with the install hint and the run continues normally; `--bpf` never causes an early exit.
 
 ### CPU flamegraph, inline
 
