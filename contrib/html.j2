@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 
-    <title>Use Report - {{ context.hostname | e }} on {{ context.date_time | rfc2822 }}</title>
+    <title>Use Report — {{ context.hostname | e }} on {{ context.date_time | rfc2822 }}</title>
 
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; color: #212529; }
@@ -31,7 +31,7 @@
 </head>
 <body>
 <div class="container-fluid">
-    <h1>Use Report - {{ context.hostname | e }} on {{ context.date_time | rfc2822 }}</h1>
+    <h1>Use Report — {{ context.hostname | e }} on {{ context.date_time | rfc2822 }}</h1>
 
     <h2>Summary</h2>
     <ul class="list-group">
@@ -41,7 +41,7 @@
         <li class="list-group-item">Repetitions: {{ repetitions }}</li>
         <li class="list-group-item">Parallelism: {{ max_parallel_commands }}</li>
         {% if findings %}
-        <li class="list-group-item">Top concern: <strong>{{ findings[0].severity }}</strong> — {{ findings[0].summary | e }}</li>
+        <li class="list-group-item">Top concern: <strong>{{ findings[0].severity | upper }}</strong> — {{ findings[0].summary | e }}</li>
         {% endif %}
     </ul>
 
@@ -184,8 +184,6 @@
         {% for key, value in context.more | items %}
             <li class="list-group-item">{{ key | e }}: {{ value | e }}</li>
         {% endfor %}
-        <li class="list-group-item">Repetitions: {{ repetitions }}</li>
-        <li class="list-group-item">Parallelism: {{ max_parallel_commands }}</li>
     </ul>
     </p>
 
@@ -261,7 +259,7 @@
     <hr/>
 
     {% for run in command_results %}
-        <h2>Command Results{% if command_results | length > 1 %} - Run {{ loop.index }}{% endif %}</h2>
+        <h2>Command Results{% if command_results | length > 1 %} — Run {{ loop.index }}{% endif %}</h2>
         {# Evidence commands rendered first (before details), then non-evidence in <details> #}
         <ul class="list-group">
         {% for result in run %}
@@ -388,7 +386,7 @@
 
     <hr/>
 
-    <small>Please see <a
+    <small>See <a
             href="https://medium.com/netflix-techblog/linux-performance-analysis-in-60-000-milliseconds-accc10403c55">Linux
         Performance Analysis in 60,000 Milliseconds</a> for details about the individual reports.</small>
     {%- if findings %}

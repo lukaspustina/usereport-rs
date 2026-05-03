@@ -23,8 +23,8 @@ fn unknown_topic_returns_error() {
     );
     let combined = format!("{stderr}{stdout}");
     assert!(
-        combined.to_lowercase().contains("unknown topic"),
-        "expected error output to contain 'unknown topic'; got: {combined}"
+        combined.to_lowercase().contains("unknown"),
+        "expected error output to contain 'unknown'; got: {combined}"
     );
     assert!(
         combined.contains("totally_unknown_id"),

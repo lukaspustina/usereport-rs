@@ -20,4 +20,4 @@ when = "dmesg.fs_error_count > 0"
 severity = "crit"
 summary = "Filesystem errors logged (EXT4 / XFS)."
 evidence = ["dmesg.fs_error_count"]
-suggest = ["dmesg -T | grep -Ei 'ext4|xfs.*error'", "smartctl -a /dev/sdX"]
+suggest = ["dmesg -T | grep -Ei 'ext4|xfs.*error'", "smartctl --scan"]

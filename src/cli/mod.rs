@@ -91,7 +91,7 @@ pub struct Opt {
     /// Activate debug mode
     #[arg(short, long)]
     debug: bool,
-    /// Exit-code policy based on the highest-severity finding produced.
+    /// Exit-code policy: never=always 0; warn=exit 1 on any Warn or Crit finding; crit=exit 2 only on Crit findings
     #[arg(long, value_enum, default_value = "never")]
     exit_on: ExitOn,
     /// Target cgroup path for the cgroup collector (Phase 3 wiring).
@@ -158,7 +158,9 @@ pub enum Subcommand {
     },
     /// Diff two AnalysisReport JSON files.
     Diff {
+        /// First JSON report (produced by `--output json`).
         a: PathBuf,
+        /// Second JSON report to compare against the first.
         b: PathBuf,
         /// Output format: `text` (default) or `json`.
         #[arg(long, default_value = "text", value_parser = |s: &str| s.parse::<OutputType>().map_err(|e| e.to_string()))]
@@ -166,7 +168,10 @@ pub enum Subcommand {
     },
     /// Print the definition, what raises it, what to investigate, and links for a rule or signal ID.
     /// When the ID is unknown, lists all known rule IDs.
-    Explain { id: String },
+    Explain {
+        /// A rule ID (e.g. net.retransmit_elevated), signal ID, or command name. Run without an ID to list all known IDs.
+        id: String,
+    },
     /// Check whether all binaries used by the selected profile(s) are installed on $PATH.
     Check {
         /// Profile to check (checks all profiles when omitted).
@@ -197,6 +202,7 @@ pub enum Subcommand {
 pub enum BaselineAction {
     /// Capture the current run as a named baseline.
     Record {
+        /// Name for the baseline (defaults to "default").
         #[arg(long)]
         name: Option<String>,
     },
@@ -211,10 +217,12 @@ pub enum BaselineAction {
 impl Opt {
     pub fn validate(self) -> miette::Result<Self> {
         if self.output == OutputType::Template && self.output_template.is_none() {
-            return Err(miette!("Output template requires --output-template <PATH>"));
+            return Err(miette!("output template requires --output-template <PATH>"));
         }
         if self.redact && self.output != OutputType::Llm {
-            eprintln!("warning: --redact has no effect unless --output llm is also set");
+            return Err(miette!(
+                "--redact only applies to --output llm; either add --output llm or remove --redact"
+            ));
         }
         Ok(self)
     }
@@ -436,7 +444,7 @@ pub fn show_profiles_inner(config: &Config, is_tty: bool, out: &mut dyn Write) {
 }
 
 fn show_output_template(opt: &Opt) -> miette::Result<()> {
-    let template = match opt.output {
+    match opt.output {
         OutputType::Template => {
             let template_file = opt
                 .output_template
@@ -449,16 +457,17 @@ fn show_output_template(opt: &Opt) -> miette::Result<()> {
                 .read_to_string(&mut txt)
                 .into_diagnostic()
                 .context("failed to read template file")?;
-            txt
+            println!("{}", txt);
         }
-        OutputType::Html => defaults::HTML_TEMPLATE.to_string(),
-        OutputType::Json => "".to_string(),
-        OutputType::Markdown => defaults::MD_TEMPLATE.to_string(),
-        OutputType::Llm => "".to_string(),
-        OutputType::Text => "".to_string(),
-    };
-
-    println!("{}", template);
+        OutputType::Html => println!("{}", defaults::HTML_TEMPLATE),
+        OutputType::Markdown => println!("{}", defaults::MD_TEMPLATE),
+        OutputType::Json | OutputType::Llm | OutputType::Text => {
+            eprintln!(
+                "note: --output {:?} has no Jinja2 template; output is generated directly from the report data",
+                opt.output
+            );
+        }
+    }
     Ok(())
 }
 
@@ -560,7 +569,11 @@ fn run_check(config: &Config, profile_filter: Option<&str>) -> miette::Result<()
     let missing = run_check_inner(&checks, is_tty, &mut handle)?;
 
     if missing > 0 {
-        eprintln!("{} {} not found", missing, if missing == 1 { "binary" } else { "binaries" });
+        eprintln!(
+            "{} {} not found — check the Install column above for package names, or run `usereport explain <command>` for details",
+            missing,
+            if missing == 1 { "binary" } else { "binaries" }
+        );
         std::process::exit(1);
     }
     Ok(())
@@ -629,10 +642,18 @@ pub fn run_check_inner(
 fn collect_signals_for_baseline() -> Vec<crate::Signal> {
     use crate::collector::{CollectCtx, Collector};
     let ctx = CollectCtx::default();
-    let collectors: Vec<Box<dyn Collector>> = vec![
+    let mut collectors: Vec<Box<dyn Collector>> = vec![
         Box::new(HostCollector::new()),
         Box::new(CpuCollector::new()),
+        Box::new(DiskCollector::new()),
+        Box::new(NetworkCollector::new()),
+        Box::new(CpuFreqCollector::new()),
+        Box::new(MemoryCollector::new()),
+        Box::new(InterruptsCollector::new()),
+        Box::new(CgroupCollector::new()),
     ];
+    #[cfg(target_os = "linux")]
+    collectors.push(Box::new(crate::collector::dmesg::DmesgCollector::new()));
     let mut signals = Vec::new();
     for c in &collectors {
         match c.collect(&ctx) {
@@ -646,7 +667,7 @@ fn collect_signals_for_baseline() -> Vec<crate::Signal> {
 fn run_baseline(action: &BaselineAction) -> miette::Result<()> {
     let store = BaselineStore::xdg()
         .into_diagnostic()
-        .context("locate baseline directory")?;
+        .context("failed to locate baseline directory")?;
     match action {
         BaselineAction::Record { name } => {
             let label = name.as_deref().unwrap_or("default");
@@ -656,18 +677,20 @@ fn run_baseline(action: &BaselineAction) -> miette::Result<()> {
                 .into_diagnostic()
                 .with_context(|| format!("record baseline '{}'", label))?;
             println!(
-                "recorded baseline '{}' at {}",
+                "recorded baseline '{}' at {}\n  run with --baseline {} to compare future runs",
                 label,
-                store.dir().join(format!("{}.json", label)).display()
+                store.dir().join(format!("{}.json", label)).display(),
+                label,
             );
         }
         BaselineAction::List => {
-            let names = store.list().into_diagnostic().context("list baselines")?;
+            let names = store.list().into_diagnostic().context("failed to list baselines")?;
             if names.is_empty() {
                 println!("No baselines recorded.");
             } else {
+                println!("{} baseline(s):", names.len());
                 for name in names {
-                    println!("{}", name);
+                    println!("  {}", name);
                 }
             }
         }
@@ -677,14 +700,14 @@ fn run_baseline(action: &BaselineAction) -> miette::Result<()> {
             .with_context(|| format!("load baseline '{}'", name))?
         {
             Some(record) => println!("{}", serde_json::to_string_pretty(&record).into_diagnostic()?),
-            None => return Err(miette!("baseline '{}' not found", name)),
+            None => return Err(miette!("baseline '{}' not found; run 'usereport baseline list' to see recorded baselines", name)),
         },
         BaselineAction::Delete { name } => {
             store
                 .delete(name)
                 .into_diagnostic()
                 .with_context(|| format!("delete baseline '{}'", name))?;
-            println!("deleted baseline '{}'", name);
+            println!("deleted baseline '{}'\n  run 'usereport baseline list' to confirm", name);
         }
     }
     Ok(())
@@ -733,7 +756,9 @@ fn run_convert(
     redact: bool,
 ) -> miette::Result<()> {
     if redact && *output != OutputType::Llm {
-        eprintln!("warning: --redact has no effect unless --output llm is also set");
+        return Err(miette!(
+            "--redact only applies to --output llm; either add --output llm or remove --redact"
+        ));
     }
     let report: AnalysisReport = match input {
         Some(path) => {
@@ -824,7 +849,7 @@ pub fn run_explain(id: &str, config: &Config) -> miette::Result<()> {
     }
     known.sort();
     Err(miette!(
-        "unknown topic '{}'\n\nKnown topics:\n{}",
+        "unknown rule or signal ID '{}'\n\nKnown topics:\n{}",
         id,
         known.join("\n"),
     ))
@@ -973,7 +998,7 @@ fn generate_svg_from_perf_script(perf_output: &[u8]) -> miette::Result<Option<St
     folder
         .collapse(perf_output, &mut collapsed)
         .into_diagnostic()
-        .context("inferno collapse failed")?;
+        .context("stack collapse failed")?;
 
     let collapsed_str = String::from_utf8_lossy(&collapsed);
     let lines: Vec<&str> = collapsed_str.lines().filter(|l| !l.is_empty()).collect();
@@ -984,7 +1009,7 @@ fn generate_svg_from_perf_script(perf_output: &[u8]) -> miette::Result<Option<St
     let mut svg = Vec::new();
     flamegraph::from_lines(&mut flamegraph::Options::default(), lines, &mut svg)
         .into_diagnostic()
-        .context("inferno flamegraph failed")?;
+        .context("flamegraph rendering failed")?;
     Ok(Some(String::from_utf8(svg).into_diagnostic()?))
 }
 
@@ -1000,7 +1025,7 @@ fn generate_svg_from_folded(folded: &[u8]) -> miette::Result<Option<String>> {
     let mut svg = Vec::new();
     flamegraph::from_lines(&mut flamegraph::Options::default(), lines, &mut svg)
         .into_diagnostic()
-        .context("inferno flamegraph failed")?;
+        .context("flamegraph rendering failed")?;
     Ok(Some(String::from_utf8(svg).into_diagnostic()?))
 }
 
@@ -1043,6 +1068,8 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> miette::Re
         Box::new(InterruptsCollector::new()),
         Box::new(CgroupCollector::new()),
     ];
+    #[cfg(target_os = "linux")]
+    collectors.push(Box::new(crate::collector::dmesg::DmesgCollector::new()));
     // Load builtin rules + user rules from $XDG_CONFIG_HOME/usereport/rules.d
     let user_rules_dir = std::env::var("XDG_CONFIG_HOME")
         .ok()
@@ -1107,14 +1134,14 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> miette::Re
     if let Some(name) = opt.baseline.as_deref() {
         let store = BaselineStore::xdg()
             .into_diagnostic()
-            .context("locate baseline directory")?;
+            .context("failed to locate baseline directory")?;
         match store
             .load(name)
             .into_diagnostic()
             .with_context(|| format!("load baseline '{}'", name))?
         {
             Some(record) => analysis = analysis.with_baseline_records(vec![record]),
-            None => return Err(miette!("baseline '{}' not found", name)),
+            None => return Err(miette!("baseline '{}' not found; run 'usereport baseline list' to see recorded baselines", name)),
         }
     }
 
@@ -1136,6 +1163,11 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> miette::Re
     }
 
     // --profile-cpu: generate flamegraph and attach to report.
+    if opt.profile_cpu.is_some() && opt.output != OutputType::Html {
+        eprintln!(
+            "note: --profile-cpu flamegraphs are embedded in HTML output; use --output html to include the flamegraph"
+        );
+    }
     if let Some(profile_dur) = &opt.profile_cpu {
         let dur = parse_duration(profile_dur)?;
         let dur_secs = dur.as_secs().max(1);
@@ -1157,7 +1189,16 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> miette::Re
                     suggest: vec!["Install linux-perf or bpftrace and re-run.".to_string()],
                 });
             }
-            Err(e) => log::warn!("flamegraph generation failed: {}", e),
+            Err(e) => {
+                report.findings.push(Finding {
+                    id: "profile.cpu.error".to_string(),
+                    kind: crate::finding::FindingKind::Rule,
+                    severity: Severity::Warn,
+                    summary: format!("flamegraph generation failed: {}", e),
+                    evidence: Vec::new(),
+                    suggest: vec!["Check that 'perf' or 'bpftrace' is installed and you have sufficient permissions.".to_string()],
+                });
+            }
         }
     }
 

@@ -31,4 +31,4 @@ when = "jvm.metaspace_used_pct > 90"
 severity = "crit"
 summary = "JVM Metaspace above 90% — risk of OutOfMemoryError: Metaspace."
 evidence = ["jvm.metaspace_used_pct"]
-suggest = ["jcmd <PID> VM.native_memory summary", "consider -XX:MaxMetaspaceSize"]
+suggest = ["jcmd $(pgrep -f java | head -1) VM.native_memory summary", "jcmd $(pgrep -f java | head -1) VM.flags | grep -i metaspace"]

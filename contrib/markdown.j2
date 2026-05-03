@@ -14,7 +14,7 @@
 {%- endfor %}
 {%- if findings %}
 
-> **{{ findings[0].severity }}** — {{ findings[0].summary }}
+> **{{ findings[0].severity | upper }}** — {{ findings[0].summary }}
 {%- endif %}
 
 ## Vital Signs
@@ -22,13 +22,13 @@
 | Resource | Value | Severity |
 |----------|-------|----------|
 {%- set cpu_profiled = vital_signs.cpu.iowait_pct is not none or vital_signs.cpu.severity is not none %}
-| CPU | {% if vital_signs.cpu.iowait_pct is not none %}iowait {{ vital_signs.cpu.iowait_pct | round(1) }}%{% elif cpu_profiled %}—{% else %}[not profiled]{% endif %} | {% if vital_signs.cpu.severity is not none %}{{ vital_signs.cpu.severity }}{% elif cpu_profiled %}—{% else %}[not profiled]{% endif %} |
+| CPU | {% if vital_signs.cpu.iowait_pct is not none %}iowait {{ vital_signs.cpu.iowait_pct | round(1) }}%{% elif cpu_profiled %}—{% else %}[not profiled]{% endif %} | {% if vital_signs.cpu.severity is not none %}{{ vital_signs.cpu.severity | upper }}{% elif cpu_profiled %}—{% else %}[not profiled]{% endif %} |
 {%- set mem_profiled = vital_signs.memory.used_pct is not none or vital_signs.memory.severity is not none %}
-| Memory | {% if vital_signs.memory.used_pct is not none %}used {{ vital_signs.memory.used_pct | round(1) }}%{% elif mem_profiled %}—{% else %}[not profiled]{% endif %} | {% if vital_signs.memory.severity is not none %}{{ vital_signs.memory.severity }}{% elif mem_profiled %}—{% else %}[not profiled]{% endif %} |
+| Memory | {% if vital_signs.memory.used_pct is not none %}used {{ vital_signs.memory.used_pct | round(1) }}%{% elif mem_profiled %}—{% else %}[not profiled]{% endif %} | {% if vital_signs.memory.severity is not none %}{{ vital_signs.memory.severity | upper }}{% elif mem_profiled %}—{% else %}[not profiled]{% endif %} |
 {%- set disk_profiled = vital_signs.disk.util_pct is not none or vital_signs.disk.severity is not none %}
-| Disk | {% if vital_signs.disk.util_pct is not none %}util {{ vital_signs.disk.util_pct | round(1) }}%{% elif disk_profiled %}—{% else %}[not profiled]{% endif %} | {% if vital_signs.disk.severity is not none %}{{ vital_signs.disk.severity }}{% elif disk_profiled %}—{% else %}[not profiled]{% endif %} |
+| Disk | {% if vital_signs.disk.util_pct is not none %}util {{ vital_signs.disk.util_pct | round(1) }}%{% elif disk_profiled %}—{% else %}[not profiled]{% endif %} | {% if vital_signs.disk.severity is not none %}{{ vital_signs.disk.severity | upper }}{% elif disk_profiled %}—{% else %}[not profiled]{% endif %} |
 {%- set net_profiled = vital_signs.network.util_pct is not none or vital_signs.network.severity is not none %}
-| Network | {% if vital_signs.network.util_pct is not none %}util {{ vital_signs.network.util_pct | round(1) }}%{% elif net_profiled %}—{% else %}[not profiled]{% endif %} | {% if vital_signs.network.severity is not none %}{{ vital_signs.network.severity }}{% elif net_profiled %}—{% else %}[not profiled]{% endif %} |
+| Network | {% if vital_signs.network.util_pct is not none %}util {{ vital_signs.network.util_pct | round(1) }}%{% elif net_profiled %}—{% else %}[not profiled]{% endif %} | {% if vital_signs.network.severity is not none %}{{ vital_signs.network.severity | upper }}{% elif net_profiled %}—{% else %}[not profiled]{% endif %} |
 
 {%- if use_coverage %}
 ## USE Coverage
@@ -79,7 +79,7 @@
 ## Findings
 
 {% for f in findings -%}
-### [{{ f.severity }}] {{ f.id }}
+### [{{ f.severity | upper }}] {{ f.id }}
 
 {{ f.summary }}
 

@@ -131,7 +131,7 @@ fn ac_r33_profile_cpu_flag_parses() {
 #[test]
 fn ac_r34_explain_subcommand_parses() {
     use clap::Parser;
-    let opt = usereport::cli::Opt::try_parse_from(["usereport", "explain", "net.retrans_high"]).expect("parse");
+    let opt = usereport::cli::Opt::try_parse_from(["usereport", "explain", "net.retransmit_elevated"]).expect("parse");
     let _ = opt;
 }
 

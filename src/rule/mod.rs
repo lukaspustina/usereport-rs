@@ -85,6 +85,30 @@ impl Predicate {
         expr.parse(input.trim()).map_err(|e| Error::Predicate(e.to_string()))
     }
 
+    /// Return all signal IDs referenced by this predicate (left-hand paths plus
+    /// any right-hand path comparisons). Used to scope pattern evidence to only
+    /// the signals the pattern actually tested.
+    pub fn signal_ids(&self) -> Vec<String> {
+        let mut ids = Vec::new();
+        self.collect_ids(&mut ids);
+        ids
+    }
+
+    fn collect_ids(&self, ids: &mut Vec<String>) {
+        match self {
+            Predicate::Cmp { path, rhs, .. } => {
+                ids.push(path.join("."));
+                if let Rhs::Path(p) = rhs {
+                    ids.push(p.join("."));
+                }
+            }
+            Predicate::And(a, b) | Predicate::Or(a, b) => {
+                a.collect_ids(ids);
+                b.collect_ids(ids);
+            }
+        }
+    }
+
     pub fn evaluate(&self, signals_index: &SignalIndex<'_>, ctx: &CollectCtx) -> bool {
         match self {
             Predicate::And(a, b) => a.evaluate(signals_index, ctx) && b.evaluate(signals_index, ctx),

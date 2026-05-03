@@ -16,7 +16,7 @@ when = "pg.cache_hit_pct < 90"
 severity = "warn"
 summary = "PostgreSQL shared-buffer cache hit rate below 90% — working set may not fit in shared_buffers."
 evidence = ["pg.cache_hit_pct"]
-suggest = ["psql -c 'SELECT sum(blks_hit)*100.0/(sum(blks_hit)+sum(blks_read)) FROM pg_stat_database;'", "consider increasing shared_buffers"]
+suggest = ["psql -c 'SELECT sum(blks_hit)*100.0/(sum(blks_hit)+sum(blks_read)) FROM pg_stat_database;'", "psql -c \"SHOW shared_buffers;\""]
 
 [[rule]]
 id = "pg.lock_waits_nonzero"

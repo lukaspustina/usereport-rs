@@ -12,7 +12,7 @@ when = "net.rx_drops > 0"
 severity = "warn"
 summary = "Receiver-side packet drops detected."
 evidence = ["net.rx_drops"]
-suggest = ["ip -s link", "ethtool -S <iface>"]
+suggest = ["ip -s link", "ethtool -S $(ip route | awk '/default/{print $5; exit}')"]
 
 [[rule]]
 id = "net.time_wait_high"

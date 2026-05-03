@@ -178,9 +178,9 @@ usereport --exit-on warn && echo "healthy" || pagerduty-alert
 ### Explain any finding or rule
 
 ```sh
-$ usereport explain net.retrans_high
+$ usereport explain net.retransmit_elevated
 
-ID:       net.retrans_high
+ID:       net.retransmit_elevated
 Severity: Warn
 Summary:  TCP retransmit rate is elevated (> 1%)
 
@@ -254,10 +254,6 @@ usereport check
 | profiling  | perf        | perf             | ok     |
 |------------+-------------+------------------+--------|
 | profiling  | bpftrace    | bpftrace         | ok     |
-|------------+-------------+------------------+--------|
-| bpf        | runqlat     | runqlat-bpfcc    | ok     |
-|------------+-------------+------------------+--------|
-| bpf        | biolatency  | biolatency-bpfcc | ok     |
 +------------+-------------+------------------+--------+
 ```
 
@@ -532,7 +528,7 @@ On Linux, `usereport` reads the kernel directly — no tool required, no parsing
 | `net.max_cpu_irq_pct` | `/proc/interrupts` |
 | `cpu.freq_ratio`, `cpu.temp_celsius` | `/sys/devices/system/cpu/*/cpufreq/` + thermal zones |
 | `cgroup.memory_bytes`, `cgroup.oom_kills`, `cgroup.pids_current` | cgroup v1 / v2, auto-detected |
-| `mem.swap_in`, `mem.swap_out` | `/proc/vmstat` |
+| `vmstat.swap_in`, `vmstat.swap_out` | `/proc/vmstat` |
 | `host.load_avg_1m`, `host.mem_total_bytes` | `/proc/loadavg`, `/proc/meminfo` |
 
 On macOS, the equivalent signals are collected via native commands:
@@ -552,7 +548,7 @@ Built-in rules fire findings when signals cross thresholds. Write your own in TO
 
 ```toml
 [[rule]]
-id          = "net.retrans_high"
+id          = "custom.retrans_high"
 when        = "net.retrans_pct > 1"
 severity    = "warn"
 summary     = "TCP retransmit rate is elevated (> 1%)"
@@ -570,7 +566,7 @@ Predicates support:
 | Cross-signal comparison | `vmstat.r > host.cpu_count` |
 | Percentile stats | `cpu.usr_pct.p95 > 80` |
 | Trend direction | `net.tw_count.trend == "rising"` |
-| Boolean logic | `mem.free_pct < 5 AND mem.swap_in > 0` |
+| Boolean logic | `mem.free_pct < 5 AND vmstat.swap_in > 0` |
 
 A broken rule file emits a `warn` finding and is skipped — it never breaks the run.
 
@@ -580,12 +576,12 @@ Single-signal rules are fast. Multi-signal patterns catch the subtle failures:
 
 | Pattern | Signals it correlates |
 |---------|-----------------------|
-| `time_wait_exhaustion` | `net.tw_count` + `net.connect_failures` |
-| `lock_contention` | CPU saturation + high iowait + run-queue depth |
-| `thundering_herd` | burst of short-lived processes + CPU spikes |
-| `socket_leak` | rising `net.tw_count` without matching traffic |
-| `nfs_stall` | iowait spike + NFS mount activity |
-| `slab_leak` | rising kernel slab usage over time |
+| `time_wait_exhaustion` | `net.tw_count > 28000` + `net.connect_failures > 0` |
+| `lock_contention` | `dmesg.blocked_task_count > 0` + `cpu.iowait_pct > 10` |
+| `thundering_herd` | `vmstat.r > host.cpu_count` + `cpu.sys_pct > 30` |
+| `socket_leak` | `net.tw_count > 10000` + `net.rx_drops > 0` |
+| `nfs_stall` | `dmesg.blocked_task_count > 0` + `cpu.iowait_pct > 20` |
+| `slab_leak` | `mem.free_pct < 10` + `dmesg.oom_count == 0` |
 
 ### Baselines and drift detection
 
@@ -620,6 +616,8 @@ When you need to go deeper than `/proc`:
 usereport --bpf   # runqlat, biolatency, tcpretrans, execsnoop, cachestat
 ```
 
+> **Note:** `--bpf` requires a binary built with `--features bpf`. Pre-built binaries from `cargo binstall` do not include this feature. Build from source: `cargo install usereport-rs --features bpf`.
+
 Emits histogram signals with full percentile stats (`p50`, `p95`, `p99`). Falls back gracefully — if a BCC tool isn't installed, you get an `info` finding with the install hint instead of an error.
 
 ### CPU flamegraph, inline
@@ -645,9 +643,9 @@ Produces a compact JSON document — signals, findings, checked-ok list, and raw
 ### `explain` — know what you're looking at
 
 ```sh
-$ usereport explain net.retrans_high
+$ usereport explain net.retransmit_elevated
 
-ID:       net.retrans_high
+ID:       net.retransmit_elevated
 Severity: Warn
 Summary:  TCP retransmit rate is elevated (> 1%)
 

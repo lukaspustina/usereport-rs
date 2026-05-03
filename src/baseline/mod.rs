@@ -82,7 +82,7 @@ pub fn outlier_findings(signals: &[Signal]) -> Vec<Finding> {
             severity,
             summary: format!(
                 "{} is {:.2} standard deviations from baseline (p50={:.3}, mad={:.3})",
-                sig.id, baseline.z_score, baseline.p50, baseline.mad
+                sig.id, baseline.z_score.abs(), baseline.p50, baseline.mad
             ),
             evidence,
             suggest: vec![],

@@ -32,7 +32,7 @@ pub enum Error {
         #[from]
         source: serde_json::Error,
     },
-    #[error("flock failed on {path}: {source}")]
+    #[error("could not acquire exclusive lock on {path}: {source}")]
     Flock {
         path: PathBuf,
         #[source]
@@ -177,7 +177,7 @@ impl BaselineStore {
         let path = self.named_path(name);
         match std::fs::remove_file(&path) {
             Ok(()) => Ok(()),
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Err(Error::Io { path, source: e }),
             Err(e) => Err(Error::Io { path, source: e }),
         }
     }

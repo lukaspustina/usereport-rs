@@ -73,7 +73,7 @@ impl PatternEngine {
                 id: def.id.clone(),
                 source: e,
             })?;
-            let severity = match def.severity.as_str() {
+            let severity = match def.severity.to_ascii_lowercase().as_str() {
                 "crit" => Severity::Crit,
                 "warn" => Severity::Warn,
                 _ => Severity::Info,
@@ -95,7 +95,7 @@ impl PatternEngine {
         let mut findings = Vec::new();
         for pattern in &self.patterns {
             if pattern.when.evaluate(&idx, ctx) {
-                let evidence = collect_evidence(signals);
+                let evidence = collect_evidence(&pattern.when, signals);
                 findings.push(Finding {
                     id: pattern.id.clone(),
                     kind: FindingKind::Pattern,
@@ -128,7 +128,7 @@ mod tests {
 [[pattern]]
 id = "test.p1"
 description = "test"
-severity = "Warn"
+severity = "warn"
 when = "cpu.idle_pct < 10"
 summary = "test pattern"
 "#;
@@ -139,11 +139,65 @@ summary = "test pattern"
         merged.extend_from(pe2);
         // Merged engine should not panic when used; content verified by integration tests
     }
+
+    #[test]
+    fn severity_case_insensitive() {
+        let toml = r#"
+[[pattern]]
+id = "test.p2"
+severity = "Warn"
+when = "cpu.idle_pct < 10"
+summary = "uppercase severity"
+"#;
+        let pe = PatternEngine::from_toml(toml).unwrap();
+        // Should parse as Warn, not silently downgrade to Info
+        assert_eq!(pe.patterns[0].severity, crate::finding::Severity::Warn);
+    }
+
+    #[test]
+    fn evidence_scoped_to_predicate_signals() {
+        use crate::collector::CollectCtx;
+        use crate::signal::{Signal, SignalValue, Unit};
+        use chrono::Local;
+
+        let make_signal = |id: &str, v: f64| Signal {
+            id: id.to_string(),
+            value: SignalValue::F64(v),
+            unit: Unit::None,
+            at: Local::now(),
+            samples: None,
+            stats: None,
+            baseline: None,
+        };
+
+        let toml = r#"
+[[pattern]]
+id = "test.scope"
+severity = "warn"
+when = "net.tw_count > 1000 AND cpu.idle_pct < 10"
+summary = "scoped evidence test"
+"#;
+        let pe = PatternEngine::from_toml(toml).unwrap();
+        let signals = vec![
+            make_signal("net.tw_count", 5000.0),
+            make_signal("cpu.idle_pct", 5.0),
+            make_signal("mem.free_pct", 50.0), // unrelated — should NOT appear in evidence
+        ];
+        let ctx = CollectCtx::default();
+        let findings = pe.run(&signals, &ctx);
+        assert_eq!(findings.len(), 1);
+        let evidence_ids: Vec<&str> = findings[0].evidence.iter().map(|e| e.signal_id.as_str()).collect();
+        assert!(evidence_ids.contains(&"net.tw_count"));
+        assert!(evidence_ids.contains(&"cpu.idle_pct"));
+        assert!(!evidence_ids.contains(&"mem.free_pct"), "unrelated signal should not appear in evidence");
+    }
 }
 
-fn collect_evidence(signals: &[Signal]) -> Vec<Evidence> {
+fn collect_evidence(predicate: &crate::rule::Predicate, signals: &[Signal]) -> Vec<Evidence> {
+    let predicate_ids: std::collections::HashSet<String> = predicate.signal_ids().into_iter().collect();
     signals
         .iter()
+        .filter(|s| predicate_ids.contains(&s.id))
         .map(|s| Evidence {
             signal_id: s.id.clone(),
             observed: s.value.clone(),

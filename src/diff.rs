@@ -113,58 +113,71 @@ fn signal_to_f64(v: &SignalValue) -> Option<f64> {
     }
 }
 
+fn fmt_num(v: f64) -> String {
+    if (v - v.round()).abs() < 1e-9 {
+        format!("{}", v.round() as i64)
+    } else {
+        // Up to 2 decimal places, trim trailing zeros
+        let s = format!("{:.2}", v);
+        let s = s.trim_end_matches('0');
+        s.trim_end_matches('.').to_string()
+    }
+}
+
 /// Render the diff in plain-text form.
 pub fn render_text<W: std::io::Write>(d: &DiffReport, label_a: &str, label_b: &str, mut w: W) -> std::io::Result<()> {
-    writeln!(w, "## Signal deltas")?;
+    writeln!(w, "Signals changed:")?;
     if d.signal_deltas.is_empty() {
-        writeln!(w, "(none)")?;
+        writeln!(w, "  (none)")?;
     } else {
         for sd in &d.signal_deltas {
             writeln!(
                 w,
-                "  {}: {:.6} -> {:.6} (Δ {:+.6})",
-                sd.signal_id, sd.value_in_a, sd.value_in_b, sd.delta
+                "  {}  {}  →  {}   ({:+})",
+                sd.signal_id,
+                fmt_num(sd.value_in_a),
+                fmt_num(sd.value_in_b),
+                fmt_num(sd.delta),
             )?;
         }
     }
-    writeln!(w, "## Signals only in {}", label_a)?;
-    if d.signals_only_in_a.is_empty() {
-        writeln!(w, "(none)")?;
-    } else {
+    if !d.signals_only_in_a.is_empty() {
+        writeln!(w)?;
+        writeln!(w, "Signals only in {}:", label_a)?;
         for id in &d.signals_only_in_a {
             writeln!(w, "  {}", id)?;
         }
     }
-    writeln!(w, "## Signals only in {}", label_b)?;
-    if d.signals_only_in_b.is_empty() {
-        writeln!(w, "(none)")?;
-    } else {
+    if !d.signals_only_in_b.is_empty() {
+        writeln!(w)?;
+        writeln!(w, "Signals only in {}:", label_b)?;
         for id in &d.signals_only_in_b {
             writeln!(w, "  {}", id)?;
         }
     }
-    writeln!(w, "## Findings only in {}", label_a)?;
+    writeln!(w)?;
+    writeln!(w, "Findings only in {}:", label_a)?;
     if d.findings_only_in_a.is_empty() {
-        writeln!(w, "(none)")?;
+        writeln!(w, "  (none)")?;
     } else {
         for f in &d.findings_only_in_a {
-            writeln!(w, "  [{:?}] {}: {}", f.severity, f.id, f.summary)?;
+            writeln!(w, "  [{:?}] {}", f.severity, f.id)?;
         }
     }
-    writeln!(w, "## Findings only in {}", label_b)?;
+    writeln!(w)?;
+    writeln!(w, "Findings only in {}:", label_b)?;
     if d.findings_only_in_b.is_empty() {
-        writeln!(w, "(none)")?;
+        writeln!(w, "  (none)")?;
     } else {
         for f in &d.findings_only_in_b {
-            writeln!(w, "  [{:?}] {}: {}", f.severity, f.id, f.summary)?;
+            writeln!(w, "  [{:?}] {}", f.severity, f.id)?;
         }
     }
-    writeln!(w, "## Findings severity changed")?;
-    if d.findings_severity_changed.is_empty() {
-        writeln!(w, "(none)")?;
-    } else {
+    if !d.findings_severity_changed.is_empty() {
+        writeln!(w)?;
+        writeln!(w, "Findings severity changed:")?;
         for c in &d.findings_severity_changed {
-            writeln!(w, "  {}: {:?} -> {:?}", c.finding_id, c.severity_in_a, c.severity_in_b)?;
+            writeln!(w, "  {}: {:?} → {:?}", c.finding_id, c.severity_in_a, c.severity_in_b)?;
         }
     }
     Ok(())
