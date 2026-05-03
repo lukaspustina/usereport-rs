@@ -91,10 +91,10 @@ pub struct Opt {
     /// Activate debug mode
     #[arg(short, long)]
     debug: bool,
-    /// Exit-code policy: never=always 0; warn=exit 1 on any Warn or Crit finding; crit=exit 2 only on Crit findings
+    /// Exit-code policy based on the highest-severity finding produced.
     #[arg(long, value_enum, default_value = "never")]
     exit_on: ExitOn,
-    /// Target cgroup path for the cgroup collector.
+    /// Target cgroup path for the cgroup collector (Phase 3 wiring).
     /// Example: --cgroup /sys/fs/cgroup/system.slice/foo.service
     #[arg(long)]
     pub cgroup: Option<PathBuf>,
@@ -130,8 +130,8 @@ pub struct Opt {
     #[arg(long)]
     redact: bool,
     /// Enable eBPF opt-in collectors (runqlat, biolatency, tcpretrans, execsnoop,
-    /// cachestat). Only available in binaries compiled with eBPF support.
-    /// Emits an Info finding per tool not found in PATH.
+    /// cachestat). Requires bpf feature. Emits an Info finding per tool not found
+    /// in PATH and exits 0.
     #[cfg(feature = "bpf")]
     #[arg(long)]
     bpf: bool,
@@ -158,23 +158,19 @@ pub enum Subcommand {
     },
     /// Diff two AnalysisReport JSON files.
     Diff {
-        /// First JSON report (produced by `--output json`).
         a: PathBuf,
-        /// Second JSON report to compare against the first.
         b: PathBuf,
         /// Output format: `text` (default) or `json`.
-        #[arg(short, long, default_value = "text", value_parser = |s: &str| s.parse::<OutputType>().map_err(|e| e.to_string()))]
+        #[arg(long, default_value = "text", value_parser = |s: &str| match s {
+            "text" => Ok(OutputType::Text),
+            "json" => Ok(OutputType::Json),
+            _ => Err(format!("valid values for diff --output: text, json; got '{}'", s)),
+        })]
         output: OutputType,
-        /// Write diff output to a file; defaults to stdout.
-        #[arg(short = 'O', long)]
-        output_file: Option<PathBuf>,
     },
     /// Print the definition, what raises it, what to investigate, and links for a rule or signal ID.
-    /// When the ID is unknown, or when called with no argument, lists all known topics.
-    Explain {
-        /// A rule ID (e.g. net.retransmit_elevated), signal ID, or command name. Omit to list all known IDs.
-        id: Option<String>,
-    },
+    /// When the ID is unknown, lists all known rule IDs.
+    Explain { id: String },
     /// Check whether all binaries used by the selected profile(s) are installed on $PATH.
     Check {
         /// Profile to check (checks all profiles when omitted).
@@ -205,7 +201,6 @@ pub enum Subcommand {
 pub enum BaselineAction {
     /// Capture the current run as a named baseline.
     Record {
-        /// Name for the baseline (defaults to "default").
         #[arg(long)]
         name: Option<String>,
     },
@@ -216,7 +211,7 @@ pub enum BaselineAction {
     /// Delete a stored baseline.
     Delete {
         name: String,
-        /// Skip confirmation prompt.
+        /// Confirm the deletion.
         #[arg(long)]
         force: bool,
     },
@@ -225,12 +220,10 @@ pub enum BaselineAction {
 impl Opt {
     pub fn validate(self) -> miette::Result<Self> {
         if self.output == OutputType::Template && self.output_template.is_none() {
-            return Err(miette!("output template requires --output-template <PATH>"));
+            return Err(miette!("Output template requires --output-template <PATH>"));
         }
         if self.redact && self.output != OutputType::Llm {
-            return Err(miette!(
-                "--redact only applies to --output llm; either add --output llm or remove --redact"
-            ));
+            eprintln!("warning: --redact has no effect unless --output llm is also set");
         }
         Ok(self)
     }
@@ -311,10 +304,9 @@ pub enum ExitOn {
 ///
 /// Per SDD Req 8 / AC-4:
 /// - `Never` → always 0.
-/// - `Warn`  → 1 if any `warn` finding fires, else 0. Exit 1 is never emitted
-///   under `Never`.
-/// - `Crit`  → 2 if any `crit` finding fires, else 0. Exit 2 is never emitted
-///   outside `Crit`. A `warn` finding under `Crit` does not raise exit code.
+/// - `Warn`  → 1 if any `Warn` or `Crit` finding fires, else 0.
+/// - `Crit`  → 2 if any `Crit` finding fires, else 0. A `Warn` finding under
+///   `Crit` policy does not raise the exit code.
 pub fn compute_exit_code(exit_on: ExitOn, findings: &[Finding]) -> i32 {
     match exit_on {
         ExitOn::Never => 0,
@@ -367,7 +359,7 @@ pub fn main() -> miette::Result<()> {
             .context("could not load configuration file")?;
         // Validate lightly — skip profile/command cross-validation since explain
         // should work even with partial configs.
-        return run_explain(id.as_deref(), &config);
+        return run_explain(id, &config);
     }
 
     // Phase 2: subcommand dispatch (baseline / diff). The default code path
@@ -393,8 +385,7 @@ pub fn main() -> miette::Result<()> {
     }
 
     if opt.show_config {
-        show_config(&config);
-        return Ok(());
+        return show_config(&config);
     }
     if opt.show_output_template {
         show_output_template(&opt)?;
@@ -418,9 +409,12 @@ pub fn main() -> miette::Result<()> {
     Ok(())
 }
 
-fn show_config(config: &Config) {
-    let toml = toml::to_string_pretty(config).expect("failed to serialize active config in TOML");
+fn show_config(config: &Config) -> miette::Result<()> {
+    let toml = toml::to_string_pretty(config)
+        .into_diagnostic()
+        .context("failed to serialize active config")?;
     println!("{}", toml);
+    Ok(())
 }
 
 fn show_profiles(config: &Config) {
@@ -433,6 +427,7 @@ fn show_profiles(config: &Config) {
 pub fn show_profiles_inner(config: &Config, is_tty: bool, out: &mut dyn Write) {
     use comfy_table::{Attribute, Cell};
     let mut table = Table::new();
+    table.load_preset(comfy_table::presets::UTF8_FULL_CONDENSED);
     table.set_header(vec![
         Cell::new("Name").add_attribute(Attribute::Bold),
         Cell::new("Commands").add_attribute(Attribute::Bold),
@@ -452,7 +447,7 @@ pub fn show_profiles_inner(config: &Config, is_tty: bool, out: &mut dyn Write) {
 }
 
 fn show_output_template(opt: &Opt) -> miette::Result<()> {
-    match opt.output {
+    let template = match opt.output {
         OutputType::Template => {
             let template_file = opt
                 .output_template
@@ -465,20 +460,16 @@ fn show_output_template(opt: &Opt) -> miette::Result<()> {
                 .read_to_string(&mut txt)
                 .into_diagnostic()
                 .context("failed to read template file")?;
-            println!("{}", txt);
+            txt
         }
-        OutputType::Html => println!("{}", defaults::HTML_TEMPLATE),
-        OutputType::Markdown => println!("{}", defaults::MD_TEMPLATE),
-        OutputType::Json => {
-            eprintln!("note: --output json has no Jinja2 template; output is generated directly from the report data");
-        }
-        OutputType::Llm => {
-            eprintln!("note: --output llm has no Jinja2 template; output is generated directly from the report data");
-        }
-        OutputType::Text => {
-            eprintln!("note: --output text has no Jinja2 template; output is generated directly from the report data");
-        }
-    }
+        OutputType::Html => defaults::HTML_TEMPLATE.to_string(),
+        OutputType::Json => "".to_string(),
+        OutputType::Markdown => defaults::MD_TEMPLATE.to_string(),
+        OutputType::Llm => "".to_string(),
+        OutputType::Text => "".to_string(),
+    };
+
+    println!("{}", template);
     Ok(())
 }
 
@@ -505,8 +496,11 @@ fn show_commands(config: &Config) {
 fn run_subcommand(cmd: &Subcommand) -> miette::Result<()> {
     match cmd {
         Subcommand::Baseline { action } => run_baseline(action),
-        Subcommand::Diff { a, b, output, output_file } => run_diff(a, b, output, output_file.as_deref()),
-        Subcommand::Explain { .. } => unreachable!("Explain is handled before run_subcommand"),
+        Subcommand::Diff { a, b, output } => run_diff(a, b, output),
+        Subcommand::Explain { id } => {
+            let config = Config::from_str(defaults::CONFIG).expect("builtin default config is always valid");
+            run_explain(id, &config)
+        }
         Subcommand::Check { .. } => unreachable!("Check is handled before run_subcommand"),
         Subcommand::Convert {
             input,
@@ -577,11 +571,7 @@ fn run_check(config: &Config, profile_filter: Option<&str>) -> miette::Result<()
     let missing = run_check_inner(&checks, is_tty, &mut handle)?;
 
     if missing > 0 {
-        eprintln!(
-            "{} {} not found — install the tool shown in the Binary column above, or run `usereport explain <command>` for details",
-            missing,
-            if missing == 1 { "binary" } else { "binaries" }
-        );
+        eprintln!("{} {} not found", missing, if missing == 1 { "binary" } else { "binaries" });
         std::process::exit(1);
     }
     Ok(())
@@ -650,18 +640,10 @@ pub fn run_check_inner(
 fn collect_signals_for_baseline() -> Vec<crate::Signal> {
     use crate::collector::{CollectCtx, Collector};
     let ctx = CollectCtx::default();
-    let mut collectors: Vec<Box<dyn Collector>> = vec![
+    let collectors: Vec<Box<dyn Collector>> = vec![
         Box::new(HostCollector::new()),
         Box::new(CpuCollector::new()),
-        Box::new(DiskCollector::new()),
-        Box::new(NetworkCollector::new()),
-        Box::new(CpuFreqCollector::new()),
-        Box::new(MemoryCollector::new()),
-        Box::new(InterruptsCollector::new()),
-        Box::new(CgroupCollector::new()),
     ];
-    #[cfg(target_os = "linux")]
-    collectors.push(Box::new(crate::collector::dmesg::DmesgCollector::new()));
     let mut signals = Vec::new();
     for c in &collectors {
         match c.collect(&ctx) {
@@ -675,7 +657,7 @@ fn collect_signals_for_baseline() -> Vec<crate::Signal> {
 fn run_baseline(action: &BaselineAction) -> miette::Result<()> {
     let store = BaselineStore::xdg()
         .into_diagnostic()
-        .context("failed to locate baseline directory")?;
+        .context("locate baseline directory")?;
     match action {
         BaselineAction::Record { name } => {
             let label = name.as_deref().unwrap_or("default");
@@ -685,20 +667,18 @@ fn run_baseline(action: &BaselineAction) -> miette::Result<()> {
                 .into_diagnostic()
                 .with_context(|| format!("record baseline '{}'", label))?;
             println!(
-                "recorded baseline '{}' at {}\n  run with --baseline {} to compare future runs",
+                "recorded baseline '{}' at {}",
                 label,
-                store.dir().join(format!("{}.json", label)).display(),
-                label,
+                store.dir().join(format!("{}.json", label)).display()
             );
         }
         BaselineAction::List => {
-            let names = store.list().into_diagnostic().context("failed to list baselines")?;
+            let names = store.list().into_diagnostic().context("list baselines")?;
             if names.is_empty() {
                 println!("No baselines recorded.");
             } else {
-                println!("{} baseline(s):", names.len());
                 for name in names {
-                    println!("  {}", name);
+                    println!("{}", name);
                 }
             }
         }
@@ -708,19 +688,12 @@ fn run_baseline(action: &BaselineAction) -> miette::Result<()> {
             .with_context(|| format!("load baseline '{}'", name))?
         {
             Some(record) => println!("{}", serde_json::to_string_pretty(&record).into_diagnostic()?),
-            None => return Err(miette!("baseline '{}' not found; run 'usereport baseline list' to see recorded baselines", name)),
+            None => return Err(miette!("baseline '{}' not found", name)),
         },
         BaselineAction::Delete { name, force } => {
             if !force {
                 return Err(miette!(
-                    "use --force to confirm deletion: usereport baseline delete --force {}",
-                    name
-                ));
-            }
-            // Give a friendly error when the baseline doesn't exist.
-            if store.load(name).into_diagnostic().with_context(|| format!("check baseline '{}'", name))?.is_none() {
-                return Err(miette!(
-                    "baseline '{}' not found; run 'usereport baseline list' to see recorded baselines",
+                    "Deletion requires confirmation. Re-run with --force to proceed:\n  usereport baseline delete --force {}",
                     name
                 ));
             }
@@ -728,13 +701,13 @@ fn run_baseline(action: &BaselineAction) -> miette::Result<()> {
                 .delete(name)
                 .into_diagnostic()
                 .with_context(|| format!("delete baseline '{}'", name))?;
-            println!("Baseline '{}' deleted.", name);
+            println!("deleted baseline '{}'", name);
         }
     }
     Ok(())
 }
 
-fn run_diff(a_path: &PathBuf, b_path: &PathBuf, output: &OutputType, output_file: Option<&Path>) -> miette::Result<()> {
+fn run_diff(a_path: &PathBuf, b_path: &PathBuf, output: &OutputType) -> miette::Result<()> {
     let a_bytes = std::fs::read(a_path)
         .into_diagnostic()
         .with_context(|| format!("read {}", a_path.display()))?;
@@ -748,18 +721,19 @@ fn run_diff(a_path: &PathBuf, b_path: &PathBuf, output: &OutputType, output_file
         .into_diagnostic()
         .with_context(|| format!("parse {}", b_path.display()))?;
     let report = diff::diff(&a, &b);
-    let mut writer = output_writer(&output_file.map(PathBuf::from))?;
+    let stdout = std::io::stdout();
+    let mut handle = stdout.lock();
     match output {
         OutputType::Json => {
-            serde_json::to_writer_pretty(&mut *writer, &report).into_diagnostic()?;
-            writeln!(&mut *writer).into_diagnostic()?;
+            serde_json::to_writer_pretty(&mut handle, &report).into_diagnostic()?;
+            writeln!(handle).into_diagnostic()?;
         }
         OutputType::Text => {
             diff::render_text(
                 &report,
                 &a_path.display().to_string(),
                 &b_path.display().to_string(),
-                &mut *writer,
+                &mut handle,
             )
             .into_diagnostic()?;
         }
@@ -776,9 +750,10 @@ fn run_convert(
     redact: bool,
 ) -> miette::Result<()> {
     if redact && *output != OutputType::Llm {
-        return Err(miette!(
-            "--redact only applies to --output llm; either add --output llm or remove --redact"
-        ));
+        eprintln!("warning: --redact has no effect unless --output llm is also set");
+    }
+    if *output == OutputType::Template && output_template.is_none() {
+        return Err(miette!("--output template requires --output-template <PATH>"));
     }
     let report: AnalysisReport = match input {
         Some(path) => {
@@ -798,9 +773,10 @@ fn run_convert(
 
     if *output == OutputType::Llm {
         let llm_out = LlmOutput::from_report(&report, redact);
-        serde_json::to_writer(writer, &llm_out)
+        serde_json::to_writer(&mut *writer, &llm_out)
             .into_diagnostic()
             .context("failed to write LLM JSON")?;
+        writeln!(&mut *writer).into_diagnostic().context("write LLM JSON newline")?;
     } else {
         let output_template_string = output_template.map(String::from);
         let mut buf: Vec<u8> = Vec::new();
@@ -818,71 +794,22 @@ fn run_convert(
     Ok(())
 }
 
-/// All signal IDs emitted by built-in direct collectors, with brief descriptions.
-/// Used by `explain` so users can look up collector signals by ID.
-fn builtin_collector_signals() -> &'static [(&'static str, &'static str)] {
-    &[
-        ("host.cpu_count",        "number of logical CPUs"),
-        ("host.mem_total_bytes",  "total physical memory in bytes"),
-        ("host.load_avg_1m",      "1-minute load average"),
-        ("cpu.usr_pct",           "CPU time in user space (%)"),
-        ("cpu.sys_pct",           "CPU time in kernel space (%)"),
-        ("cpu.idle_pct",          "CPU idle time (%)"),
-        ("cpu.iowait_pct",        "CPU time waiting for I/O (%)"),
-        ("cpu.freq_ratio",        "current CPU frequency / nominal frequency"),
-        ("cpu.temp_celsius",      "CPU package temperature (°C)"),
-        ("vmstat.r",              "number of runnable processes"),
-        ("vmstat.swap_in",        "pages swapped in per second"),
-        ("vmstat.swap_out",       "pages swapped out per second"),
-        ("mem.total_mb",          "total physical memory (MB)"),
-        ("mem.used_mb",           "used memory (MB)"),
-        ("mem.free_mb",           "free memory (MB)"),
-        ("mem.free_pct",          "free memory as a percentage of total"),
-        ("swap.total_mb",         "total swap space (MB)"),
-        ("swap.used_mb",          "used swap space (MB)"),
-        ("swap.free_mb",          "free swap space (MB)"),
-        ("disk.max_util_pct",     "highest disk utilization across all devices (%)"),
-        ("disk.max_await_ms",     "highest average I/O wait across all devices (ms)"),
-        ("net.rx_drops",          "total receive-side packet drops"),
-        ("net.retrans_pct",       "TCP retransmission rate (%)"),
-        ("net.tw_count",          "current TIME_WAIT socket count"),
-        ("net.estab_resets",      "TCP established-state connection resets"),
-        ("net.connect_failures",  "TCP connect() call failures"),
-        ("net.max_cpu_irq_pct",   "fraction of NIC interrupts handled by the busiest CPU (%)"),
-        ("cgroup.memory_bytes",   "cgroup memory usage in bytes"),
-        ("cgroup.oom_kills",      "OOM kills recorded in the cgroup"),
-        ("cgroup.pids_current",   "current PID count in the cgroup"),
-        ("dmesg.oom_count",       "out-of-memory events since last log rotate"),
-        ("dmesg.blocked_task_count", "number of tasks blocked in D state"),
-        ("interrupts.max_cpu_pct","fraction of total interrupts handled by the busiest CPU (%)"),
-    ]
-}
-
-pub fn run_explain(id: Option<&str>, config: &Config) -> miette::Result<()> {
+pub fn run_explain(id: &str, config: &Config) -> miette::Result<()> {
     let is_tty = std::io::stdout().is_terminal();
     let stdout = std::io::stdout();
     let mut handle = stdout.lock();
 
-    let id = match id {
-        Some(s) => s,
-        None => {
-            // No ID given — print all known topics.
-            return print_all_topics(config, &mut handle);
-        }
-    };
-
-    // 1. Check commands in config first
+    // Check commands in config first
     if let Some(cmd) = config.commands.iter().find(|c| c.name() == id) {
         return run_explain_command(cmd, is_tty, &mut handle);
     }
 
-    // 2. Check builtin rules
     let all_rules = builtin_rules();
     if let Some(rule) = all_rules.iter().find(|r| r.id == id) {
         return run_explain_inner(rule, is_tty, &mut handle);
     }
 
-    // 3. Check extract-defined signal IDs
+    // Collect all signal IDs from config extract definitions
     let all_signal_ids: Vec<(&str, &crate::command::Command)> = config
         .commands
         .iter()
@@ -906,30 +833,6 @@ pub fn run_explain(id: Option<&str>, config: &Config) -> miette::Result<()> {
         return Ok(());
     }
 
-    // 4. Check builtin collector signal IDs
-    if let Some((_, desc)) = builtin_collector_signals().iter().find(|(sid, _)| *sid == id) {
-        writeln!(handle, "Signal ID:   {id}").into_diagnostic()?;
-        writeln!(handle, "Source:      built-in collector").into_diagnostic()?;
-        writeln!(handle, "Description: {desc}").into_diagnostic()?;
-        writeln!(handle).into_diagnostic()?;
-        writeln!(handle, "This signal is collected directly from /proc, /sys, or a native command.").into_diagnostic()?;
-        writeln!(handle, "Use `usereport --output json | jq '.signals[] | select(.id == \"{id}\")'` to inspect its current value.").into_diagnostic()?;
-        return Ok(());
-    }
-
-    // 5. Unknown — list all known topics
-    print_all_topics(config, &mut handle)?;
-    Err(miette!("unknown topic '{}' — see the list above", id))
-}
-
-fn print_all_topics(config: &Config, out: &mut dyn Write) -> miette::Result<()> {
-    let all_rules = builtin_rules();
-    let all_signal_ids: Vec<&str> = config
-        .commands
-        .iter()
-        .flat_map(|cmd| cmd.extract().iter().map(|ex| ex.signal_id.as_str()))
-        .collect();
-
     let mut known: Vec<String> = Vec::new();
     for c in &config.commands {
         known.push(format!("  {} (command)", c.name()));
@@ -937,23 +840,33 @@ fn print_all_topics(config: &Config, out: &mut dyn Write) -> miette::Result<()> 
     for r in &all_rules {
         known.push(format!("  {} (rule)", r.id));
     }
-    for sid in &all_signal_ids {
+    for (sid, _) in &all_signal_ids {
         known.push(format!("  {} (signal)", sid));
     }
-    for (sid, desc) in builtin_collector_signals() {
-        known.push(format!("  {} (collector signal — {})", sid, desc));
-    }
     known.sort();
-    writeln!(out, "Known topics:\n{}", known.join("\n")).into_diagnostic()
+    Err(miette!(
+        "unknown topic '{}'\n\nKnown topics:\n{}",
+        id,
+        known.join("\n"),
+    ))
+}
+
+pub fn builtin_collector_signals() -> &'static [(&'static str, &'static str)] {
+    &[
+        ("dmesg.blocked_task_count",  "blocked tasks detected since last log rotate"),
+        ("dmesg.fs_error_count",  "filesystem errors since last log rotate"),
+        ("dmesg.io_error_count",  "I/O error events since last log rotate"),
+        ("dmesg.mce_count",       "machine check exception events"),
+        ("dmesg.nic_flap_count",  "NIC link-state flap events"),
+        ("dmesg.segfault_count",  "segfault events since last log rotate"),
+        ("interrupts.max_cpu_pct", "max per-CPU interrupt load"),
+    ]
 }
 
 pub fn run_explain_command(cmd: &crate::command::Command, _is_tty: bool, out: &mut dyn Write) -> miette::Result<()> {
     writeln!(out, "Command: {}", cmd.name()).into_diagnostic()?;
     if let Some(title) = cmd.title() {
         writeln!(out, "Title: {title}").into_diagnostic()?;
-    }
-    if let Some(hint) = cmd.install_hint() {
-        writeln!(out, "Install: {hint}").into_diagnostic()?;
     }
     if let Some(description) = cmd.description() {
         writeln!(out).into_diagnostic()?;
@@ -984,7 +897,11 @@ pub fn run_explain_command(cmd: &crate::command::Command, _is_tty: bool, out: &m
 }
 
 fn run_explain_inner(rule: &Rule, is_tty: bool, out: &mut dyn Write) -> miette::Result<()> {
-    let label = format!("{:?}", rule.severity);
+    let label = match rule.severity {
+        Severity::Crit => "CRIT",
+        Severity::Warn => "WARN",
+        Severity::Info => "INFO",
+    }.to_string();
     let severity_str = if is_tty {
         use owo_colors::OwoColorize as _;
         match rule.severity {
@@ -1093,7 +1010,7 @@ fn generate_svg_from_perf_script(perf_output: &[u8]) -> miette::Result<Option<St
     folder
         .collapse(perf_output, &mut collapsed)
         .into_diagnostic()
-        .context("stack collapse failed")?;
+        .context("inferno collapse failed")?;
 
     let collapsed_str = String::from_utf8_lossy(&collapsed);
     let lines: Vec<&str> = collapsed_str.lines().filter(|l| !l.is_empty()).collect();
@@ -1104,7 +1021,7 @@ fn generate_svg_from_perf_script(perf_output: &[u8]) -> miette::Result<Option<St
     let mut svg = Vec::new();
     flamegraph::from_lines(&mut flamegraph::Options::default(), lines, &mut svg)
         .into_diagnostic()
-        .context("flamegraph rendering failed")?;
+        .context("inferno flamegraph failed")?;
     Ok(Some(String::from_utf8(svg).into_diagnostic()?))
 }
 
@@ -1120,7 +1037,7 @@ fn generate_svg_from_folded(folded: &[u8]) -> miette::Result<Option<String>> {
     let mut svg = Vec::new();
     flamegraph::from_lines(&mut flamegraph::Options::default(), lines, &mut svg)
         .into_diagnostic()
-        .context("flamegraph rendering failed")?;
+        .context("inferno flamegraph failed")?;
     Ok(Some(String::from_utf8(svg).into_diagnostic()?))
 }
 
@@ -1163,8 +1080,6 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> miette::Re
         Box::new(InterruptsCollector::new()),
         Box::new(CgroupCollector::new()),
     ];
-    #[cfg(target_os = "linux")]
-    collectors.push(Box::new(crate::collector::dmesg::DmesgCollector::new()));
     // Load builtin rules + user rules from $XDG_CONFIG_HOME/usereport/rules.d
     let user_rules_dir = std::env::var("XDG_CONFIG_HOME")
         .ok()
@@ -1229,14 +1144,14 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> miette::Re
     if let Some(name) = opt.baseline.as_deref() {
         let store = BaselineStore::xdg()
             .into_diagnostic()
-            .context("failed to locate baseline directory")?;
+            .context("locate baseline directory")?;
         match store
             .load(name)
             .into_diagnostic()
             .with_context(|| format!("load baseline '{}'", name))?
         {
             Some(record) => analysis = analysis.with_baseline_records(vec![record]),
-            None => return Err(miette!("baseline '{}' not found; run 'usereport baseline list' to see recorded baselines", name)),
+            None => return Err(miette!("baseline '{}' not found", name)),
         }
     }
 
@@ -1258,44 +1173,28 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> miette::Re
     }
 
     // --profile-cpu: generate flamegraph and attach to report.
-    if opt.profile_cpu.is_some() && opt.output != OutputType::Html {
-        eprintln!(
-            "note: --profile-cpu flamegraphs are only embedded in HTML output; skipping profiling — use --output html to include the flamegraph"
-        );
-    }
     if let Some(profile_dur) = &opt.profile_cpu {
-        if opt.output == OutputType::Html {
-            let dur = parse_duration(profile_dur)?;
-            let dur_secs = dur.as_secs().max(1);
-            #[cfg(feature = "bpf")]
-            let use_bpf = opt.bpf;
-            #[cfg(not(feature = "bpf"))]
-            let use_bpf = false;
-            match generate_flamegraph(dur_secs, use_bpf) {
-                Ok(Some(svg)) => report = report.with_flamegraph(svg),
-                Ok(None) => {
-                    report.findings.push(Finding {
-                        id: "profile.cpu.unavailable".to_string(),
-                        kind: crate::finding::FindingKind::Rule,
-                        severity: Severity::Info,
-                        summary:
-                            "--profile-cpu requested but neither 'perf' nor 'bpftrace' was found in PATH; flamegraph omitted."
-                                .to_string(),
-                        evidence: Vec::new(),
-                        suggest: vec!["Install linux-perf or bpftrace and re-run.".to_string()],
-                    });
-                }
-                Err(e) => {
-                    report.findings.push(Finding {
-                        id: "profile.cpu.error".to_string(),
-                        kind: crate::finding::FindingKind::Rule,
-                        severity: Severity::Warn,
-                        summary: format!("flamegraph generation failed: {}", e),
-                        evidence: Vec::new(),
-                        suggest: vec!["Check that 'perf' or 'bpftrace' is installed and you have sufficient permissions.".to_string()],
-                    });
-                }
+        let dur = parse_duration(profile_dur)?;
+        let dur_secs = dur.as_secs().max(1);
+        #[cfg(feature = "bpf")]
+        let use_bpf = opt.bpf;
+        #[cfg(not(feature = "bpf"))]
+        let use_bpf = false;
+        match generate_flamegraph(dur_secs, use_bpf) {
+            Ok(Some(svg)) => report = report.with_flamegraph(svg),
+            Ok(None) => {
+                report.findings.push(Finding {
+                    id: "profile.cpu.unavailable".to_string(),
+                    kind: crate::finding::FindingKind::Rule,
+                    severity: Severity::Info,
+                    summary:
+                        "--profile-cpu requested but neither 'perf' nor 'bpftrace' was found in PATH; flamegraph omitted."
+                            .to_string(),
+                    evidence: Vec::new(),
+                    suggest: vec!["Install linux-perf or bpftrace and re-run.".to_string()],
+                });
             }
+            Err(e) => log::warn!("flamegraph generation failed: {}", e),
         }
     }
 
@@ -1307,9 +1206,10 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> miette::Re
 
     if opt.output == OutputType::Llm {
         let llm_out = LlmOutput::from_report(&report, opt.redact);
-        serde_json::to_writer(writer, &llm_out)
+        serde_json::to_writer(&mut *writer, &llm_out)
             .into_diagnostic()
             .context("failed to write LLM JSON")?;
+        writeln!(&mut *writer).into_diagnostic().context("write LLM JSON newline")?;
     } else {
         let mut buf: Vec<u8> = Vec::new();
         renderer
@@ -1385,12 +1285,10 @@ fn is_show_progress(opt: &Opt) -> bool {
 
 fn create_commands(opt: &Opt, config: &Config, profile_name: &str) -> miette::Result<Vec<Command>> {
     let (add_commands, remove_commands) = create_command_filter(&opt.filter_commands);
-    let profile = config
+    let mut commands: Vec<Command> = config
         .profile(profile_name)
         .into_diagnostic()
-        .with_context(|| "run `usereport --show-profiles` to list available profiles".to_string())?;
-    let mut commands: Vec<Command> = config
-        .commands_for_profile(profile)
+        .map(|p| config.commands_for_profile(p))?
         .into_iter()
         .filter(|x| !remove_commands.contains(x.name()))
         .collect();
@@ -1430,7 +1328,7 @@ fn create_renderer<W: Write>(
 ) -> miette::Result<Box<dyn Renderer<W>>> {
     let renderer: Box<dyn Renderer<W>> = match output_type {
         OutputType::Template => {
-            let template_file = output_template.ok_or_else(|| miette!("--output template requires --output-template <PATH>"))?;
+            let template_file = output_template.expect("output template requires --output-template <PATH>");
             let renderer = renderer::TemplateRenderer::from_file(template_file).into_diagnostic()?;
             Box::new(renderer)
         }
@@ -1727,7 +1625,7 @@ mod tests {
             "expected ANSI escape in tty output, got: {:?}",
             output
         );
-        assert!(output.contains("Warn"), "expected 'Warn' token in output");
+        assert!(output.contains("WARN"), "expected 'WARN' token in output");
     }
 
     #[test]
@@ -1741,7 +1639,7 @@ mod tests {
             "expected ANSI escape in tty output, got: {:?}",
             output
         );
-        assert!(output.contains("Info"), "expected 'Info' token in output");
+        assert!(output.contains("INFO"), "expected 'INFO' token in output");
     }
 
     #[test]
@@ -1755,7 +1653,7 @@ mod tests {
             "expected no ANSI escape in non-tty output, got: {:?}",
             output
         );
-        assert!(output.contains("Crit"), "expected 'Crit' token in output");
+        assert!(output.contains("CRIT"), "expected 'CRIT' token in output");
     }
 
     #[test]
@@ -1788,5 +1686,31 @@ mod tests {
         .unwrap();
         drop(tx);
         handle.join().expect("progress thread panicked");
+    }
+
+    #[test]
+    fn compute_exit_code_warn_policy_fires_on_crit() {
+        let findings = vec![crate::finding::Finding {
+            id: "test.crit".to_string(),
+            kind: crate::finding::FindingKind::Rule,
+            severity: Severity::Crit,
+            summary: "test".to_string(),
+            evidence: vec![],
+            suggest: vec![],
+        }];
+        assert_eq!(compute_exit_code(ExitOn::Warn, &findings), 1);
+    }
+
+    #[test]
+    fn compute_exit_code_crit_policy_ignores_warn() {
+        let findings = vec![crate::finding::Finding {
+            id: "test.warn".to_string(),
+            kind: crate::finding::FindingKind::Rule,
+            severity: Severity::Warn,
+            summary: "test".to_string(),
+            evidence: vec![],
+            suggest: vec![],
+        }];
+        assert_eq!(compute_exit_code(ExitOn::Crit, &findings), 0);
     }
 }

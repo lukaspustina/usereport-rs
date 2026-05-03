@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 
-    <title>Use Report — {{ context.hostname | e }} on {{ context.date_time | rfc2822 }}</title>
+    <title>usereport — {{ context.hostname | e }} on {{ context.date_time | rfc2822 }}</title>
 
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; color: #212529; }
@@ -61,13 +61,13 @@
         <thead><tr><th style="text-align:left;padding:0.4rem 0.8rem;border-bottom:2px solid #dee2e6;">Resource</th><th style="text-align:left;padding:0.4rem 0.8rem;border-bottom:2px solid #dee2e6;">Value</th><th style="text-align:left;padding:0.4rem 0.8rem;border-bottom:2px solid #dee2e6;">Severity</th></tr></thead>
         <tbody>
         {%- set cpu_profiled = vital_signs.cpu.iowait_pct is not none or vital_signs.cpu.severity is not none %}
-        <tr><td style="padding:0.4rem 0.8rem;">CPU</td><td style="padding:0.4rem 0.8rem;">{% if vital_signs.cpu.iowait_pct is not none %}iowait {{ vital_signs.cpu.iowait_pct | round(1) }}%{% elif cpu_profiled %}—{% else %}[not profiled]{% endif %}</td><td style="padding:0.4rem 0.8rem;">{% if vital_signs.cpu.severity == "Crit" %}<span class="text-danger">CRIT</span>{% elif vital_signs.cpu.severity == "Warn" %}<span class="text-warning">WARN</span>{% elif cpu_profiled %}—{% else %}[not profiled]{% endif %}</td></tr>
+        <tr><td style="padding:0.4rem 0.8rem;">CPU</td><td style="padding:0.4rem 0.8rem;">{% if vital_signs.cpu.iowait_pct is not none %}iowait {{ vital_signs.cpu.iowait_pct | round(1) }}%{% elif cpu_profiled %}—{% else %}no data{% endif %}</td><td style="padding:0.4rem 0.8rem;">{% if vital_signs.cpu.severity == "Crit" %}<span class="text-danger">CRIT</span>{% elif vital_signs.cpu.severity == "Warn" %}<span class="text-warning">WARN</span>{% elif cpu_profiled %}—{% else %}no data{% endif %}</td></tr>
         {%- set mem_profiled = vital_signs.memory.used_pct is not none or vital_signs.memory.severity is not none %}
-        <tr><td style="padding:0.4rem 0.8rem;">Memory</td><td style="padding:0.4rem 0.8rem;">{% if vital_signs.memory.used_pct is not none %}used {{ vital_signs.memory.used_pct | round(1) }}%{% elif mem_profiled %}—{% else %}[not profiled]{% endif %}</td><td style="padding:0.4rem 0.8rem;">{% if vital_signs.memory.severity == "Crit" %}<span class="text-danger">CRIT</span>{% elif vital_signs.memory.severity == "Warn" %}<span class="text-warning">WARN</span>{% elif mem_profiled %}—{% else %}[not profiled]{% endif %}</td></tr>
+        <tr><td style="padding:0.4rem 0.8rem;">Memory</td><td style="padding:0.4rem 0.8rem;">{% if vital_signs.memory.used_pct is not none %}used {{ vital_signs.memory.used_pct | round(1) }}%{% elif mem_profiled %}—{% else %}no data{% endif %}</td><td style="padding:0.4rem 0.8rem;">{% if vital_signs.memory.severity == "Crit" %}<span class="text-danger">CRIT</span>{% elif vital_signs.memory.severity == "Warn" %}<span class="text-warning">WARN</span>{% elif mem_profiled %}—{% else %}no data{% endif %}</td></tr>
         {%- set disk_profiled = vital_signs.disk.util_pct is not none or vital_signs.disk.severity is not none %}
-        <tr><td style="padding:0.4rem 0.8rem;">Disk</td><td style="padding:0.4rem 0.8rem;">{% if vital_signs.disk.util_pct is not none %}util {{ vital_signs.disk.util_pct | round(1) }}%{% elif disk_profiled %}—{% else %}[not profiled]{% endif %}</td><td style="padding:0.4rem 0.8rem;">{% if vital_signs.disk.severity == "Crit" %}<span class="text-danger">CRIT</span>{% elif vital_signs.disk.severity == "Warn" %}<span class="text-warning">WARN</span>{% elif disk_profiled %}—{% else %}[not profiled]{% endif %}</td></tr>
+        <tr><td style="padding:0.4rem 0.8rem;">Disk</td><td style="padding:0.4rem 0.8rem;">{% if vital_signs.disk.util_pct is not none %}util {{ vital_signs.disk.util_pct | round(1) }}%{% elif disk_profiled %}—{% else %}no data{% endif %}</td><td style="padding:0.4rem 0.8rem;">{% if vital_signs.disk.severity == "Crit" %}<span class="text-danger">CRIT</span>{% elif vital_signs.disk.severity == "Warn" %}<span class="text-warning">WARN</span>{% elif disk_profiled %}—{% else %}no data{% endif %}</td></tr>
         {%- set net_profiled = vital_signs.network.util_pct is not none or vital_signs.network.severity is not none %}
-        <tr><td style="padding:0.4rem 0.8rem;">Network</td><td style="padding:0.4rem 0.8rem;">{% if vital_signs.network.util_pct is not none %}util {{ vital_signs.network.util_pct | round(1) }}%{% elif net_profiled %}—{% else %}[not profiled]{% endif %}</td><td style="padding:0.4rem 0.8rem;">{% if vital_signs.network.severity == "Crit" %}<span class="text-danger">CRIT</span>{% elif vital_signs.network.severity == "Warn" %}<span class="text-warning">WARN</span>{% elif net_profiled %}—{% else %}[not profiled]{% endif %}</td></tr>
+        <tr><td style="padding:0.4rem 0.8rem;">Network</td><td style="padding:0.4rem 0.8rem;">{% if vital_signs.network.util_pct is not none %}util {{ vital_signs.network.util_pct | round(1) }}%{% elif net_profiled %}—{% else %}no data{% endif %}</td><td style="padding:0.4rem 0.8rem;">{% if vital_signs.network.severity == "Crit" %}<span class="text-danger">CRIT</span>{% elif vital_signs.network.severity == "Warn" %}<span class="text-warning">WARN</span>{% elif net_profiled %}—{% else %}no data{% endif %}</td></tr>
         </tbody>
     </table>
 
@@ -126,7 +126,7 @@
             {% if f.evidence %}
             <p><small>Evidence:
                 {% for e in f.evidence %}
-                <code>{{ e.signal_id | e }}</code> = {{ e.observed }}
+                <code>{{ e.signal_id | e }}</code> = {{ e.observed | round(3) }}
                 {%- for sc in e.source_commands %} <a href="#cmd-{{ sc | e }}">[{{ sc | e }}]</a>{%- endfor -%}
                 {%- if not loop.last %}, {% endif %}
                 {% endfor %}
@@ -158,7 +158,7 @@
     {% endif %}
     {%- if not findings %}
     <h2>Findings</h2>
-    <p>No findings — all evaluated signals are within normal thresholds.</p>
+    <p>No findings — all checks passed.</p>
     {%- endif %}
 
     {%- set fired_ids = findings | map(attribute="id") | list %}
@@ -217,14 +217,14 @@
                         {% set s = result.Failed %}
                         <h3 class="text-warning">{% if s.command.title %}{{ s.command.title | e }}{% else %}{{ s.command.name | e }}{% endif %}: Failed</h3>
                         <div class="border border-secondary rounded">
-                            <pre>{{ s.stdout | e }}</pre>
+                            <pre>{{ s.stdout | e if s.stdout else "(no output — check if the binary requires elevated privileges)" }}</pre>
                         </div>
                         <p>
                         <small>
                             {% if s.command.description %}
                                 <p>{{ s.command.description | e | replace("\n", "<br/>") | safe }}</p>
                             {% endif %}
-                            Command: <code>{{ s.command.command | e }}</code> [{{ s.run_time_ms }} ms]<br/>
+                            Command: <code>{{ s.command.command | e }}</code> [{{ s.run_time_ms }} ms] — stdout + stderr combined<br/>
                             {% for link in s.command.links %}[<a href="{{ link.url | e }}">{{ link.name | e }}</a>] {% endfor %}
                         </small>
                         </p>
@@ -237,6 +237,7 @@
                             <small>
                                 Command: <code>{{ s.command.command | e }}</code> [{{ s.run_time_ms }} ms]<br/>
                             </small>
+                            <small>Increase the <code>timeout</code> for this command in your config if it is expected to take longer.</small>
                         </p>
                     {% endif %}
 
@@ -245,6 +246,7 @@
                         <h3 class="text-danger">{% if s.command.title %}{{ s.command.title | e }}{% else %}{{ s.command.name | e }}{% endif %}: Error</h3>
                         <p>
                             Reason: {{ s.reason | e }}<br/>
+                            <small>Run the command manually to investigate: <code>{{ s.command.command | e }}</code></small><br/>
                             <small>
                                 Command: <code>{{ s.command.command | e }}</code> [{{ s.run_time_ms }} ms]<br/>
                             </small>
@@ -316,14 +318,14 @@
                         {% set s = result.Failed %}
                         <h3 id="cmd-{{ s.command.name | e }}" class="text-warning">{% if s.command.title %}{{ s.command.title | e }}{% else %}{{ s.command.name | e }}{% endif %}: Failed</h3>
                         <div class="border border-secondary rounded">
-                            <pre>{{ s.stdout | e }}</pre>
+                            <pre>{{ s.stdout | e if s.stdout else "(no output — check if the binary requires elevated privileges)" }}</pre>
                         </div>
                         <p>
                         <small>
                             {% if s.command.description %}
                                 <p>{{ s.command.description | e | replace("\n", "<br/>") | safe }}</p>
                             {% endif %}
-                            Command: <code>{{ s.command.command | e }}</code> [{{ s.run_time_ms }} ms]<br/>
+                            Command: <code>{{ s.command.command | e }}</code> [{{ s.run_time_ms }} ms] — stdout + stderr combined<br/>
                             {% for link in s.command.links or [] %}[<a href="{{ link.url | e }}">{{ link.name | e }}</a>] {% endfor %}
                         </small>
                         </p>
@@ -336,6 +338,7 @@
                             <small>
                                 Command: <code>{{ s.command.command | e }}</code> [{{ s.run_time_ms }} ms]<br/>
                             </small>
+                            <small>Increase the <code>timeout</code> for this command in your config if it is expected to take longer.</small>
                         </p>
                     {% endif %}
 
@@ -344,6 +347,7 @@
                         <h3 id="cmd-{{ s.command.name | e }}" class="text-danger">{% if s.command.title %}{{ s.command.title | e }}{% else %}{{ s.command.name | e }}{% endif %}: Error</h3>
                         <p>
                             Reason: {{ s.reason | e }}<br/>
+                            <small>Run the command manually to investigate: <code>{{ s.command.command | e }}</code></small><br/>
                             <small>
                                 Command: <code>{{ s.command.command | e }}</code> [{{ s.run_time_ms }} ms]<br/>
                             </small>

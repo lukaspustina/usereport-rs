@@ -30,8 +30,9 @@ pub fn mad(values: &[f64]) -> Option<f64> {
 }
 
 /// Modified z-score (per Iglewicz & Hoaglin, 1993). The 0.6745 factor
-/// rescales MAD so the distribution matches the standard normal under
-/// gaussian-like data.
+/// rescales MAD to match the standard normal under Gaussian-like data.
+/// Note: the caller uses thresholds of 3.0 and 6.0 (not the paper's
+/// recommended 3.5) — documented as approximate standard-deviation units.
 pub fn z_score(value: f64, p50: f64, mad: f64) -> f64 {
     if mad == 0.0 {
         return 0.0;

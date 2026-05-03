@@ -1,3 +1,8 @@
+# Workload rules for PostgreSQL.
+# These rules predicate on pg.* signals that are NOT emitted by any built-in
+# collector. To activate these rules, add [[command.extract]] entries that emit
+# the required signals (e.g. from pg_stat_activity, pg_stat_bgwriter, etc.).
+#
 # PostgreSQL workload rule pack.
 # Fires on signals emitted by a postgres-aware collector or crafted fixtures.
 # Thresholds are conservative defaults; tune via rules.d/ overrides.

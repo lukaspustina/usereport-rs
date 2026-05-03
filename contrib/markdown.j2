@@ -22,13 +22,13 @@
 | Resource | Value | Severity |
 |----------|-------|----------|
 {%- set cpu_profiled = vital_signs.cpu.iowait_pct is not none or vital_signs.cpu.severity is not none %}
-| CPU | {% if vital_signs.cpu.iowait_pct is not none %}iowait {{ vital_signs.cpu.iowait_pct | round(1) }}%{% elif cpu_profiled %}—{% else %}[not profiled]{% endif %} | {% if vital_signs.cpu.severity is not none %}{{ vital_signs.cpu.severity | upper }}{% elif cpu_profiled %}—{% else %}[not profiled]{% endif %} |
+| CPU | {% if vital_signs.cpu.iowait_pct is not none %}iowait {{ vital_signs.cpu.iowait_pct | round(1) }}%{% elif cpu_profiled %}—{% else %}no data{% endif %} | {% if vital_signs.cpu.severity is not none %}{{ vital_signs.cpu.severity | upper }}{% elif cpu_profiled %}—{% else %}no data{% endif %} |
 {%- set mem_profiled = vital_signs.memory.used_pct is not none or vital_signs.memory.severity is not none %}
-| Memory | {% if vital_signs.memory.used_pct is not none %}used {{ vital_signs.memory.used_pct | round(1) }}%{% elif mem_profiled %}—{% else %}[not profiled]{% endif %} | {% if vital_signs.memory.severity is not none %}{{ vital_signs.memory.severity | upper }}{% elif mem_profiled %}—{% else %}[not profiled]{% endif %} |
+| Memory | {% if vital_signs.memory.used_pct is not none %}used {{ vital_signs.memory.used_pct | round(1) }}%{% elif mem_profiled %}—{% else %}no data{% endif %} | {% if vital_signs.memory.severity is not none %}{{ vital_signs.memory.severity | upper }}{% elif mem_profiled %}—{% else %}no data{% endif %} |
 {%- set disk_profiled = vital_signs.disk.util_pct is not none or vital_signs.disk.severity is not none %}
-| Disk | {% if vital_signs.disk.util_pct is not none %}util {{ vital_signs.disk.util_pct | round(1) }}%{% elif disk_profiled %}—{% else %}[not profiled]{% endif %} | {% if vital_signs.disk.severity is not none %}{{ vital_signs.disk.severity | upper }}{% elif disk_profiled %}—{% else %}[not profiled]{% endif %} |
+| Disk | {% if vital_signs.disk.util_pct is not none %}util {{ vital_signs.disk.util_pct | round(1) }}%{% elif disk_profiled %}—{% else %}no data{% endif %} | {% if vital_signs.disk.severity is not none %}{{ vital_signs.disk.severity | upper }}{% elif disk_profiled %}—{% else %}no data{% endif %} |
 {%- set net_profiled = vital_signs.network.util_pct is not none or vital_signs.network.severity is not none %}
-| Network | {% if vital_signs.network.util_pct is not none %}util {{ vital_signs.network.util_pct | round(1) }}%{% elif net_profiled %}—{% else %}[not profiled]{% endif %} | {% if vital_signs.network.severity is not none %}{{ vital_signs.network.severity | upper }}{% elif net_profiled %}—{% else %}[not profiled]{% endif %} |
+| Network | {% if vital_signs.network.util_pct is not none %}util {{ vital_signs.network.util_pct | round(1) }}%{% elif net_profiled %}—{% else %}no data{% endif %} | {% if vital_signs.network.severity is not none %}{{ vital_signs.network.severity | upper }}{% elif net_profiled %}—{% else %}no data{% endif %} |
 
 {%- if use_coverage %}
 ## USE Coverage
@@ -86,7 +86,7 @@
 {% if f.evidence -%}
 **Evidence**
 {% for e in f.evidence -%}
-- `{{ e.signal_id }}` = `{{ e.observed }}`{% for sc in e.source_commands %} (see: {{ sc }}){% endfor %}
+- `{{ e.signal_id }}` = `{{ e.observed | round(3) }}`{% for sc in e.source_commands %} (see: {{ sc }}){% endfor %}
 {% endfor %}
 {% endif -%}
 {% if f.suggest -%}
@@ -106,7 +106,7 @@
 {%- if not findings %}
 ## Findings
 
-No findings — all evaluated signals are within normal thresholds.
+No findings — all checks passed.
 
 {% endif -%}
 {%- set fired_ids = findings | map(attribute="id") | list %}
@@ -147,17 +147,17 @@ The following signals were evaluated and found within normal thresholds:
 ### {{ s.command.title or s.command.name }}: Failed
 
 ```
-{{ s.stdout if s.stdout else "(no output)" -}}
+{{ s.stdout if s.stdout else "(no output — check if the binary requires elevated privileges)" -}}
 ```
 
-> `{{ s.command.command }}` · {{ s.run_time_ms }} ms · **failed**{% for link in s.command.links or [] %} · [{{ link.name }}]({{ link.url }}){% endfor %}
+> `{{ s.command.command }}` · {{ s.run_time_ms }} ms · **failed** (stdout + stderr combined){% for link in s.command.links or [] %} · [{{ link.name }}]({{ link.url }}){% endfor %}
 
 {% endif -%}
 {% if result.Timeout -%}
 {%- set s = result.Timeout %}
 ### {{ s.command.title or s.command.name }}: Timed out
 
-> `{{ s.command.command }}` · timed out after {{ s.run_time_ms }} ms
+> `{{ s.command.command }}` · timed out after {{ s.run_time_ms }} ms — increase the `timeout` for this command in your config if this tool is expected to take longer.
 
 {% endif -%}
 {% if result.Error -%}
@@ -165,6 +165,8 @@ The following signals were evaluated and found within normal thresholds:
 ### {{ s.command.title or s.command.name }}: Error
 
 > `{{ s.command.command }}` — {{ s.reason }}
+>
+> Run the command manually to investigate: `{{ s.command.command }}`
 
 {% endif -%}
 {% endfor %}
@@ -174,10 +176,10 @@ The following signals were evaluated and found within normal thresholds:
 
 | ID | Value | Trend | Threshold |
 |----|-------|-------|-----------|
-{% for s in signals -%}
+{%- for s in signals -%}
 {%- set thr = signal_thresholds[s.id] %}
 | `{{ s.id }}` | {{ s.value }} | {{ s.stats.trend if s.stats else "—" }} | {% if thr %}{{ thr.op }} {{ thr.value }} ({{ thr.severity }}){% else %}—{% endif %} |
-{% endfor %}
+{%- endfor %}
 {% endif -%}
 ---
 

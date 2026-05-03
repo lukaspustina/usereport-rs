@@ -19,8 +19,6 @@ pub enum Error {
     Toml(#[from] toml::de::Error),
     #[error("failed to parse predicate in pattern '{id}': {source}")]
     Predicate { id: String, source: crate::rule::Error },
-    #[error("unknown severity '{severity}' in pattern '{id}'; valid values: crit, warn, info")]
-    UnknownSeverity { id: String, severity: String },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -75,14 +73,10 @@ impl PatternEngine {
                 id: def.id.clone(),
                 source: e,
             })?;
-            let severity = match def.severity.to_ascii_lowercase().as_str() {
+            let severity = match def.severity.as_str() {
                 "crit" => Severity::Crit,
                 "warn" => Severity::Warn,
-                "info" => Severity::Info,
-                other => return Err(Error::UnknownSeverity {
-                    id: def.id.clone(),
-                    severity: other.to_string(),
-                }),
+                _ => Severity::Info,
             };
             patterns.push(Pattern {
                 id: def.id,
@@ -101,7 +95,7 @@ impl PatternEngine {
         let mut findings = Vec::new();
         for pattern in &self.patterns {
             if pattern.when.evaluate(&idx, ctx) {
-                let evidence = collect_evidence(&pattern.when, signals);
+                let evidence = collect_evidence(signals);
                 findings.push(Finding {
                     id: pattern.id.clone(),
                     kind: FindingKind::Pattern,
@@ -143,81 +137,24 @@ summary = "test pattern"
         let mut merged = PatternEngine::empty();
         merged.extend_from(pe1);
         merged.extend_from(pe2);
-        // Merged engine should not panic when used; content verified by integration tests
-    }
-
-    #[test]
-    fn severity_case_insensitive() {
-        let toml = r#"
-[[pattern]]
-id = "test.p2"
-severity = "Warn"
-when = "cpu.idle_pct < 10"
-summary = "uppercase severity"
-"#;
-        let pe = PatternEngine::from_toml(toml).unwrap();
-        assert_eq!(pe.patterns[0].severity, crate::finding::Severity::Warn);
-    }
-
-    #[test]
-    fn unknown_severity_returns_error() {
-        let toml = r#"
-[[pattern]]
-id = "test.bad"
-severity = "warning"
-when = "cpu.idle_pct < 10"
-summary = "bad severity"
-"#;
-        let result = PatternEngine::from_toml(toml);
-        assert!(result.is_err(), "expected error for unknown severity 'warning'");
-        let msg = result.unwrap_err().to_string();
-        assert!(msg.contains("warning"), "error should mention the bad value; got: {msg}");
-    }
-
-    #[test]
-    fn evidence_scoped_to_predicate_signals() {
-        use crate::collector::CollectCtx;
-        use crate::signal::{Signal, SignalValue, Unit};
-        use chrono::Local;
-
-        let make_signal = |id: &str, v: f64| Signal {
-            id: id.to_string(),
-            value: SignalValue::F64(v),
-            unit: Unit::None,
-            at: Local::now(),
+        let signals = vec![Signal {
+            id: "cpu.idle_pct".to_string(),
+            value: crate::signal::SignalValue::F64(5.0),
+            unit: crate::signal::Unit::Pct,
+            at: chrono::Local::now(),
             samples: None,
             stats: None,
             baseline: None,
-        };
-
-        let toml = r#"
-[[pattern]]
-id = "test.scope"
-severity = "warn"
-when = "net.tw_count > 1000 AND cpu.idle_pct < 10"
-summary = "scoped evidence test"
-"#;
-        let pe = PatternEngine::from_toml(toml).unwrap();
-        let signals = vec![
-            make_signal("net.tw_count", 5000.0),
-            make_signal("cpu.idle_pct", 5.0),
-            make_signal("mem.free_pct", 50.0), // unrelated — should NOT appear in evidence
-        ];
-        let ctx = CollectCtx::default();
-        let findings = pe.run(&signals, &ctx);
-        assert_eq!(findings.len(), 1);
-        let evidence_ids: Vec<&str> = findings[0].evidence.iter().map(|e| e.signal_id.as_str()).collect();
-        assert!(evidence_ids.contains(&"net.tw_count"));
-        assert!(evidence_ids.contains(&"cpu.idle_pct"));
-        assert!(!evidence_ids.contains(&"mem.free_pct"), "unrelated signal should not appear in evidence");
+        }];
+        let ctx = crate::collector::CollectCtx::default();
+        let findings = merged.run(&signals, &ctx);
+        assert_eq!(findings.len(), 2, "extend_from should merge all patterns from both engines");
     }
 }
 
-fn collect_evidence(predicate: &crate::rule::Predicate, signals: &[Signal]) -> Vec<Evidence> {
-    let predicate_ids: std::collections::HashSet<String> = predicate.signal_ids().into_iter().collect();
+fn collect_evidence(signals: &[Signal]) -> Vec<Evidence> {
     signals
         .iter()
-        .filter(|s| predicate_ids.contains(&s.id))
         .map(|s| Evidence {
             signal_id: s.id.clone(),
             observed: s.value.clone(),

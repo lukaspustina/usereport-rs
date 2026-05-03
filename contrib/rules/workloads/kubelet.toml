@@ -1,3 +1,8 @@
+# Workload rules for kubelet.
+# These rules predicate on kubelet.* signals that are NOT emitted by any built-in
+# collector. To activate these rules, add [[command.extract]] entries that emit
+# the required signals from kubectl or kubelet metrics endpoints.
+#
 # kubelet workload rule pack.
 # Fires on signals from kubelet metrics or crafted fixtures.
 

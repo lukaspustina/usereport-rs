@@ -181,17 +181,12 @@ usereport --exit-on warn && echo "healthy" || pagerduty-alert
 $ usereport explain net.retransmit_elevated
 
 ID:       net.retransmit_elevated
-Severity: Warn
-Summary:  TCP retransmit rate is elevated (> 1%)
-
-Sustained retransmits indicate congestion, packet loss, or a broken path.
+Severity: WARN
+Summary:  TCP retransmission rate above 1%.
 
 To investigate:
-  ss -tin
-  netstat -s | grep retransmit
-
-Links:
-  https://www.brendangregg.com/perf.html
+  ss -s
+  sar -n TCP,ETCP 1 5
 ```
 
 No more "what does this finding mean?" moments at 3am.
@@ -240,21 +235,17 @@ usereport check
 ```
 
 ```
-+------------+-------------+------------------+--------+
-| Category   | Name        | Binary           | Status |
-+=====================================================+
-| default    | mpstat      | mpstat           | ok     |
-|------------+-------------+------------------+--------|
-| default    | iostat      | iostat           | ok     |
-|------------+-------------+------------------+--------|
-| collectors | dmesg       | dmesg            | ok     |
-|------------+-------------+------------------+--------|
-| collectors | free        | free             | ok     |
-|------------+-------------+------------------+--------|
-| profiling  | perf        | perf             | ok     |
-|------------+-------------+------------------+--------|
-| profiling  | bpftrace    | bpftrace         | ok     |
-+------------+-------------+------------------+--------+
+┌────────────┬─────────────┬──────────────────┬────────┐
+│ Category   │ Name        │ Binary           │ Status │
+╞════════════╪═════════════╪══════════════════╪════════╡
+│ default    │ mpstat      │                  │ ok     │
+├────────────┼─────────────┼──────────────────┼────────┤
+│            │ iostat      │                  │ ok     │
+├────────────┼─────────────┼──────────────────┼────────┤
+│ collectors │ dmesg       │                  │ ok     │
+├────────────┼─────────────┼──────────────────┼────────┤
+│            │ free        │                  │ ok     │
+└────────────┴─────────────┴──────────────────┴────────┘
 ```
 
 Covers every binary `usereport` might invoke — profile commands, direct collectors, profiling tools, eBPF tools. Exits 1 if anything is missing. Run it after install or when setting up a new host.
@@ -595,7 +586,7 @@ usereport baseline record --name tuesday
 usereport --baseline tuesday --output html -O incident.html
 ```
 
-Signals that deviate more than 3 standard deviations get a `warn` finding. More than 6 standard deviations get `crit`. The finding shows you the baseline p50, the observed value, and the z-score — no guessing whether the deviation is meaningful.
+Signals that deviate by a modified z-score above 3 get a `warn` finding. Above 6 get `crit`. (The modified z-score uses median and MAD rather than mean and standard deviation, making it robust to non-Gaussian data.) The finding shows you the baseline p50, the observed value, and the z-score — no guessing whether the deviation is meaningful.
 
 ### Workload-aware rules
 
@@ -608,6 +599,8 @@ usereport --workload java       # GC pressure, heap saturation, thread count
 usereport --workload kubelet    # pod count, evictions, image pull latency
 ```
 
+> **Note:** Workload rules predicate on application-specific signals (`pg.*`, `nginx.*`, `jvm.*`, `kubelet.*`) that must be emitted by custom `[[command.extract]]` entries in your config. The rules are templates — they will fire once you add the matching signal extraction.
+
 ### eBPF collectors (opt-in, Linux)
 
 When you need to go deeper than `/proc`:
@@ -617,6 +610,8 @@ usereport --bpf   # runqlat, biolatency, tcpretrans, execsnoop, cachestat
 ```
 
 > **Note:** `--bpf` requires a binary built with `--features bpf`. Pre-built binaries from `cargo binstall` do not include this feature. Build from source: `cargo install usereport-rs --features bpf`.
+
+> **Note:** `--profile-cpu` flamegraphs are only embedded in `--output html`. With any other output format the profiling step is skipped.
 
 Emits histogram signals with full percentile stats (`p50`, `p95`, `p99`). Falls back gracefully — if a BCC tool isn't installed, you get an `info` finding with the install hint instead of an error.
 
@@ -646,17 +641,12 @@ Produces a compact JSON document — signals, findings, checked-ok list, and raw
 $ usereport explain net.retransmit_elevated
 
 ID:       net.retransmit_elevated
-Severity: Warn
-Summary:  TCP retransmit rate is elevated (> 1%)
-
-Sustained retransmits indicate congestion, packet loss, or a broken path.
+Severity: WARN
+Summary:  TCP retransmission rate above 1%.
 
 To investigate:
-  ss -tin
-  netstat -s | grep retransmit
-
-Links:
-  https://www.brendangregg.com/perf.html
+  ss -s
+  sar -n TCP,ETCP 1 5
 ```
 
 Works for both rule IDs and raw signal IDs. Shows install hints when the source tool is missing.
@@ -872,7 +862,7 @@ install_hint     = "apt-get install sysstat"
 what_to_look_for = "High %iowait means disk is the bottleneck. Idle near 0% means CPU is saturated."
 ```
 
-- `install_hint` — shown in `usereport explain <command-name>` when the binary is missing
+- `install_hint` — shown in `usereport explain <command-name>` when set
 - `what_to_look_for` — surfaced in `usereport explain <command-name>`
 
 ### Custom rules

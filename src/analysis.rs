@@ -422,30 +422,23 @@ pub fn compute_vital_signs(signals: &[Signal], findings: &[Finding]) -> VitalSig
 
     let mem_used = signals
         .iter()
-        .find(|s| s.id == "mem.used_pct")
+        .find(|s| s.id == "mem.free_pct")
         .and_then(|s| match s.value {
-            SignalValue::F64(v) => Some(v),
-            SignalValue::I64(v) => Some(v as f64),
+            SignalValue::F64(v) => Some(100.0 - v),
+            SignalValue::I64(v) => Some(100.0 - v as f64),
             _ => None,
         });
 
     let disk_util = signals
         .iter()
-        .find(|s| s.id == "disk.util_pct")
+        .find(|s| s.id == "disk.max_util_pct")
         .and_then(|s| match s.value {
             SignalValue::F64(v) => Some(v),
             SignalValue::I64(v) => Some(v as f64),
             _ => None,
         });
 
-    let net_util = signals
-        .iter()
-        .find(|s| s.id == "net.util_pct")
-        .and_then(|s| match s.value {
-            SignalValue::F64(v) => Some(v),
-            SignalValue::I64(v) => Some(v as f64),
-            _ => None,
-        });
+    let net_util: Option<f64> = None;
 
     let severity_for = |prefix: &str| -> Option<Severity> {
         findings

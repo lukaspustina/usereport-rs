@@ -69,3 +69,31 @@ pub fn extract_signals(command_name: &str, stdout: &str, extracts: &[CommandExtr
 
     out
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::cli::config::{Aggregate, CommandExtract};
+    use crate::signal::Unit;
+
+    fn make_extract(pattern: &str, aggregate: Aggregate) -> CommandExtract {
+        CommandExtract {
+            pattern: pattern.to_string(),
+            signal_id: "test.signal".to_string(),
+            unit: Unit::None,
+            aggregate,
+        }
+    }
+
+    #[test]
+    fn aggregate_min_returns_smallest_value() {
+        let extracts = vec![make_extract(r"val=(?P<val>\d+)", Aggregate::Min)];
+        let stdout = "val=10\nval=3\nval=7\n";
+        let signals = extract_signals("test_cmd", stdout, &extracts);
+        assert_eq!(signals.len(), 1);
+        match signals[0].value {
+            crate::signal::SignalValue::F64(v) => assert!((v - 3.0).abs() < f64::EPSILON, "expected min=3.0, got {v}"),
+            _ => panic!("expected F64 signal value"),
+        }
+    }
+}
