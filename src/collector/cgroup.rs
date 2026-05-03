@@ -71,10 +71,10 @@ fn detect_cgroup_v2_path() -> Option<PathBuf> {
 
 fn collect_v2(base: &Path, signals: &mut Vec<Signal>, now: chrono::DateTime<Local>) {
     if let Some(v) = read_u64(base.join("memory.current")) {
-        push(signals, "cgroup.memory_bytes", v as f64, Unit::Count, now);
+        push(signals, "cgroup.memory_bytes", v as f64, Unit::Bytes, now);
     }
     if let Some(v) = read_mem_max(base.join("memory.max")) {
-        push(signals, "cgroup.memory_limit_bytes", v, Unit::Count, now);
+        push(signals, "cgroup.memory_limit_bytes", v, Unit::Bytes, now);
     }
     if let Some(v) = read_keyed(base.join("memory.events"), "oom_kill") {
         push(signals, "cgroup.oom_kills", v as f64, Unit::Count, now);
@@ -83,19 +83,19 @@ fn collect_v2(base: &Path, signals: &mut Vec<Signal>, now: chrono::DateTime<Loca
         push(signals, "cgroup.pids_current", v as f64, Unit::Count, now);
     }
     if let Some(v) = read_keyed(base.join("cpu.stat"), "throttled_usec") {
-        push(signals, "cgroup.cpu_throttled_usec", v as f64, Unit::Count, now);
+        push(signals, "cgroup.cpu_throttled_usec", v as f64, Unit::Microseconds, now);
     }
 }
 
 fn collect_v1(base: &Path, signals: &mut Vec<Signal>, now: chrono::DateTime<Local>) {
     let mem = base.join("memory");
     if let Some(v) = read_u64(mem.join("memory.usage_in_bytes")) {
-        push(signals, "cgroup.memory_bytes", v as f64, Unit::Count, now);
+        push(signals, "cgroup.memory_bytes", v as f64, Unit::Bytes, now);
     }
     // v1 limit: 9223372036854771712 = PAGE_COUNTER_MAX meaning no limit
     if let Some(v) = read_u64(mem.join("memory.limit_in_bytes")) {
         let limit = if v > i64::MAX as u64 / 2 { 0.0 } else { v as f64 };
-        push(signals, "cgroup.memory_limit_bytes", limit, Unit::Count, now);
+        push(signals, "cgroup.memory_limit_bytes", limit, Unit::Bytes, now);
     }
     let pids = base.join("pids");
     if let Some(v) = read_u64(pids.join("pids.current")) {
@@ -108,7 +108,7 @@ fn collect_v1(base: &Path, signals: &mut Vec<Signal>, now: chrono::DateTime<Loca
             signals,
             "cgroup.cpu_throttled_usec",
             v as f64 / 1000.0,
-            Unit::Count,
+            Unit::Microseconds,
             now,
         );
     }

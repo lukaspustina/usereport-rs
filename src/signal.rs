@@ -38,17 +38,24 @@ pub enum Unit {
     Pct,
     #[serde(alias = "ms")]
     MillisPerOp,
-    #[serde(alias = "bytes")]
+    #[serde(alias = "bytes_per_sec")]
     BytesPerSec,
     #[serde(alias = "count")]
     Count,
     #[serde(alias = "mb")]
     Megabytes,
+    #[serde(alias = "iops")]
     Iops,
+    #[serde(alias = "microseconds")]
     Microseconds,
+    #[serde(alias = "hz")]
     Hz,
+    #[serde(alias = "celsius")]
     Celsius,
+    #[serde(alias = "none")]
     None,
+    #[serde(alias = "bytes")]
+    Bytes,
 }
 
 impl fmt::Display for Unit {
@@ -64,6 +71,7 @@ impl fmt::Display for Unit {
             Unit::Hz => "hz",
             Unit::Celsius => "celsius",
             Unit::None => "none",
+            Unit::Bytes => "bytes",
         })
     }
 }

@@ -24,10 +24,10 @@ pub enum Error {
         source: toml::de::Error,
     },
     /// Failed to read file
-    #[error("failed to read file config '{path}': {source}")]
+    #[error("failed to read config file '{path}'")]
     ReadConfigFileFailed { path: PathBuf, source: std::io::Error },
     /// Profile not found
-    #[error("no such profile '{name}'")]
+    #[error("no such profile '{name}'; run 'usereport --show-profiles' to see available profiles")]
     NoSuchProfile { name: String },
     /// Profile references a command that does not exist in the commands list
     #[error("profile '{profile}': command '{command}' not found in config commands list")]

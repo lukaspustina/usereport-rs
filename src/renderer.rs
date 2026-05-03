@@ -49,8 +49,10 @@ pub mod json {
     }
 
     impl<W: Write> Renderer<W> for JsonRenderer {
-        fn render(&self, report: &AnalysisReport, w: W) -> Result<()> {
-            Ok(serde_json::to_writer(w, report)?)
+        fn render(&self, report: &AnalysisReport, mut w: W) -> Result<()> {
+            serde_json::to_writer(&mut w, report)?;
+            w.write_all(b"\n").map_err(|e| Error::WriteOutputFailed { source: e })?;
+            Ok(())
         }
     }
 
