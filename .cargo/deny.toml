@@ -21,13 +21,12 @@ allow = [
 
 [bans]
 multiple-versions = "warn"
-# tempfile 3.x still depends on rustix 0.38.x while we use rustix 1.x directly;
-# these duplicates are transitive and outside our control.
+# getrandom 0.4 pulls in both wasip2 and wasip3 crates which each bring a
+# different wit-bindgen version; these duplicates are transitive and outside
+# our control.
 skip = [
-    # tempfile 3.x pulls in old rustix; we use rustix 1.x directly.
-    { name = "rustix", version = "0.38" },
-    { name = "linux-raw-sys", version = "0.4" },
-    { name = "windows-sys", version = "0.59" },
+    { name = "wit-bindgen", version = "0.46" },
+    { name = "wit-bindgen", version = "0.51" },
 ]
 
 [sources]
