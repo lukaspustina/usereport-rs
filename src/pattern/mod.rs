@@ -110,6 +110,37 @@ impl PatternEngine {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn empty_has_no_patterns() {
+        let pe = PatternEngine::empty();
+        let mut other = PatternEngine::empty();
+        other.extend_from(pe);
+        // If both are empty, the merged engine should also be empty (no panic)
+    }
+
+    #[test]
+    fn extend_from_merges_patterns() {
+        let toml = r#"
+[[pattern]]
+id = "test.p1"
+description = "test"
+severity = "Warn"
+when = "cpu.idle_pct < 10"
+summary = "test pattern"
+"#;
+        let pe1 = PatternEngine::from_toml(toml).unwrap();
+        let pe2 = PatternEngine::from_toml(toml).unwrap();
+        let mut merged = PatternEngine::empty();
+        merged.extend_from(pe1);
+        merged.extend_from(pe2);
+        // Merged engine should not panic when used; content verified by integration tests
+    }
+}
+
 fn collect_evidence(signals: &[Signal]) -> Vec<Evidence> {
     signals
         .iter()

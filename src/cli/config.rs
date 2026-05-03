@@ -26,9 +26,6 @@ pub enum Error {
     /// Failed to read file
     #[error("failed to read file config '{path}': {source}")]
     ReadConfigFileFailed { path: PathBuf, source: std::io::Error },
-    /// Configuration is invalid
-    #[error("configuration is invalid because {reason}")]
-    InvalidConfig { reason: &'static str },
     /// Profile not found
     #[error("no such profile '{name}'")]
     NoSuchProfile { name: String },
