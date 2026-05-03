@@ -11,7 +11,7 @@ use crate::analysis::AnalysisReport;
 use crate::command::CommandResult;
 use crate::finding::Finding;
 use crate::redact::Redactor;
-use crate::signal::{Signal, SignalValue};
+use crate::signal::{Signal, SignalValue, Unit};
 
 /// One command's stdout, truncated to `MAX_EXCERPT_CHARS`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -20,13 +20,33 @@ pub struct LlmExcerpt {
     pub output: String,
 }
 
+/// Lean signal representation for LLM output — omits null sampling fields and
+/// per-signal timestamps (redundant with the top-level `date_time`).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LlmSignal {
+    pub id: String,
+    pub value: SignalValue,
+    #[serde(skip_serializing_if = "Unit::is_none")]
+    pub unit: Unit,
+}
+
+impl From<Signal> for LlmSignal {
+    fn from(s: Signal) -> Self {
+        Self {
+            id: s.id,
+            value: s.value,
+            unit: s.unit,
+        }
+    }
+}
+
 /// Top-level schema-versioned document. `schema_version` is always `"1"`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LlmOutput {
     pub schema_version: String,
     pub date_time: String,
     pub host: LlmHost,
-    pub signals: Vec<Signal>,
+    pub signals: Vec<LlmSignal>,
     pub findings: Vec<Finding>,
     pub checked_ok: Vec<String>,
     pub raw_excerpts: Vec<LlmExcerpt>,
@@ -83,19 +103,25 @@ impl LlmOutput {
             .unwrap_or(&[])
             .iter()
             .filter_map(|cr| match cr {
-                CommandResult::Success { command, stdout, .. } => Some(LlmExcerpt {
-                    command: command.name().to_string(),
-                    output: stdout.chars().take(Self::MAX_EXCERPT_CHARS).collect(),
-                }),
+                CommandResult::Success { command, stdout, .. } => {
+                    let normalized: String = stdout.split_whitespace().collect::<Vec<_>>().join(" ");
+                    let truncated: String = normalized.chars().take(Self::MAX_EXCERPT_CHARS).collect();
+                    Some(LlmExcerpt {
+                        command: command.name().to_string(),
+                        output: truncated,
+                    })
+                }
                 _ => None,
             })
             .collect();
+
+        let llm_signals: Vec<LlmSignal> = signals.into_iter().map(LlmSignal::from).collect();
 
         let mut out = LlmOutput {
             schema_version: Self::SCHEMA_VERSION.to_string(),
             date_time: report.context().date_time().to_rfc3339(),
             host,
-            signals,
+            signals: llm_signals,
             findings: report.findings().to_vec(),
             checked_ok: report.checked_ok().to_vec(),
             raw_excerpts,

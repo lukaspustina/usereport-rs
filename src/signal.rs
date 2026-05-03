@@ -58,6 +58,12 @@ pub enum Unit {
     Bytes,
 }
 
+impl Unit {
+    pub fn is_none(&self) -> bool {
+        matches!(self, Unit::None)
+    }
+}
+
 impl fmt::Display for Unit {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
