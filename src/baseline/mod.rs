@@ -90,3 +90,64 @@ pub fn outlier_findings(signals: &[Signal]) -> Vec<Finding> {
     }
     findings
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::signal::{BaselineStats, Signal, SignalValue, Unit};
+    use chrono::Local;
+
+    fn signal_with_z(id: &str, z: f64) -> Signal {
+        let mut s = Signal {
+            id: id.to_string(),
+            value: SignalValue::F64(1.0),
+            unit: Unit::None,
+            at: Local::now(),
+            samples: None,
+            stats: None,
+            baseline: None,
+        };
+        s.baseline = Some(BaselineStats { p50: 1.0, p95: 2.0, mad: 0.1, z_score: z });
+        s
+    }
+
+    #[test]
+    fn z_below_3_no_finding() {
+        assert!(outlier_findings(&[signal_with_z("x", 2.99)]).is_empty());
+    }
+
+    #[test]
+    fn z_exactly_3_no_finding() {
+        // boundary: > 3, not ≥ 3
+        assert!(outlier_findings(&[signal_with_z("x", 3.0)]).is_empty());
+    }
+
+    #[test]
+    fn z_above_3_fires_warn() {
+        let findings = outlier_findings(&[signal_with_z("x", 3.01)]);
+        assert_eq!(findings.len(), 1);
+        assert_eq!(findings[0].severity, Severity::Warn);
+    }
+
+    #[test]
+    fn z_exactly_6_fires_warn_not_crit() {
+        // boundary: > 6, not ≥ 6
+        let findings = outlier_findings(&[signal_with_z("x", 6.0)]);
+        assert_eq!(findings.len(), 1);
+        assert_eq!(findings[0].severity, Severity::Warn, "z=6.0 should be Warn, not Crit");
+    }
+
+    #[test]
+    fn z_above_6_fires_crit() {
+        let findings = outlier_findings(&[signal_with_z("x", 6.01)]);
+        assert_eq!(findings.len(), 1);
+        assert_eq!(findings[0].severity, Severity::Crit);
+    }
+
+    #[test]
+    fn negative_z_above_3_fires_warn() {
+        let findings = outlier_findings(&[signal_with_z("x", -4.0)]);
+        assert_eq!(findings.len(), 1);
+        assert_eq!(findings[0].severity, Severity::Warn);
+    }
+}

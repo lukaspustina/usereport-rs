@@ -61,7 +61,7 @@
 {%- if ns.has_skipped %}
 ## Coverage Gaps
 
-> findings may be incomplete — the following tools were not found on PATH
+> Some findings may be incomplete — the tools below were not found on PATH. Run `usereport check` to verify tool availability.
 
 | Command | Missing Binary | Install |
 |---------|----------------|---------|
@@ -102,6 +102,12 @@
 {% endfor %}
 {% endif %}
 {% endfor -%}
+{% endif -%}
+{%- if not findings %}
+## Findings
+
+No findings — all evaluated signals are within normal thresholds.
+
 {% endif -%}
 {%- set fired_ids = findings | map(attribute="id") | list %}
 {%- set active_followups = followup_recommendations | selectattr("finding", "in", fired_ids) | list %}

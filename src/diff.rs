@@ -105,6 +105,14 @@ pub fn diff(a: &AnalysisReport, b: &AnalysisReport) -> DiffReport {
     out
 }
 
+fn severity_str(s: Severity) -> &'static str {
+    match s {
+        Severity::Crit => "Crit",
+        Severity::Warn => "Warn",
+        Severity::Info => "Info",
+    }
+}
+
 fn signal_to_f64(v: &SignalValue) -> Option<f64> {
     match v {
         SignalValue::F64(x) => Some(*x),
@@ -161,7 +169,7 @@ pub fn render_text<W: std::io::Write>(d: &DiffReport, label_a: &str, label_b: &s
         writeln!(w, "  (none)")?;
     } else {
         for f in &d.findings_only_in_a {
-            writeln!(w, "  [{:?}] {}", f.severity, f.id)?;
+            writeln!(w, "  [{}] {}", severity_str(f.severity), f.id)?;
         }
     }
     writeln!(w)?;
@@ -170,14 +178,14 @@ pub fn render_text<W: std::io::Write>(d: &DiffReport, label_a: &str, label_b: &s
         writeln!(w, "  (none)")?;
     } else {
         for f in &d.findings_only_in_b {
-            writeln!(w, "  [{:?}] {}", f.severity, f.id)?;
+            writeln!(w, "  [{}] {}", severity_str(f.severity), f.id)?;
         }
     }
     if !d.findings_severity_changed.is_empty() {
         writeln!(w)?;
         writeln!(w, "Findings severity changed:")?;
         for c in &d.findings_severity_changed {
-            writeln!(w, "  {}: {:?} → {:?}", c.finding_id, c.severity_in_a, c.severity_in_b)?;
+            writeln!(w, "  {}: {} → {}", c.finding_id, severity_str(c.severity_in_a), severity_str(c.severity_in_b))?;
         }
     }
     Ok(())

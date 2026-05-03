@@ -4,7 +4,7 @@
 //! `html.j2` via `TemplateRenderer` THEN the output contains `&lt;script&gt;`
 //! AND does not contain a bare `<script>` tag.
 //!
-//! This test FAILS today because html.j2 uses `{{ s.reason }}` without `| e`.
+//! Verifies the fix introduced in html.j2: `{{ s.reason | e }}`.
 
 use usereport::{AnalysisReport, CommandResult, TemplateRenderer};
 

@@ -19,6 +19,8 @@ pub enum Error {
     Toml(#[from] toml::de::Error),
     #[error("failed to parse predicate in pattern '{id}': {source}")]
     Predicate { id: String, source: crate::rule::Error },
+    #[error("unknown severity '{severity}' in pattern '{id}'; valid values: crit, warn, info")]
+    UnknownSeverity { id: String, severity: String },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -76,7 +78,11 @@ impl PatternEngine {
             let severity = match def.severity.to_ascii_lowercase().as_str() {
                 "crit" => Severity::Crit,
                 "warn" => Severity::Warn,
-                _ => Severity::Info,
+                "info" => Severity::Info,
+                other => return Err(Error::UnknownSeverity {
+                    id: def.id.clone(),
+                    severity: other.to_string(),
+                }),
             };
             patterns.push(Pattern {
                 id: def.id,
@@ -150,8 +156,22 @@ when = "cpu.idle_pct < 10"
 summary = "uppercase severity"
 "#;
         let pe = PatternEngine::from_toml(toml).unwrap();
-        // Should parse as Warn, not silently downgrade to Info
         assert_eq!(pe.patterns[0].severity, crate::finding::Severity::Warn);
+    }
+
+    #[test]
+    fn unknown_severity_returns_error() {
+        let toml = r#"
+[[pattern]]
+id = "test.bad"
+severity = "warning"
+when = "cpu.idle_pct < 10"
+summary = "bad severity"
+"#;
+        let result = PatternEngine::from_toml(toml);
+        assert!(result.is_err(), "expected error for unknown severity 'warning'");
+        let msg = result.unwrap_err().to_string();
+        assert!(msg.contains("warning"), "error should mention the bad value; got: {msg}");
     }
 
     #[test]

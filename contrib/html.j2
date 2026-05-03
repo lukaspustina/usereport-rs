@@ -94,7 +94,7 @@
     {%- endfor %}
     {%- if ns_sk.has_skipped %}
     <h2>Coverage Gaps</h2>
-    <p><em>findings may be incomplete</em> — the following tools were not found on PATH</p>
+    <p><em>Some findings may be incomplete</em> — the tools below were not found on PATH. Run <code>usereport check</code> to verify tool availability.</p>
     <table style="border-collapse:collapse;width:100%;margin-bottom:1rem;">
         <thead><tr><th style="padding:0.4rem 0.8rem;border-bottom:2px solid #dee2e6;">Command</th><th style="padding:0.4rem 0.8rem;border-bottom:2px solid #dee2e6;">Missing Binary</th><th style="padding:0.4rem 0.8rem;border-bottom:2px solid #dee2e6;">Install</th></tr></thead>
         <tbody>
@@ -156,6 +156,10 @@
         {% endfor %}
     </ul>
     {% endif %}
+    {%- if not findings %}
+    <h2>Findings</h2>
+    <p>No findings — all evaluated signals are within normal thresholds.</p>
+    {%- endif %}
 
     {%- set fired_ids = findings | map(attribute="id") | list %}
     {%- set active_followups = followup_recommendations | selectattr("finding", "in", fired_ids) | list %}
@@ -375,7 +379,7 @@
         {%- set thr = signal_thresholds[s.id] %}
         <tr>
             <td style="padding:0.4rem 0.8rem;"><code>{{ s.id | e }}</code></td>
-            <td style="padding:0.4rem 0.8rem;">{{ s.value }}</td>
+            <td style="padding:0.4rem 0.8rem;">{{ s.value | e }}</td>
             <td style="padding:0.4rem 0.8rem;">{{ s.stats.trend if s.stats else "—" }}</td>
             <td style="padding:0.4rem 0.8rem;">{% if thr %}{{ thr.op | e }} {{ thr.value }} ({{ thr.severity | e }}){% else %}—{% endif %}</td>
         </tr>

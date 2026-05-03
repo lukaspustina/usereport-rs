@@ -42,6 +42,9 @@ pub enum Error {
         pattern: String,
         reason: String,
     },
+    /// baseline_rolling_n must be at least 1
+    #[error("defaults.baseline_rolling_n must be >= 1, got {value}")]
+    InvalidBaselineWindow { value: usize },
 }
 
 /// Result type
@@ -182,7 +185,15 @@ impl Config {
         self.validate_default_profile()?;
         self.validate_profiles_commands()?;
         self.validate_extract_patterns()?;
+        self.validate_baseline_window()?;
 
+        Ok(())
+    }
+
+    fn validate_baseline_window(&self) -> Result<()> {
+        if self.defaults.baseline_rolling_n == 0 {
+            return Err(Error::InvalidBaselineWindow { value: 0 });
+        }
         Ok(())
     }
 
@@ -371,6 +382,27 @@ mod tests {
     use super::*;
 
     use googletest::prelude::*;
+
+    #[test]
+    fn baseline_rolling_n_zero_fails_validation() {
+        let config_txt = r#"
+[defaults]
+baseline_rolling_n = 0
+
+[[profile]]
+name = "default"
+commands = ["uname"]
+
+[[command]]
+name = "uname"
+command = "uname -a"
+"#;
+        let config = Config::from_str(config_txt).expect("syntax ok");
+        let result = config.validate();
+        assert_that!(result, err(anything()));
+        let msg = result.unwrap_err().to_string();
+        assert!(msg.contains("baseline_rolling_n"), "error should mention baseline_rolling_n; got: {msg}");
+    }
 
     #[test]
     fn defaults_baseline_rolling_n_is_24() {

@@ -94,7 +94,7 @@ pub struct Opt {
     /// Exit-code policy: never=always 0; warn=exit 1 on any Warn or Crit finding; crit=exit 2 only on Crit findings
     #[arg(long, value_enum, default_value = "never")]
     exit_on: ExitOn,
-    /// Target cgroup path for the cgroup collector (Phase 3 wiring).
+    /// Target cgroup path for the cgroup collector.
     /// Example: --cgroup /sys/fs/cgroup/system.slice/foo.service
     #[arg(long)]
     pub cgroup: Option<PathBuf>,
@@ -130,8 +130,8 @@ pub struct Opt {
     #[arg(long)]
     redact: bool,
     /// Enable eBPF opt-in collectors (runqlat, biolatency, tcpretrans, execsnoop,
-    /// cachestat). Requires bpf feature. Emits an Info finding per tool not found
-    /// in PATH and exits 0.
+    /// cachestat). Only available in binaries compiled with eBPF support.
+    /// Emits an Info finding per tool not found in PATH.
     #[cfg(feature = "bpf")]
     #[arg(long)]
     bpf: bool,
@@ -163,14 +163,17 @@ pub enum Subcommand {
         /// Second JSON report to compare against the first.
         b: PathBuf,
         /// Output format: `text` (default) or `json`.
-        #[arg(long, default_value = "text", value_parser = |s: &str| s.parse::<OutputType>().map_err(|e| e.to_string()))]
+        #[arg(short, long, default_value = "text", value_parser = |s: &str| s.parse::<OutputType>().map_err(|e| e.to_string()))]
         output: OutputType,
+        /// Write diff output to a file; defaults to stdout.
+        #[arg(short = 'O', long)]
+        output_file: Option<PathBuf>,
     },
     /// Print the definition, what raises it, what to investigate, and links for a rule or signal ID.
-    /// When the ID is unknown, lists all known rule IDs.
+    /// When the ID is unknown, or when called with no argument, lists all known topics.
     Explain {
-        /// A rule ID (e.g. net.retransmit_elevated), signal ID, or command name. Run without an ID to list all known IDs.
-        id: String,
+        /// A rule ID (e.g. net.retransmit_elevated), signal ID, or command name. Omit to list all known IDs.
+        id: Option<String>,
     },
     /// Check whether all binaries used by the selected profile(s) are installed on $PATH.
     Check {
@@ -211,7 +214,12 @@ pub enum BaselineAction {
     /// Show a stored baseline's contents.
     Show { name: String },
     /// Delete a stored baseline.
-    Delete { name: String },
+    Delete {
+        name: String,
+        /// Skip confirmation prompt.
+        #[arg(long)]
+        force: bool,
+    },
 }
 
 impl Opt {
@@ -359,7 +367,7 @@ pub fn main() -> miette::Result<()> {
             .context("could not load configuration file")?;
         // Validate lightly — skip profile/command cross-validation since explain
         // should work even with partial configs.
-        return run_explain(id, &config);
+        return run_explain(id.as_deref(), &config);
     }
 
     // Phase 2: subcommand dispatch (baseline / diff). The default code path
@@ -461,11 +469,14 @@ fn show_output_template(opt: &Opt) -> miette::Result<()> {
         }
         OutputType::Html => println!("{}", defaults::HTML_TEMPLATE),
         OutputType::Markdown => println!("{}", defaults::MD_TEMPLATE),
-        OutputType::Json | OutputType::Llm | OutputType::Text => {
-            eprintln!(
-                "note: --output {:?} has no Jinja2 template; output is generated directly from the report data",
-                opt.output
-            );
+        OutputType::Json => {
+            eprintln!("note: --output json has no Jinja2 template; output is generated directly from the report data");
+        }
+        OutputType::Llm => {
+            eprintln!("note: --output llm has no Jinja2 template; output is generated directly from the report data");
+        }
+        OutputType::Text => {
+            eprintln!("note: --output text has no Jinja2 template; output is generated directly from the report data");
         }
     }
     Ok(())
@@ -494,11 +505,8 @@ fn show_commands(config: &Config) {
 fn run_subcommand(cmd: &Subcommand) -> miette::Result<()> {
     match cmd {
         Subcommand::Baseline { action } => run_baseline(action),
-        Subcommand::Diff { a, b, output } => run_diff(a, b, output),
-        Subcommand::Explain { id } => {
-            let config = Config::from_str(defaults::CONFIG).expect("builtin default config is always valid");
-            run_explain(id, &config)
-        }
+        Subcommand::Diff { a, b, output, output_file } => run_diff(a, b, output, output_file.as_deref()),
+        Subcommand::Explain { .. } => unreachable!("Explain is handled before run_subcommand"),
         Subcommand::Check { .. } => unreachable!("Check is handled before run_subcommand"),
         Subcommand::Convert {
             input,
@@ -570,7 +578,7 @@ fn run_check(config: &Config, profile_filter: Option<&str>) -> miette::Result<()
 
     if missing > 0 {
         eprintln!(
-            "{} {} not found — check the Install column above for package names, or run `usereport explain <command>` for details",
+            "{} {} not found — install the tool shown in the Binary column above, or run `usereport explain <command>` for details",
             missing,
             if missing == 1 { "binary" } else { "binaries" }
         );
@@ -702,18 +710,31 @@ fn run_baseline(action: &BaselineAction) -> miette::Result<()> {
             Some(record) => println!("{}", serde_json::to_string_pretty(&record).into_diagnostic()?),
             None => return Err(miette!("baseline '{}' not found; run 'usereport baseline list' to see recorded baselines", name)),
         },
-        BaselineAction::Delete { name } => {
+        BaselineAction::Delete { name, force } => {
+            if !force {
+                return Err(miette!(
+                    "use --force to confirm deletion: usereport baseline delete --force {}",
+                    name
+                ));
+            }
+            // Give a friendly error when the baseline doesn't exist.
+            if store.load(name).into_diagnostic().with_context(|| format!("check baseline '{}'", name))?.is_none() {
+                return Err(miette!(
+                    "baseline '{}' not found; run 'usereport baseline list' to see recorded baselines",
+                    name
+                ));
+            }
             store
                 .delete(name)
                 .into_diagnostic()
                 .with_context(|| format!("delete baseline '{}'", name))?;
-            println!("deleted baseline '{}'\n  run 'usereport baseline list' to confirm", name);
+            println!("Baseline '{}' deleted.", name);
         }
     }
     Ok(())
 }
 
-fn run_diff(a_path: &PathBuf, b_path: &PathBuf, output: &OutputType) -> miette::Result<()> {
+fn run_diff(a_path: &PathBuf, b_path: &PathBuf, output: &OutputType, output_file: Option<&Path>) -> miette::Result<()> {
     let a_bytes = std::fs::read(a_path)
         .into_diagnostic()
         .with_context(|| format!("read {}", a_path.display()))?;
@@ -727,19 +748,18 @@ fn run_diff(a_path: &PathBuf, b_path: &PathBuf, output: &OutputType) -> miette::
         .into_diagnostic()
         .with_context(|| format!("parse {}", b_path.display()))?;
     let report = diff::diff(&a, &b);
-    let stdout = std::io::stdout();
-    let mut handle = stdout.lock();
+    let mut writer = output_writer(&output_file.map(PathBuf::from))?;
     match output {
         OutputType::Json => {
-            serde_json::to_writer_pretty(&mut handle, &report).into_diagnostic()?;
-            writeln!(handle).into_diagnostic()?;
+            serde_json::to_writer_pretty(&mut *writer, &report).into_diagnostic()?;
+            writeln!(&mut *writer).into_diagnostic()?;
         }
         OutputType::Text => {
             diff::render_text(
                 &report,
                 &a_path.display().to_string(),
                 &b_path.display().to_string(),
-                &mut handle,
+                &mut *writer,
             )
             .into_diagnostic()?;
         }
@@ -798,22 +818,71 @@ fn run_convert(
     Ok(())
 }
 
-pub fn run_explain(id: &str, config: &Config) -> miette::Result<()> {
+/// All signal IDs emitted by built-in direct collectors, with brief descriptions.
+/// Used by `explain` so users can look up collector signals by ID.
+fn builtin_collector_signals() -> &'static [(&'static str, &'static str)] {
+    &[
+        ("host.cpu_count",        "number of logical CPUs"),
+        ("host.mem_total_bytes",  "total physical memory in bytes"),
+        ("host.load_avg_1m",      "1-minute load average"),
+        ("cpu.usr_pct",           "CPU time in user space (%)"),
+        ("cpu.sys_pct",           "CPU time in kernel space (%)"),
+        ("cpu.idle_pct",          "CPU idle time (%)"),
+        ("cpu.iowait_pct",        "CPU time waiting for I/O (%)"),
+        ("cpu.freq_ratio",        "current CPU frequency / nominal frequency"),
+        ("cpu.temp_celsius",      "CPU package temperature (°C)"),
+        ("vmstat.r",              "number of runnable processes"),
+        ("vmstat.swap_in",        "pages swapped in per second"),
+        ("vmstat.swap_out",       "pages swapped out per second"),
+        ("mem.total_mb",          "total physical memory (MB)"),
+        ("mem.used_mb",           "used memory (MB)"),
+        ("mem.free_mb",           "free memory (MB)"),
+        ("mem.free_pct",          "free memory as a percentage of total"),
+        ("swap.total_mb",         "total swap space (MB)"),
+        ("swap.used_mb",          "used swap space (MB)"),
+        ("swap.free_mb",          "free swap space (MB)"),
+        ("disk.max_util_pct",     "highest disk utilization across all devices (%)"),
+        ("disk.max_await_ms",     "highest average I/O wait across all devices (ms)"),
+        ("net.rx_drops",          "total receive-side packet drops"),
+        ("net.retrans_pct",       "TCP retransmission rate (%)"),
+        ("net.tw_count",          "current TIME_WAIT socket count"),
+        ("net.estab_resets",      "TCP established-state connection resets"),
+        ("net.connect_failures",  "TCP connect() call failures"),
+        ("net.max_cpu_irq_pct",   "fraction of NIC interrupts handled by the busiest CPU (%)"),
+        ("cgroup.memory_bytes",   "cgroup memory usage in bytes"),
+        ("cgroup.oom_kills",      "OOM kills recorded in the cgroup"),
+        ("cgroup.pids_current",   "current PID count in the cgroup"),
+        ("dmesg.oom_count",       "out-of-memory events since last log rotate"),
+        ("dmesg.blocked_task_count", "number of tasks blocked in D state"),
+        ("interrupts.max_cpu_pct","fraction of total interrupts handled by the busiest CPU (%)"),
+    ]
+}
+
+pub fn run_explain(id: Option<&str>, config: &Config) -> miette::Result<()> {
     let is_tty = std::io::stdout().is_terminal();
     let stdout = std::io::stdout();
     let mut handle = stdout.lock();
 
-    // Check commands in config first
+    let id = match id {
+        Some(s) => s,
+        None => {
+            // No ID given — print all known topics.
+            return print_all_topics(config, &mut handle);
+        }
+    };
+
+    // 1. Check commands in config first
     if let Some(cmd) = config.commands.iter().find(|c| c.name() == id) {
         return run_explain_command(cmd, is_tty, &mut handle);
     }
 
+    // 2. Check builtin rules
     let all_rules = builtin_rules();
     if let Some(rule) = all_rules.iter().find(|r| r.id == id) {
         return run_explain_inner(rule, is_tty, &mut handle);
     }
 
-    // Collect all signal IDs from config extract definitions
+    // 3. Check extract-defined signal IDs
     let all_signal_ids: Vec<(&str, &crate::command::Command)> = config
         .commands
         .iter()
@@ -837,6 +906,30 @@ pub fn run_explain(id: &str, config: &Config) -> miette::Result<()> {
         return Ok(());
     }
 
+    // 4. Check builtin collector signal IDs
+    if let Some((_, desc)) = builtin_collector_signals().iter().find(|(sid, _)| *sid == id) {
+        writeln!(handle, "Signal ID:   {id}").into_diagnostic()?;
+        writeln!(handle, "Source:      built-in collector").into_diagnostic()?;
+        writeln!(handle, "Description: {desc}").into_diagnostic()?;
+        writeln!(handle).into_diagnostic()?;
+        writeln!(handle, "This signal is collected directly from /proc, /sys, or a native command.").into_diagnostic()?;
+        writeln!(handle, "Use `usereport --output json | jq '.signals[] | select(.id == \"{id}\")'` to inspect its current value.").into_diagnostic()?;
+        return Ok(());
+    }
+
+    // 5. Unknown — list all known topics
+    print_all_topics(config, &mut handle)?;
+    Err(miette!("unknown topic '{}' — see the list above", id))
+}
+
+fn print_all_topics(config: &Config, out: &mut dyn Write) -> miette::Result<()> {
+    let all_rules = builtin_rules();
+    let all_signal_ids: Vec<&str> = config
+        .commands
+        .iter()
+        .flat_map(|cmd| cmd.extract().iter().map(|ex| ex.signal_id.as_str()))
+        .collect();
+
     let mut known: Vec<String> = Vec::new();
     for c in &config.commands {
         known.push(format!("  {} (command)", c.name()));
@@ -844,21 +937,23 @@ pub fn run_explain(id: &str, config: &Config) -> miette::Result<()> {
     for r in &all_rules {
         known.push(format!("  {} (rule)", r.id));
     }
-    for (sid, _) in &all_signal_ids {
+    for sid in &all_signal_ids {
         known.push(format!("  {} (signal)", sid));
     }
+    for (sid, desc) in builtin_collector_signals() {
+        known.push(format!("  {} (collector signal — {})", sid, desc));
+    }
     known.sort();
-    Err(miette!(
-        "unknown rule or signal ID '{}'\n\nKnown topics:\n{}",
-        id,
-        known.join("\n"),
-    ))
+    writeln!(out, "Known topics:\n{}", known.join("\n")).into_diagnostic()
 }
 
 pub fn run_explain_command(cmd: &crate::command::Command, _is_tty: bool, out: &mut dyn Write) -> miette::Result<()> {
     writeln!(out, "Command: {}", cmd.name()).into_diagnostic()?;
     if let Some(title) = cmd.title() {
         writeln!(out, "Title: {title}").into_diagnostic()?;
+    }
+    if let Some(hint) = cmd.install_hint() {
+        writeln!(out, "Install: {hint}").into_diagnostic()?;
     }
     if let Some(description) = cmd.description() {
         writeln!(out).into_diagnostic()?;
@@ -1165,39 +1260,41 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> miette::Re
     // --profile-cpu: generate flamegraph and attach to report.
     if opt.profile_cpu.is_some() && opt.output != OutputType::Html {
         eprintln!(
-            "note: --profile-cpu flamegraphs are embedded in HTML output; use --output html to include the flamegraph"
+            "note: --profile-cpu flamegraphs are only embedded in HTML output; skipping profiling — use --output html to include the flamegraph"
         );
     }
     if let Some(profile_dur) = &opt.profile_cpu {
-        let dur = parse_duration(profile_dur)?;
-        let dur_secs = dur.as_secs().max(1);
-        #[cfg(feature = "bpf")]
-        let use_bpf = opt.bpf;
-        #[cfg(not(feature = "bpf"))]
-        let use_bpf = false;
-        match generate_flamegraph(dur_secs, use_bpf) {
-            Ok(Some(svg)) => report = report.with_flamegraph(svg),
-            Ok(None) => {
-                report.findings.push(Finding {
-                    id: "profile.cpu.unavailable".to_string(),
-                    kind: crate::finding::FindingKind::Rule,
-                    severity: Severity::Info,
-                    summary:
-                        "--profile-cpu requested but neither 'perf' nor 'bpftrace' was found in PATH; flamegraph omitted."
-                            .to_string(),
-                    evidence: Vec::new(),
-                    suggest: vec!["Install linux-perf or bpftrace and re-run.".to_string()],
-                });
-            }
-            Err(e) => {
-                report.findings.push(Finding {
-                    id: "profile.cpu.error".to_string(),
-                    kind: crate::finding::FindingKind::Rule,
-                    severity: Severity::Warn,
-                    summary: format!("flamegraph generation failed: {}", e),
-                    evidence: Vec::new(),
-                    suggest: vec!["Check that 'perf' or 'bpftrace' is installed and you have sufficient permissions.".to_string()],
-                });
+        if opt.output == OutputType::Html {
+            let dur = parse_duration(profile_dur)?;
+            let dur_secs = dur.as_secs().max(1);
+            #[cfg(feature = "bpf")]
+            let use_bpf = opt.bpf;
+            #[cfg(not(feature = "bpf"))]
+            let use_bpf = false;
+            match generate_flamegraph(dur_secs, use_bpf) {
+                Ok(Some(svg)) => report = report.with_flamegraph(svg),
+                Ok(None) => {
+                    report.findings.push(Finding {
+                        id: "profile.cpu.unavailable".to_string(),
+                        kind: crate::finding::FindingKind::Rule,
+                        severity: Severity::Info,
+                        summary:
+                            "--profile-cpu requested but neither 'perf' nor 'bpftrace' was found in PATH; flamegraph omitted."
+                                .to_string(),
+                        evidence: Vec::new(),
+                        suggest: vec!["Install linux-perf or bpftrace and re-run.".to_string()],
+                    });
+                }
+                Err(e) => {
+                    report.findings.push(Finding {
+                        id: "profile.cpu.error".to_string(),
+                        kind: crate::finding::FindingKind::Rule,
+                        severity: Severity::Warn,
+                        summary: format!("flamegraph generation failed: {}", e),
+                        evidence: Vec::new(),
+                        suggest: vec!["Check that 'perf' or 'bpftrace' is installed and you have sufficient permissions.".to_string()],
+                    });
+                }
             }
         }
     }
@@ -1288,10 +1385,12 @@ fn is_show_progress(opt: &Opt) -> bool {
 
 fn create_commands(opt: &Opt, config: &Config, profile_name: &str) -> miette::Result<Vec<Command>> {
     let (add_commands, remove_commands) = create_command_filter(&opt.filter_commands);
-    let mut commands: Vec<Command> = config
+    let profile = config
         .profile(profile_name)
         .into_diagnostic()
-        .map(|p| config.commands_for_profile(p))?
+        .with_context(|| "run `usereport --show-profiles` to list available profiles".to_string())?;
+    let mut commands: Vec<Command> = config
+        .commands_for_profile(profile)
         .into_iter()
         .filter(|x| !remove_commands.contains(x.name()))
         .collect();
@@ -1331,7 +1430,7 @@ fn create_renderer<W: Write>(
 ) -> miette::Result<Box<dyn Renderer<W>>> {
     let renderer: Box<dyn Renderer<W>> = match output_type {
         OutputType::Template => {
-            let template_file = output_template.expect("output template requires --output-template <PATH>");
+            let template_file = output_template.ok_or_else(|| miette!("--output template requires --output-template <PATH>"))?;
             let renderer = renderer::TemplateRenderer::from_file(template_file).into_diagnostic()?;
             Box::new(renderer)
         }
