@@ -4,10 +4,10 @@
 
 [[rule]]
 id = "cpu.runqueue_saturation"
-when = "vmstat.r > host.cpu_count"
+when = "cpu.run_queue > host.cpu_count"
 severity = "warn"
 summary = "Run queue exceeds core count — CPU saturated."
-evidence = ["vmstat.r", "host.cpu_count"]
+evidence = ["cpu.run_queue", "host.cpu_count"]
 suggest = ["pidstat 1 5", "perf top -F 99"]
 
 [[rule]]

@@ -41,7 +41,7 @@ impl CpuCollector {
             }
         }
         if let Some(r) = parse_procs_running(s2) {
-            push(&mut signals, "vmstat.r", r as f64, Unit::Count, now);
+            push(&mut signals, "cpu.run_queue", r as f64, Unit::Count, now);
         }
         if elapsed_secs > 0.0 {
             if let (Some(a), Some(b)) = (parse_ctxt(s1), parse_ctxt(s2)) {
@@ -54,7 +54,7 @@ impl CpuCollector {
 
     /// Snapshot-based delta engine: compute signals from two `CpuSnapshot`s.
     /// Emits `cpu.iowait_pct` only when both snapshots have `iowait: Some`.
-    /// Emits `vmstat.r` only when `b.procs_running` is `Some`.
+    /// Emits `cpu.run_queue` only when `b.procs_running` is `Some`.
     /// Emits `cpu.ctxt_per_sec` only when both snapshots have `ctxt: Some`.
     pub fn from_cpu_snapshots(a: &CpuSnapshot, b: &CpuSnapshot, elapsed_secs: f64) -> Vec<Signal> {
         let now = Local::now();
@@ -75,7 +75,7 @@ impl CpuCollector {
         }
 
         if let Some(r) = b.procs_running {
-            push(&mut signals, "vmstat.r", r as f64, Unit::Count, now);
+            push(&mut signals, "cpu.run_queue", r as f64, Unit::Count, now);
         }
 
         if elapsed_secs > 0.0 {

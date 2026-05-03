@@ -78,7 +78,7 @@ fn t3_from_cpu_snapshots_has_iowait_pct_when_iowait_some() {
 
 #[test]
 fn t3_from_cpu_snapshots_vmstat_r_only_when_procs_running_some() {
-    // With None — no vmstat.r
+    // With None — no cpu.run_queue
     let a_none = make_cpu_snap(None, None, None);
     let b_none = CpuSnapshot {
         user: 1100,
@@ -87,11 +87,11 @@ fn t3_from_cpu_snapshots_vmstat_r_only_when_procs_running_some() {
     let sigs = CpuCollector::from_cpu_snapshots(&a_none, &b_none, 1.0);
     let ids: Vec<&str> = sigs.iter().map(|s| s.id.as_str()).collect();
     assert!(
-        !ids.contains(&"vmstat.r"),
-        "vmstat.r must not appear when procs_running=None"
+        !ids.contains(&"cpu.run_queue"),
+        "cpu.run_queue must not appear when procs_running=None"
     );
 
-    // With Some — vmstat.r present
+    // With Some — cpu.run_queue present
     let a_some = make_cpu_snap(None, Some(3), None);
     let b_some = CpuSnapshot {
         user: 1100,
@@ -100,8 +100,8 @@ fn t3_from_cpu_snapshots_vmstat_r_only_when_procs_running_some() {
     let sigs2 = CpuCollector::from_cpu_snapshots(&a_some, &b_some, 1.0);
     let ids2: Vec<&str> = sigs2.iter().map(|s| s.id.as_str()).collect();
     assert!(
-        ids2.contains(&"vmstat.r"),
-        "vmstat.r must appear when procs_running=Some"
+        ids2.contains(&"cpu.run_queue"),
+        "cpu.run_queue must appear when procs_running=Some"
     );
 }
 

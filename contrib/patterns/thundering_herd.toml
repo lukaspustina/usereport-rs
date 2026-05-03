@@ -1,6 +1,6 @@
 [[pattern]]
 id = "thundering_herd"
-when = "vmstat.r > host.cpu_count AND cpu.sys_pct > 30"
+when = "cpu.run_queue > host.cpu_count AND cpu.sys_pct > 30"
 severity = "warn"
 summary = "Long run queue with high sys% suggests thundering-herd or excessive context switching."
 suggest = ["pidstat -w 1 5", "perf sched latency", "vmstat 1 10"]

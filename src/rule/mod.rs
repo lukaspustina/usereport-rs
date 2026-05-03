@@ -13,7 +13,7 @@
 //! Phase 1 supports bare signal paths and `host.*` paths. SampleStats suffixes
 //! (`.p50`, `.p95`, ...) and z-score paths are deferred to Phase 4.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
@@ -134,8 +134,8 @@ fn evaluate_cmp(path: &[String], op: Op, rhs: &Rhs, signals_index: &SignalIndex<
             Op::Lt => n < m,
             Op::Ge => n >= m,
             Op::Le => n <= m,
-            Op::Eq => (n - m).abs() < f64::EPSILON,
-            Op::Ne => (n - m).abs() >= f64::EPSILON,
+            Op::Eq => (n - m).abs() < 1e-9 * (n.abs().max(m.abs()).max(1.0)),
+            Op::Ne => (n - m).abs() >= 1e-9 * (n.abs().max(m.abs()).max(1.0)),
         },
         (Some(LhsValue::Bool(b)), Some(LhsValue::Bool(c))) => match op {
             Op::Eq => b == c,
@@ -359,7 +359,7 @@ impl RuleEngine {
     ) -> (Vec<Finding>, Vec<String>) {
         let index = SignalIndex::build(signals);
         let mut findings = Vec::new();
-        let mut checked_ok: Vec<String> = Vec::new();
+        let mut checked_ok: HashSet<String> = HashSet::new();
         for rule in &self.rules {
             if rule.when.evaluate(&index, ctx) {
                 let evidence = rule
@@ -377,13 +377,12 @@ impl RuleEngine {
                 });
             } else {
                 for sid in &rule.evidence_ids {
-                    if !checked_ok.contains(sid) {
-                        checked_ok.push(sid.clone());
-                    }
+                    checked_ok.insert(sid.clone());
                 }
             }
         }
         sort_findings(&mut findings);
+        let mut checked_ok: Vec<String> = checked_ok.into_iter().collect();
         checked_ok.sort();
         (findings, checked_ok)
     }
@@ -402,11 +401,19 @@ fn extract_cmp_thresholds(pred: &Predicate, severity: Severity, map: &mut HashMa
         Predicate::Cmp { path, op, rhs } => {
             if let Rhs::Value(Value::Number(v)) = rhs {
                 let signal_id = path.join(".");
-                map.entry(signal_id).or_insert(ThresholdInfo {
+                let entry = map.entry(signal_id).or_insert(ThresholdInfo {
                     severity,
                     op: op_to_str(*op).to_string(),
                     value: *v,
                 });
+                // Replace if the new severity is higher (lower rank = higher severity).
+                if severity.rank() < entry.severity.rank() {
+                    *entry = ThresholdInfo {
+                        severity,
+                        op: op_to_str(*op).to_string(),
+                        value: *v,
+                    };
+                }
             }
         }
         Predicate::And(a, b) | Predicate::Or(a, b) => {
@@ -565,7 +572,10 @@ impl RulesLoader {
                                     severity: Severity::Warn,
                                     summary: format!("skipped malformed rule file {}: {}", path.display(), e),
                                     evidence: vec![],
-                                    suggest: vec![],
+                                    suggest: vec![format!(
+                                        "Check the TOML syntax in {}",
+                                        path.display()
+                                    )],
                                 }),
                             },
                             Err(e) => load_findings.push(Finding {
@@ -574,7 +584,10 @@ impl RulesLoader {
                                 severity: Severity::Warn,
                                 summary: format!("skipped unreadable rule file {}: {}", path.display(), e),
                                 evidence: vec![],
-                                suggest: vec![],
+                                suggest: vec![format!(
+                                    "Check file permissions on {}",
+                                    path.display()
+                                )],
                             }),
                         }
                     }
@@ -588,7 +601,10 @@ impl RulesLoader {
                     severity: Severity::Warn,
                     summary: format!("could not read rules directory {}: {}", dir.display(), e),
                     evidence: vec![],
-                    suggest: vec![],
+                    suggest: vec![format!(
+                        "Check directory permissions on {}",
+                        dir.display()
+                    )],
                 }),
             }
         }

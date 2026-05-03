@@ -86,16 +86,16 @@ fn ac_1_memory_collector_signal_identity_stable() {
 fn ac_2_rule_predicate_match_emits_finding() {
     let rule = Rule {
         id: "cpu.runqueue_saturation".to_string(),
-        when: Predicate::parse("vmstat.r > host.cpu_count").expect("parse"),
+        when: Predicate::parse("cpu.run_queue > host.cpu_count").expect("parse"),
         severity: Severity::Warn,
         summary: "Run queue exceeds core count".to_string(),
-        evidence_ids: vec!["vmstat.r".to_string(), "host.cpu_count".to_string()],
+        evidence_ids: vec!["cpu.run_queue".to_string(), "host.cpu_count".to_string()],
         suggest: vec!["pidstat 1 5".to_string()],
         description: None,
         links: vec![],
     };
 
-    let signals = vec![make_signal("vmstat.r", 8.0)];
+    let signals = vec![make_signal("cpu.run_queue", 8.0)];
     let engine = RuleEngine::new(vec![rule]);
     let (findings, _) = engine.run(&signals, &ctx(4), &std::collections::HashMap::new());
 
@@ -105,8 +105,8 @@ fn ac_2_rule_predicate_match_emits_finding() {
     assert_eq!(f.severity, Severity::Warn);
     let evidence_ids: Vec<&str> = f.evidence.iter().map(|e| e.signal_id.as_str()).collect();
     assert!(
-        evidence_ids.contains(&"vmstat.r"),
-        "evidence missing vmstat.r: {:?}",
+        evidence_ids.contains(&"cpu.run_queue"),
+        "evidence missing cpu.run_queue: {:?}",
         evidence_ids
     );
     assert!(
@@ -124,16 +124,16 @@ fn ac_2_rule_predicate_match_emits_finding() {
 fn ac_3_rule_predicate_non_match_emits_no_finding() {
     let rule = Rule {
         id: "cpu.runqueue_saturation".to_string(),
-        when: Predicate::parse("vmstat.r > host.cpu_count").expect("parse"),
+        when: Predicate::parse("cpu.run_queue > host.cpu_count").expect("parse"),
         severity: Severity::Warn,
         summary: "Run queue exceeds core count".to_string(),
-        evidence_ids: vec!["vmstat.r".to_string()],
+        evidence_ids: vec!["cpu.run_queue".to_string()],
         suggest: vec![],
         description: None,
         links: vec![],
     };
 
-    let signals = vec![make_signal("vmstat.r", 2.0)];
+    let signals = vec![make_signal("cpu.run_queue", 2.0)];
     let engine = RuleEngine::new(vec![rule]);
     let (findings, _) = engine.run(&signals, &ctx(4), &std::collections::HashMap::new());
 
@@ -237,10 +237,10 @@ fn ac_5_malformed_user_rule_does_not_block_builtins() {
 
     let builtins = vec![Rule {
         id: "builtin.always_true".to_string(),
-        when: Predicate::parse("vmstat.r > 0").expect("parse"),
+        when: Predicate::parse("cpu.run_queue > 0").expect("parse"),
         severity: Severity::Warn,
         summary: "always fires when r > 0".to_string(),
-        evidence_ids: vec!["vmstat.r".to_string()],
+        evidence_ids: vec!["cpu.run_queue".to_string()],
         suggest: vec![],
         description: None,
         links: vec![],
@@ -280,10 +280,10 @@ fn ac_7_rule_engine_is_deterministic_across_runs() {
     let rules = vec![
         Rule {
             id: "a.rule".to_string(),
-            when: Predicate::parse("vmstat.r > 1").expect("parse"),
+            when: Predicate::parse("cpu.run_queue > 1").expect("parse"),
             severity: Severity::Warn,
             summary: "a".to_string(),
-            evidence_ids: vec!["vmstat.r".to_string()],
+            evidence_ids: vec!["cpu.run_queue".to_string()],
             suggest: vec![],
             description: None,
             links: vec![],
@@ -300,7 +300,7 @@ fn ac_7_rule_engine_is_deterministic_across_runs() {
         },
     ];
 
-    let signals = vec![make_signal("vmstat.r", 8.0), make_signal("mem.free_pct", 5.0)];
+    let signals = vec![make_signal("cpu.run_queue", 8.0), make_signal("mem.free_pct", 5.0)];
 
     let engine = RuleEngine::new(rules);
     let (first, _) = engine.run(&signals, &ctx(4), &std::collections::HashMap::new());

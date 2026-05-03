@@ -33,12 +33,12 @@ impl MemoryCollector {
         let now = Local::now();
         let mut signals = Vec::new();
 
-        push(&mut signals, "mem.total_mb", snap.total_mb, Unit::Count, now);
-        push(&mut signals, "mem.used_mb", snap.used_mb, Unit::Count, now);
-        push(&mut signals, "mem.free_mb", snap.free_mb, Unit::Count, now);
+        push(&mut signals, "mem.total_mb", snap.total_mb, Unit::Megabytes, now);
+        push(&mut signals, "mem.used_mb", snap.used_mb, Unit::Megabytes, now);
+        push(&mut signals, "mem.free_mb", snap.free_mb, Unit::Megabytes, now);
 
         if let Some(avail) = snap.available_mb {
-            push(&mut signals, "mem.available_mb", avail, Unit::Count, now);
+            push(&mut signals, "mem.available_mb", avail, Unit::Megabytes, now);
         }
 
         if snap.total_mb > 0.0 {
@@ -51,9 +51,9 @@ impl MemoryCollector {
             );
         }
 
-        push(&mut signals, "swap.total_mb", snap.swap_total_mb, Unit::Count, now);
-        push(&mut signals, "swap.used_mb", snap.swap_used_mb, Unit::Count, now);
-        push(&mut signals, "swap.free_mb", snap.swap_free_mb, Unit::Count, now);
+        push(&mut signals, "swap.total_mb", snap.swap_total_mb, Unit::Megabytes, now);
+        push(&mut signals, "swap.used_mb", snap.swap_used_mb, Unit::Megabytes, now);
+        push(&mut signals, "swap.free_mb", snap.swap_free_mb, Unit::Megabytes, now);
 
         Ok(signals)
     }
@@ -124,11 +124,11 @@ fn parse_free_output(s: &str) -> Result<Vec<Signal>> {
             let free = nums[2];
             mem_total = Some(total);
             mem_free = Some(free);
-            push(&mut signals, "mem.total_mb", total, Unit::Count, now);
-            push(&mut signals, "mem.used_mb", used, Unit::Count, now);
-            push(&mut signals, "mem.free_mb", free, Unit::Count, now);
+            push(&mut signals, "mem.total_mb", total, Unit::Megabytes, now);
+            push(&mut signals, "mem.used_mb", used, Unit::Megabytes, now);
+            push(&mut signals, "mem.free_mb", free, Unit::Megabytes, now);
             if let Some(available) = nums.get(5) {
-                push(&mut signals, "mem.available_mb", *available, Unit::Count, now);
+                push(&mut signals, "mem.available_mb", *available, Unit::Megabytes, now);
             }
         } else if let Some(rest) = trimmed.strip_prefix("Swap:") {
             let nums = numeric_tokens(rest);
@@ -138,9 +138,9 @@ fn parse_free_output(s: &str) -> Result<Vec<Signal>> {
                     reason: format!("Swap: needs at least 3 numbers, got {}", nums.len()),
                 });
             }
-            push(&mut signals, "swap.total_mb", nums[0], Unit::Count, now);
-            push(&mut signals, "swap.used_mb", nums[1], Unit::Count, now);
-            push(&mut signals, "swap.free_mb", nums[2], Unit::Count, now);
+            push(&mut signals, "swap.total_mb", nums[0], Unit::Megabytes, now);
+            push(&mut signals, "swap.used_mb", nums[1], Unit::Megabytes, now);
+            push(&mut signals, "swap.free_mb", nums[2], Unit::Megabytes, now);
         }
     }
 

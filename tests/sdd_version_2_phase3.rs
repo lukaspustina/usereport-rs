@@ -115,11 +115,11 @@ fn ac_phase3_1_cpu_delta_emits_pct_signals_summing_to_100() {
 #[test]
 fn ac_phase3_1_cpu_delta_emits_runqueue_from_procs_running() {
     let signals = CpuCollector::from_proc_stat_snapshots(PROC_STAT_T0, PROC_STAT_T1, 1.0);
-    let r = signals.iter().find(|s| s.id == "vmstat.r").expect("vmstat.r present");
+    let r = signals.iter().find(|s| s.id == "cpu.run_queue").expect("cpu.run_queue present");
     match r.value {
         SignalValue::F64(v) => assert_eq!(v as i64, 8),
         SignalValue::I64(v) => assert_eq!(v, 8),
-        _ => panic!("vmstat.r must be numeric"),
+        _ => panic!("cpu.run_queue must be numeric"),
     }
 }
 
@@ -183,7 +183,7 @@ fn ac_phase3_4_disk_collector_returns_ok_when_proc_diskstats_missing() {
 fn ac_phase3_5_analysis_run_populates_signals_and_findings() {
     // 9999 chosen to exceed any plausible cpu_count from
     // std::thread::available_parallelism() on the test host.
-    let mock_signal = make_signal("vmstat.r", 9999.0);
+    let mock_signal = make_signal("cpu.run_queue", 9999.0);
     let collectors: Vec<Box<dyn Collector>> = vec![Box::new(MockCollector {
         name: "mock".to_string(),
         signals: vec![mock_signal],
@@ -191,10 +191,10 @@ fn ac_phase3_5_analysis_run_populates_signals_and_findings() {
 
     let rule = Rule {
         id: "cpu.runqueue_saturation".to_string(),
-        when: Predicate::parse("vmstat.r > host.cpu_count").expect("parse"),
+        when: Predicate::parse("cpu.run_queue > host.cpu_count").expect("parse"),
         severity: Severity::Warn,
         summary: "rq sat".to_string(),
-        evidence_ids: vec!["vmstat.r".to_string(), "host.cpu_count".to_string()],
+        evidence_ids: vec!["cpu.run_queue".to_string(), "host.cpu_count".to_string()],
         suggest: vec![],
         description: None,
         links: vec![],
@@ -208,8 +208,8 @@ fn ac_phase3_5_analysis_run_populates_signals_and_findings() {
     let report: AnalysisReport = analysis.run(Context::new()).expect("run ok");
 
     assert!(
-        report.signals().iter().any(|s| s.id == "vmstat.r"),
-        "report.signals() must include vmstat.r; got {:?}",
+        report.signals().iter().any(|s| s.id == "cpu.run_queue"),
+        "report.signals() must include cpu.run_queue; got {:?}",
         report.signals().iter().map(|s| s.id.as_str()).collect::<Vec<_>>()
     );
     assert!(
@@ -225,7 +225,7 @@ fn ac_phase3_5_analysis_run_populates_signals_and_findings() {
 
 #[test]
 fn ac_phase3_6_pipeline_findings_are_severity_ordered() {
-    let signals = vec![make_signal("vmstat.r", 100.0), make_signal("mem.free_pct", 1.0)];
+    let signals = vec![make_signal("cpu.run_queue", 100.0), make_signal("mem.free_pct", 1.0)];
     let collectors: Vec<Box<dyn Collector>> = vec![Box::new(MockCollector {
         name: "mock".to_string(),
         signals,
@@ -233,10 +233,10 @@ fn ac_phase3_6_pipeline_findings_are_severity_ordered() {
     let rules = vec![
         Rule {
             id: "warn.x".to_string(),
-            when: Predicate::parse("vmstat.r > 0").expect("parse"),
+            when: Predicate::parse("cpu.run_queue > 0").expect("parse"),
             severity: Severity::Warn,
             summary: "warn".to_string(),
-            evidence_ids: vec!["vmstat.r".to_string()],
+            evidence_ids: vec!["cpu.run_queue".to_string()],
             suggest: vec![],
             description: None,
             links: vec![],
@@ -298,17 +298,17 @@ fn ac_phase3_7_cli_help_lists_cgroup_flag() {
 
 #[test]
 fn ac_phase3_8_compute_exit_code_returns_one_when_pipeline_emits_warn() {
-    let mock_signal = make_signal("vmstat.r", 9999.0);
+    let mock_signal = make_signal("cpu.run_queue", 9999.0);
     let collectors: Vec<Box<dyn Collector>> = vec![Box::new(MockCollector {
         name: "mock".to_string(),
         signals: vec![mock_signal],
     })];
     let rule = Rule {
         id: "cpu.runqueue_saturation".to_string(),
-        when: Predicate::parse("vmstat.r > host.cpu_count").expect("parse"),
+        when: Predicate::parse("cpu.run_queue > host.cpu_count").expect("parse"),
         severity: Severity::Warn,
         summary: "rq sat".to_string(),
-        evidence_ids: vec!["vmstat.r".to_string()],
+        evidence_ids: vec!["cpu.run_queue".to_string()],
         suggest: vec![],
         description: None,
         links: vec![],
