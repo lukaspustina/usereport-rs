@@ -225,9 +225,13 @@ pub struct SignalIndex<'a> {
 
 impl<'a> SignalIndex<'a> {
     pub fn build(signals: &'a [Signal]) -> Self {
-        SignalIndex {
-            by_id: signals.iter().map(|s| (s.id.as_str(), s)).collect(),
+        let mut by_id = std::collections::HashMap::new();
+        for s in signals {
+            if by_id.insert(s.id.as_str(), s).is_some() {
+                log::warn!("duplicate signal id '{}'; later value wins", s.id);
+            }
         }
+        SignalIndex { by_id }
     }
 
     pub fn get(&self, id: &str) -> Option<&&'a Signal> {

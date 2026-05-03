@@ -1,8 +1,10 @@
 //! Multi-signal pattern correlator (SDD Req 20).
 //!
-//! Patterns are declared in TOML files under `contrib/patterns/`. Each pattern
-//! fires when all constituent signals in its `when` predicate are present and
-//! the predicate evaluates to true. Pattern findings are distinguished from
+//! Patterns are declared in TOML files under `contrib/patterns/`. A pattern
+//! fires when its `when` predicate evaluates to true. AND predicates require
+//! all constituent signals to be present (a missing signal makes the predicate
+//! false); OR predicates can fire on a subset of signals — if any branch
+//! evaluates to true the pattern fires. Pattern findings are distinguished from
 //! rule findings by `kind = FindingKind::Pattern`.
 
 use serde::Deserialize;
