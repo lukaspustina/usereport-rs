@@ -13,7 +13,7 @@ use thiserror::Error;
 use crate::collector::CollectCtx;
 use crate::finding::{Evidence, Finding, FindingKind, Severity};
 use crate::rule::{Predicate, SignalIndex};
-use crate::signal::Signal;
+use crate::signal::{Signal, SignalValue};
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -105,7 +105,7 @@ impl PatternEngine {
             if pattern.when.evaluate(&idx, ctx) {
                 let referenced: std::collections::HashSet<String> =
                     pattern.when.signal_ids().into_iter().collect();
-                let evidence = collect_evidence(signals, &referenced);
+                let evidence = collect_evidence(signals, &referenced, ctx);
                 findings.push(Finding {
                     id: pattern.id.clone(),
                     kind: FindingKind::Pattern,
@@ -162,8 +162,12 @@ summary = "test pattern"
     }
 }
 
-fn collect_evidence(signals: &[Signal], referenced: &std::collections::HashSet<String>) -> Vec<Evidence> {
-    signals
+fn collect_evidence(
+    signals: &[Signal],
+    referenced: &std::collections::HashSet<String>,
+    ctx: &CollectCtx,
+) -> Vec<Evidence> {
+    let mut evidence: Vec<Evidence> = signals
         .iter()
         .filter(|s| referenced.contains(&s.id))
         .map(|s| Evidence {
@@ -171,5 +175,24 @@ fn collect_evidence(signals: &[Signal], referenced: &std::collections::HashSet<S
             observed: s.value.clone(),
             source_commands: Vec::new(),
         })
-        .collect()
+        .collect();
+
+    // Include host.* signals that come from CollectCtx rather than the signal slice.
+    for id in referenced {
+        if id.starts_with("host.") {
+            let observed = match id.as_str() {
+                "host.cpu_count" => Some(SignalValue::I64(ctx.cpu_count as i64)),
+                _ => None,
+            };
+            if let Some(observed) = observed {
+                evidence.push(Evidence {
+                    signal_id: id.clone(),
+                    observed,
+                    source_commands: Vec::new(),
+                });
+            }
+        }
+    }
+
+    evidence
 }

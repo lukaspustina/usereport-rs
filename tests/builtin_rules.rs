@@ -30,6 +30,12 @@ fn run_rules(signals: &[Signal]) -> Vec<usereport::Finding> {
     findings
 }
 
+fn run_rules_with_ctx(signals: &[Signal], ctx: CollectCtx) -> Vec<usereport::Finding> {
+    let engine = RuleEngine::new(builtin_rules());
+    let (findings, _) = engine.run(signals, &ctx, &HashMap::new());
+    findings
+}
+
 fn fires(rule_id: &str, signals: Vec<Signal>) -> bool {
     run_rules(&signals).into_iter().any(|f| f.id == rule_id)
 }
@@ -328,4 +334,56 @@ fn dmesg_fs_errors_at_zero_does_not_fire() {
 #[test]
 fn dmesg_fs_errors_above_zero_fires() {
     assert!(fires("dmesg.fs_errors", vec![signal("dmesg.fs_error_count", 1.0)]));
+}
+
+// =============================================================================
+// cpu.runqueue_saturation (threshold: cpu.run_queue > host.cpu_count)
+// =============================================================================
+
+fn ctx_with_cpu_count(cpu_count: usize) -> CollectCtx {
+    CollectCtx { cpu_count, ..CollectCtx::default() }
+}
+
+fn fires_with_ctx(rule_id: &str, signals: Vec<Signal>, ctx: CollectCtx) -> bool {
+    run_rules_with_ctx(&signals, ctx).into_iter().any(|f| f.id == rule_id)
+}
+
+#[test]
+fn cpu_runqueue_saturation_fires_above_cpu_count() {
+    // run_queue=5 > cpu_count=4 → fires
+    assert!(fires_with_ctx(
+        "cpu.runqueue_saturation",
+        vec![signal("cpu.run_queue", 5.0)],
+        ctx_with_cpu_count(4)
+    ));
+}
+
+#[test]
+fn cpu_runqueue_saturation_does_not_fire_at_cpu_count() {
+    // run_queue=4 == cpu_count=4 → does not fire (strict >)
+    assert!(!fires_with_ctx(
+        "cpu.runqueue_saturation",
+        vec![signal("cpu.run_queue", 4.0)],
+        ctx_with_cpu_count(4)
+    ));
+}
+
+#[test]
+fn cpu_runqueue_saturation_does_not_fire_below_cpu_count() {
+    // run_queue=3 < cpu_count=4 → does not fire
+    assert!(!fires_with_ctx(
+        "cpu.runqueue_saturation",
+        vec![signal("cpu.run_queue", 3.0)],
+        ctx_with_cpu_count(4)
+    ));
+}
+
+#[test]
+fn cpu_runqueue_saturation_fires_just_above_cpu_count() {
+    // run_queue=4.001 > cpu_count=4 → fires
+    assert!(fires_with_ctx(
+        "cpu.runqueue_saturation",
+        vec![signal("cpu.run_queue", 4.001)],
+        ctx_with_cpu_count(4)
+    ));
 }

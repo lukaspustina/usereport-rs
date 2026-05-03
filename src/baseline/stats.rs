@@ -7,12 +7,15 @@
 
 use crate::signal::{SampleStats, Trend};
 
-/// Median of a slice of `f64`. `None` for empty input.
+/// Median of a slice of `f64`. `None` for empty input or all-non-finite input.
 pub fn median(values: &[f64]) -> Option<f64> {
     if values.is_empty() {
         return None;
     }
-    let mut sorted: Vec<f64> = values.to_vec();
+    let mut sorted: Vec<f64> = values.iter().copied().filter(|v| v.is_finite()).collect();
+    if sorted.is_empty() {
+        return None;
+    }
     sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
     let n = sorted.len();
     if n % 2 == 1 {
@@ -44,7 +47,10 @@ pub fn percentile(values: &[f64], p: f64) -> Option<f64> {
     if values.is_empty() {
         return None;
     }
-    let mut sorted: Vec<f64> = values.to_vec();
+    let mut sorted: Vec<f64> = values.iter().copied().filter(|v| v.is_finite()).collect();
+    if sorted.is_empty() {
+        return None;
+    }
     sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
     let n = sorted.len();
     if n == 1 {

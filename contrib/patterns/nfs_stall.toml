@@ -1,3 +1,4 @@
+# Note: fires at iowait>20; lock_contention fires at iowait>10 — both patterns may fire simultaneously.
 [[pattern]]
 id = "nfs_stall"
 when = "dmesg.blocked_task_count > 0 AND cpu.iowait_pct > 20"

@@ -173,7 +173,7 @@ fn ac_phase2_6_annotate_populates_baseline_stats() {
 fn ac_phase2_7_outlier_findings_warn_and_crit_thresholds() {
     use usereport::signal::BaselineStats;
 
-    // Signal with z-score = 4.0 → warn (|z|>3)
+    // Signal with z-score = 4.0 → warn (|z|>3.5)
     let mut warn_signal = make_signal("cpu.iowait_pct", 5.0);
     warn_signal.baseline = Some(BaselineStats {
         p50: 3.0,

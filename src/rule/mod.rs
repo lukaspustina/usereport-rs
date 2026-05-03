@@ -380,8 +380,14 @@ impl RuleEngine {
                     suggest: rule.suggest.clone(),
                 });
             } else {
+                let present_ids: std::collections::HashSet<&str> =
+                    signals.iter().map(|s| s.id.as_str()).collect();
+                // Only mark a signal as checked-ok if it was actually present
+                // in the signal slice; absent signals were never evaluated.
                 for sid in &rule.evidence_ids {
-                    checked_ok.insert(sid.clone());
+                    if present_ids.contains(sid.as_str()) || sid == "host.cpu_count" {
+                        checked_ok.insert(sid.clone());
+                    }
                 }
             }
         }
