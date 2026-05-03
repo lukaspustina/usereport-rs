@@ -12,7 +12,10 @@ use super::{CollectCtx, Collector, Result};
 use crate::collector::platform::{NetSnapshot, read_net_snapshot};
 use crate::signal::{Signal, SignalValue, Unit};
 
-const MIN_WINDOW: Duration = Duration::from_secs(1);
+// 5 s matches the `sar -n TCP,ETCP 1 5` window used for comparison.
+// A 1-second window on a low-traffic host can yield denominators as small as 2
+// out_segs, making a single retransmit inflate net.retrans_pct to 50 %.
+const MIN_WINDOW: Duration = Duration::from_secs(5);
 
 #[derive(Debug, Clone, Default)]
 pub struct NetworkCollector;
