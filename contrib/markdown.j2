@@ -86,7 +86,7 @@
 {% if f.evidence -%}
 **Evidence**
 {% for e in f.evidence -%}
-- `{{ e.signal_id }}` = `{{ e.observed | round(3) }}`{% for sc in e.source_commands %} (see: {{ sc }}){% endfor %}
+- `{{ e.signal_id }}` = `{{ e.observed | string }}`{% for sc in e.source_commands %} (see: {{ sc }}){% endfor %}
 {% endfor %}
 {% endif -%}
 {% if f.suggest -%}
@@ -178,7 +178,7 @@ The following signals were evaluated and found within normal thresholds:
 |----|-------|-------|-----------|
 {%- for s in signals -%}
 {%- set thr = signal_thresholds[s.id] %}
-| `{{ s.id }}` | {{ s.value }} | {{ s.stats.trend if s.stats else "—" }} | {% if thr %}{{ thr.op }} {{ thr.value }} ({{ thr.severity }}){% else %}—{% endif %} |
+| `{{ s.id }}` | {% if s.value is number %}{{ s.value | round(3) }}{% else %}{{ s.value | string }}{% endif %} | {{ s.stats.trend if s.stats else "—" }} | {% if thr %}{{ thr.op }} {{ thr.value }} ({{ thr.severity }}){% else %}—{% endif %} |
 {%- endfor %}
 {% endif -%}
 ---
