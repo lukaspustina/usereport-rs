@@ -12,10 +12,10 @@ use super::{CollectCtx, Collector, Result};
 use crate::collector::platform::{NetSnapshot, read_net_snapshot};
 use crate::signal::{Signal, SignalValue, Unit};
 
-// 5 s matches the `sar -n TCP,ETCP 1 5` window used for comparison.
-// A 1-second window on a low-traffic host can yield denominators as small as 2
-// out_segs, making a single retransmit inflate net.retrans_pct to 50 %.
-const MIN_WINDOW: Duration = Duration::from_secs(5);
+// Default matches `sar -n TCP,ETCP 1 5`. When --interval is set, the
+// collector uses that value so each measurement window aligns with the
+// sampling cadence.
+const DEFAULT_WINDOW: Duration = Duration::from_secs(5);
 
 #[derive(Debug, Clone, Default)]
 pub struct NetworkCollector;
@@ -121,7 +121,9 @@ impl Collector for NetworkCollector {
         &["sar_dev", "netstat_i", "nettop_snapshot"]
     }
 
-    fn collect(&self, _ctx: &CollectCtx) -> Result<Vec<Signal>> {
+    fn collect(&self, ctx: &CollectCtx) -> Result<Vec<Signal>> {
+        let window = ctx.interval.unwrap_or(DEFAULT_WINDOW);
+
         let s1 = match read_net_snapshot() {
             Some(s) => s,
             None => return Ok(Vec::new()),
@@ -129,8 +131,8 @@ impl Collector for NetworkCollector {
 
         let start = Instant::now();
         let elapsed = start.elapsed();
-        if elapsed < MIN_WINDOW {
-            std::thread::sleep(MIN_WINDOW - elapsed);
+        if elapsed < window {
+            std::thread::sleep(window - elapsed);
         }
 
         let s2 = match read_net_snapshot() {
