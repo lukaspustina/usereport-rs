@@ -1298,13 +1298,6 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> miette::Re
     }
     let rules_result = loader.load();
     let mut all_rules = rules_result.rules;
-    #[cfg(not(feature = "bpf"))]
-    if opt.bpf {
-        return Err(miette::miette!(
-            "--bpf requires a binary compiled with --features bpf. To build with BPF support: cargo install usereport-rs --features bpf"
-        ));
-    }
-    #[cfg(feature = "bpf")]
     if opt.bpf {
         collectors.push(Box::new(BpfCollector::new()));
         all_rules.extend(bpf_rules());
@@ -1395,10 +1388,7 @@ fn generate_report(opt: &Opt, config: &Config, profile_name: &str) -> miette::Re
         } else {
             let dur = parse_duration(profile_dur)?;
             let dur_secs = dur.as_secs().max(1);
-            #[cfg(feature = "bpf")]
             let use_bpf = opt.bpf;
-            #[cfg(not(feature = "bpf"))]
-            let use_bpf = false;
             eprintln!(
                 "Profiling CPU for {} — this will block for the full duration…",
                 profile_dur

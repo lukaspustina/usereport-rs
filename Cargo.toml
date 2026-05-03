@@ -26,6 +26,7 @@ rust-version = "1.85"
 [badges]
 
 [features]
+default = ["bpf"]
 bin = ["clap", "comfy-table", "env_logger", "miette", "human-panic", "indicatif", "humantime", "inferno", "termimad", "owo-colors"]
 bpf = []
 
@@ -97,7 +98,7 @@ targets = [
     "aarch64-unknown-linux-musl",
     "aarch64-apple-darwin",
 ]
-features = ["bin"]      # binary requires --features bin to compile
+features = ["bin", "bpf"]
 installers = ["shell", "homebrew"]
 tap = "lukaspustina/usereport-rs"
 publish-jobs = ["homebrew"]

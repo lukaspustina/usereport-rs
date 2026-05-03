@@ -609,15 +609,13 @@ usereport --workload kubelet    # pod count, evictions, image pull latency
 
 > **Note:** Workload rules predicate on application-specific signals (`pg.*`, `nginx.*`, `jvm.*`, `kubelet.*`) that must be emitted by custom `[[command.extract]]` entries in your config. The rules are templates — they will fire once you add the matching signal extraction.
 
-### eBPF collectors (opt-in, Linux)
+### eBPF collectors (Linux)
 
 When you need to go deeper than `/proc`:
 
 ```sh
 usereport --bpf   # runqlat, biolatency, tcpretrans, execsnoop, cachestat
 ```
-
-> **Note:** Passing `--bpf` to a standard binary (e.g. one installed via `cargo binstall`) emits a clear error message pointing to the source build command: `cargo install usereport-rs --features bpf`.
 
 > **Note:** `--profile-cpu` flamegraphs are only embedded in `--output html`. With any other output format the profiling step is skipped.
 
