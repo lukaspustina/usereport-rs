@@ -126,7 +126,8 @@
             {% if f.evidence %}
             <p><small>Evidence:
                 {% for e in f.evidence %}
-                <code>{{ e.signal_id | e }}</code> = {{ e.observed | string }}
+                {%- set sig_match = signals | selectattr("id", "equalto", e.signal_id) | first %}
+                <code>{{ e.signal_id | e }}</code> = {{ e.observed | string }}{% if sig_match and sig_match.unit and sig_match.unit | lower not in ["none", "count"] %} {{ sig_match.unit | lower | e }}{% endif %}
                 {%- for sc in e.source_commands %} <a href="#cmd-{{ sc | e }}">[{{ sc | e }}]</a>{%- endfor -%}
                 {%- if not loop.last %}, {% endif %}
                 {% endfor %}

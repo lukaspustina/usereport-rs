@@ -3,6 +3,7 @@ id = "disk.utilization_saturated"
 when = "disk.max_util_pct > 90"
 severity = "warn"
 summary = "Disk %util above 90% on at least one device — block device saturated."
+description = "At least one block device is busy more than 90% of the time, meaning it has little headroom to absorb burst I/O. Above this threshold, additional requests queue up and latency rises sharply. Common causes: a single hot disk serving all I/O, a database doing heavy sequential scans, or a RAID rebuild running in the background."
 evidence = ["disk.max_util_pct"]
 suggest = ["iostat -x 1 5", "iotop -ao", "biolatency 1 5"]
 
@@ -11,5 +12,6 @@ id = "disk.await_elevated"
 when = "disk.max_await_ms > 100"
 severity = "warn"
 summary = "Disk request latency above 100 ms on at least one device."
+description = "Disk I/O requests are taking more than 100 ms to complete on at least one device. At this latency, storage is a visible bottleneck for any synchronous I/O path (e.g. databases, logging). Common causes: a nearly-saturated spinning disk, a degraded RAID array, or a network-attached storage device under contention."
 evidence = ["disk.max_await_ms"]
 suggest = ["iostat -x 1 5", "biolatency 1 5"]

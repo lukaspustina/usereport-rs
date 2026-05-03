@@ -3,6 +3,7 @@ id = "mem.pressure"
 when = "mem.free_pct < 10"
 severity = "warn"
 summary = "Free memory below 10% of total."
+description = "The system is critically low on free memory. Below 10%, the kernel is likely to start swapping or invoking the OOM killer, causing severe latency or process terminations. Common causes: a memory leak in a long-running process, an undersized host, or a workload consuming more memory than expected."
 evidence = ["mem.free_pct", "mem.free_mb", "mem.total_mb"]
 suggest = ["ps -eo pid,rss,comm --sort=-rss 2>/dev/null || ps -m -o rss,comm", "cat /proc/meminfo 2>/dev/null || vm_stat"]
 
@@ -11,5 +12,6 @@ id = "mem.swap_in_active"
 when = "vmstat.swap_in > 0"
 severity = "warn"
 summary = "Pages are being swapped in from disk."
+description = "The kernel is reading previously swapped-out pages back from disk into RAM. Any swap-in activity under load means memory is overcommitted and the system is paying a disk-speed penalty for RAM accesses. Common causes: insufficient physical RAM for the current working set, or a process with a large cold-memory footprint."
 evidence = ["vmstat.swap_in"]
 suggest = ["vmstat 1 10 2>/dev/null || vm_stat 1", "free -m 2>/dev/null || sysctl vm.swapusage"]

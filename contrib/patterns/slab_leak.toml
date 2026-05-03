@@ -2,5 +2,6 @@
 id = "slab_leak"
 when = "mem.free_pct < 10 AND dmesg.oom_count == 0"
 severity = "warn"
-summary = "Very low free memory without OOM kills suggests a kernel slab memory leak."
-suggest = ["cat /proc/slabinfo | sort -k3 -nr | head -20", "slabtop -s c", "echo 3 > /proc/sys/vm/drop_caches"]
+summary = "Very low free memory without OOM kills suggests a kernel slab memory leak (Linux) or steady memory growth (macOS)."
+description = "On Linux, free memory below 10% with no OOM events often points to a kernel slab allocator leak — memory consumed by kernel data structures that is never freed. On macOS, dmesg signals are always zero so this fires whenever memory is critically low; use vm_stat and top to identify the leaking process. Linux-specific tools (slabinfo, slabtop, drop_caches) require a Linux host."
+suggest = ["cat /proc/slabinfo | sort -k3 -nr | head -20", "slabtop -s c", "echo 3 > /proc/sys/vm/drop_caches", "vm_stat", "sudo purge", "top -l 1 -o mem | head -20"]

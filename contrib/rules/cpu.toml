@@ -7,6 +7,7 @@ id = "cpu.runqueue_saturation"
 when = "cpu.run_queue > host.cpu_count"
 severity = "warn"
 summary = "Run queue exceeds core count — CPU saturated."
+description = "The number of runnable threads waiting for CPU time exceeds the number of available cores. This means threads are queuing for the CPU rather than executing immediately, causing latency spikes across all workloads. Common causes: too many CPU-bound processes, a single hot process consuming multiple cores, or runaway threads."
 evidence = ["cpu.run_queue", "host.cpu_count"]
 suggest = ["pidstat 1 5", "perf top -F 99"]
 
@@ -15,6 +16,7 @@ id = "cpu.iowait_elevated"
 when = "cpu.iowait_pct > 20"
 severity = "warn"
 summary = "iowait elevated — CPU is waiting on I/O."
+description = "More than 20% of CPU time is spent waiting for I/O completions. This indicates storage or network I/O is the bottleneck — CPUs sit idle while processes wait for disk reads or writes. Common causes: a slow disk, a saturated storage device, or a process issuing synchronous unbuffered writes."
 evidence = ["cpu.iowait_pct"]
 suggest = ["iostat -x 1 5", "iotop -ao"]
 
@@ -23,6 +25,7 @@ id = "cpu.saturation"
 when = "cpu.usr_pct > 80"
 severity = "warn"
 summary = "User-mode CPU usage saturated above 80%."
+description = "User-space code is consuming more than 80% of available CPU cycles. At this level the system is near capacity and any additional load will cause queuing and latency increases. Common causes: a CPU-bound application, a tight compute loop, or insufficient CPU cores for the current workload."
 evidence = ["cpu.usr_pct"]
 suggest = ["pidstat 1 5", "perf top"]
 
@@ -31,5 +34,6 @@ id = "cpu.frequency_throttling"
 when = "cpu.freq_ratio < 0.8"
 severity = "warn"
 summary = "CPU frequency below 80% of nominal — throttled."
+description = "The CPU is running at less than 80% of its rated frequency, indicating active throttling. This reduces throughput for all CPU-bound work. Common causes: thermal limits (overheating), power-cap enforcement, or a power-saving governor active during a production workload."
 evidence = ["cpu.freq_ratio"]
 suggest = ["sensors", "cat /sys/class/thermal/thermal_zone*/temp"]
