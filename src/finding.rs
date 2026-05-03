@@ -4,6 +4,8 @@
 //! the report. Each carries the rule (or pattern) that fired, severity, the
 //! supporting `Evidence`, and ordered next-step `suggest` commands.
 
+use std::fmt;
+
 use serde::{Deserialize, Serialize};
 
 use crate::signal::SignalValue;
@@ -37,6 +39,16 @@ pub struct Evidence {
     pub observed: SignalValue,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub source_commands: Vec<String>,
+}
+
+impl fmt::Display for Severity {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Severity::Crit => write!(f, "CRIT"),
+            Severity::Warn => write!(f, "WARN"),
+            Severity::Info => write!(f, "INFO"),
+        }
+    }
 }
 
 impl Severity {

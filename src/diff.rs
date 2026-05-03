@@ -153,12 +153,30 @@ pub fn render_text<W: std::io::Write>(d: &DiffReport, label_a: &str, label_b: &s
         }
     }
     writeln!(w)?;
+    writeln!(w, "Signals only in {}:", name_a)?;
+    if d.signals_only_in_a.is_empty() {
+        writeln!(w, "  (none)")?;
+    } else {
+        for sig in &d.signals_only_in_a {
+            writeln!(w, "  {}", sig)?;
+        }
+    }
+    writeln!(w)?;
+    writeln!(w, "Signals only in {}:", name_b)?;
+    if d.signals_only_in_b.is_empty() {
+        writeln!(w, "  (none)")?;
+    } else {
+        for sig in &d.signals_only_in_b {
+            writeln!(w, "  {}", sig)?;
+        }
+    }
+    writeln!(w)?;
     writeln!(w, "Findings only in {}:", name_a)?;
     if d.findings_only_in_a.is_empty() {
         writeln!(w, "  (none)")?;
     } else {
         for f in &d.findings_only_in_a {
-            writeln!(w, "  [{:?}] {}", f.severity, f.id)?;
+            writeln!(w, "  [{}] {}", f.severity, f.id)?;
         }
     }
     writeln!(w)?;
@@ -167,7 +185,16 @@ pub fn render_text<W: std::io::Write>(d: &DiffReport, label_a: &str, label_b: &s
         writeln!(w, "  (none)")?;
     } else {
         for f in &d.findings_only_in_b {
-            writeln!(w, "  [{:?}] {}", f.severity, f.id)?;
+            writeln!(w, "  [{}] {}", f.severity, f.id)?;
+        }
+    }
+    writeln!(w)?;
+    writeln!(w, "Findings with changed severity:")?;
+    if d.findings_severity_changed.is_empty() {
+        writeln!(w, "  (none)")?;
+    } else {
+        for sc in &d.findings_severity_changed {
+            writeln!(w, "  [{} \u{2192} {}] {}", sc.severity_in_a, sc.severity_in_b, sc.finding_id)?;
         }
     }
     Ok(())
