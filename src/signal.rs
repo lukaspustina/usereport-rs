@@ -68,7 +68,7 @@ impl fmt::Display for Unit {
             Unit::Megabytes => "MB",
             Unit::Iops => "iops",
             Unit::Microseconds => "µs",
-            Unit::Hz => "hz",
+            Unit::Hz => "Hz",
             Unit::Celsius => "celsius",
             Unit::None => "none",
             Unit::Bytes => "bytes",

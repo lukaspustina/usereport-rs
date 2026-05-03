@@ -11,6 +11,7 @@ fn ac_phase6_1_llm_output_required_fields_serialize() {
 
     let output = LlmOutput {
         schema_version: "1".to_string(),
+        date_time: "2024-01-01T00:00:00+00:00".to_string(),
         host: LlmHost {
             hostname: "myhost".to_string(),
             kernel: "Linux 6.1.0".to_string(),
@@ -93,6 +94,7 @@ fn ac_phase6_4_redact_replaces_hostname_and_ip() {
 
     let output = LlmOutput {
         schema_version: "1".to_string(),
+        date_time: "2024-01-01T00:00:00+00:00".to_string(),
         host: LlmHost {
             hostname: "prod-server.internal".to_string(),
             kernel: "Linux 6.1.0".to_string(),
@@ -148,6 +150,7 @@ fn ac_phase6_6_schema_version_is_1() {
 
     let output = LlmOutput {
         schema_version: "1".to_string(),
+        date_time: "2024-01-01T00:00:00+00:00".to_string(),
         host: LlmHost {
             hostname: "h".to_string(),
             kernel: "k".to_string(),

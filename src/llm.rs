@@ -24,6 +24,7 @@ pub struct LlmExcerpt {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LlmOutput {
     pub schema_version: String,
+    pub date_time: String,
     pub host: LlmHost,
     pub signals: Vec<Signal>,
     pub findings: Vec<Finding>,
@@ -35,6 +36,7 @@ pub struct LlmOutput {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LlmHost {
     pub hostname: String,
+    // NOTE: field name "kernel" matches context.uname() — kept for schema stability
     pub kernel: String,
     pub cpu_count: usize,
     pub mem_total_bytes: u64,
@@ -91,6 +93,7 @@ impl LlmOutput {
 
         let mut out = LlmOutput {
             schema_version: Self::SCHEMA_VERSION.to_string(),
+            date_time: report.context().date_time().to_rfc3339(),
             host,
             signals,
             findings: report.findings().to_vec(),
