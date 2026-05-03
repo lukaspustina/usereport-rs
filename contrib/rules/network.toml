@@ -3,6 +3,7 @@ id = "net.retransmit_elevated"
 when = "net.retrans_pct > 1"
 severity = "warn"
 summary = "TCP retransmission rate above 1%."
+description = "More than 1% of TCP segments are being retransmitted, indicating packet loss between this host and its peers. Retransmits add latency proportional to the RTT and reduce effective throughput. Common causes: congested or faulty network links, misconfigured MTU, or a remote host dropping packets under load."
 evidence = ["net.retrans_pct"]
 suggest = ["ss -s", "sar -n TCP,ETCP 1 5"]
 
@@ -11,6 +12,7 @@ id = "net.rx_drops"
 when = "net.rx_drops > 0"
 severity = "warn"
 summary = "Receiver-side packet drops detected."
+description = "The NIC or kernel receive ring is dropping inbound packets. Drops at this layer mean data is lost before the application even sees it, causing TCP retransmissions or UDP data loss. Common causes: the receive ring buffer is too small for the packet rate, the CPU cannot drain the queue fast enough, or IRQ affinity is suboptimal."
 evidence = ["net.rx_drops"]
 suggest = ["ip -s link", "ethtool -S $(ip route | awk '/default/{print $5; exit}')"]
 
@@ -19,6 +21,7 @@ id = "net.time_wait_high"
 when = "net.tw_count > 28000"
 severity = "warn"
 summary = "TIME_WAIT socket count above 28k — port exhaustion risk."
+description = "There are more than 28,000 sockets in TCP TIME_WAIT state. Each TIME_WAIT socket holds a local port for up to 2× MSL (typically 60 seconds), so a high count risks exhausting the ephemeral port range and causing connection failures. Common causes: a high-churn short-lived connection workload (e.g. HTTP/1.0 clients) without connection reuse."
 evidence = ["net.tw_count"]
 suggest = ["ss -tan state time-wait | wc -l", "sysctl net.ipv4.tcp_tw_reuse"]
 
@@ -27,5 +30,6 @@ id = "net.irq_imbalance"
 when = "net.max_cpu_irq_pct > 80"
 severity = "warn"
 summary = "One CPU is handling more than 80% of NIC interrupts."
+description = "A single CPU core is processing more than 80% of all NIC hardware interrupts. This creates a bottleneck on that core and limits maximum network throughput to what one core can handle. Common causes: IRQ affinity not configured, RSS/RPS disabled, or a single-queue NIC under high packet rates."
 evidence = ["net.max_cpu_irq_pct"]
 suggest = ["mpstat -P ALL 1 5", "cat /proc/interrupts"]

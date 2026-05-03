@@ -3,6 +3,7 @@ id = "dmesg.oom_kill"
 when = "dmesg.oom_count > 0"
 severity = "crit"
 summary = "Out-of-memory killer fired since the last log rotate."
+description = "The kernel OOM killer has terminated at least one process due to memory exhaustion. This is a critical event — a running process was forcibly killed, which can cause data loss, service disruption, or a cascading failure if the killed process was load-bearing. Common causes: a memory leak, a workload spike, or an undersized host."
 evidence = ["dmesg.oom_count"]
 suggest = ["dmesg -T | grep -i 'killed process'", "journalctl -k --since -1h"]
 
@@ -11,6 +12,7 @@ id = "dmesg.blocked_tasks"
 when = "dmesg.blocked_task_count > 0"
 severity = "warn"
 summary = "Kernel reported tasks blocked > 120s."
+description = "The kernel detected one or more tasks that have been blocked in uninterruptible sleep (D state) for over 120 seconds. This typically indicates a lock contention or I/O stall severe enough to prevent forward progress. Common causes: a hung NFS mount, a deadlocked mutex, or a block device that stopped responding."
 evidence = ["dmesg.blocked_task_count"]
 suggest = ["dmesg -T | grep blocked", "ps -eo state,pid,cmd | awk '$1 ~ /D/'"]
 
@@ -19,5 +21,6 @@ id = "dmesg.fs_errors"
 when = "dmesg.fs_error_count > 0"
 severity = "crit"
 summary = "Filesystem errors detected in kernel log."
+description = "The kernel has logged filesystem errors from EXT4 or XFS. These errors can indicate on-disk corruption, a failing drive, or a metadata inconsistency that may worsen over time. Immediate investigation is warranted — continued writes to a corrupted filesystem risk unrecoverable data loss."
 evidence = ["dmesg.fs_error_count"]
 suggest = ["dmesg -T | grep -Ei 'ext4|xfs.*error'", "smartctl --scan"]

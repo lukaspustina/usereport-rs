@@ -86,7 +86,8 @@
 {% if f.evidence -%}
 **Evidence**
 {% for e in f.evidence -%}
-- `{{ e.signal_id }}` = `{{ e.observed | string }}`{% for sc in e.source_commands %} (see: {{ sc }}){% endfor %}
+{%- set sig_match = signals | selectattr("id", "equalto", e.signal_id) | first %}
+- `{{ e.signal_id }}` = `{{ e.observed | string }}`{% if sig_match and sig_match.unit and sig_match.unit | lower not in ["none", "count"] %} {{ sig_match.unit | lower }}{% endif %}{% for sc in e.source_commands %} (see: {{ sc }}){% endfor %}
 {% endfor %}
 {% endif -%}
 {% if f.suggest -%}
