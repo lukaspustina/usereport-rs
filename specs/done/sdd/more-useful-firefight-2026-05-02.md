@@ -1,6 +1,7 @@
 # SDD: More Useful in a Firefight
 
-Status: Ready for Implementation
+Status: Done
+Finished: 2026-05-02
 Original: specs/sdd/more-useful-firefight.md
 Refined: 2026-05-02
 

@@ -1,6 +1,7 @@
 # SDD: Modernize UX/UI
 
-Status: Implemented
+Status: Done
+Finished: 2026-05-02
 Original: specs/sdd/modernize-ux-ui.md
 Refined: 2026-05-02
 

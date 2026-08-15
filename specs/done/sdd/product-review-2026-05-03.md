@@ -1,6 +1,7 @@
 # SDD: Fix Product Review Gaps
 
-**Status**: Ready for Implementation
+**Status**: Done
+**Finished**: 2026-05-03
 **Original**: specs/sdd/product-review.md
 **Refined**: 2026-05-02
 

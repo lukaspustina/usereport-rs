@@ -1,6 +1,7 @@
 # SDD: macOS Collector Parity
 
-**Status:** Ready for Implementation
+**Status:** Done
+**Finished:** 2026-05-02
 **Original:** specs/sdd/macos-compatibility.md
 **Refined:** 2026-05-01
 
