@@ -2,13 +2,21 @@
 
 ## Build and test
 
-Always pass `--all-features` — the binary, table rendering, and progress bar are all feature-gated under the `bin` feature:
+Everything runs through `just` (pdt-adlc ADR 0008; `make` until 2026-08-18). The recipes always
+pass `--all-features` — the binary, table rendering, and progress bar are all feature-gated under
+the `bin` feature — so never call `cargo` directly:
 
 ```sh
-cargo build --all-features
-cargo test --all-features
-cargo check --all-features
+just adlc-verify   # the ADLC gate: fmt-check + clippy + the whole suite, no network
+just test          # the suite alone
+just lint          # fmt-check + clippy
+just check         # everything, including cargo audit / deny / machete (network)
+just build         # release binary
 ```
+
+There is deliberately no fast-compile recipe: `check` used to be `cargo check`, the contract
+resolver preferred that name, and so every attestation proved that the tests compile rather than
+that they pass.
 
 ## Architecture
 

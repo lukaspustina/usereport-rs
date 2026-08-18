@@ -939,8 +939,8 @@ The `TemplateRenderer` and `JsonRenderer` accept the report directly. All collec
 Pull requests and issue reports are welcome.
 
 ```sh
-make ci         # full pipeline: fmt-check, clippy, test, audit, deny, machete
-make pre-push   # lighter: fmt-check + clippy + test
+just check         # full pipeline: fmt-check, clippy, test, audit, deny, machete
+just adlc-verify   # lighter, and what the gate runs: fmt-check + clippy + test
 ```
 
 ---
