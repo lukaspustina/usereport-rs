@@ -1858,7 +1858,7 @@ mod tests {
 
     #[test]
     fn test_output_writer_none_returns_writer() {
-        let _ = output_writer(&None).expect("stdout writer ok");
+        assert!(output_writer(&None).is_ok(), "stdout writer");
     }
 
     #[test]
@@ -1990,7 +1990,7 @@ mod tests {
         })
         .unwrap();
         drop(tx);
-        handle.join().expect("progress thread panicked");
+        assert!(handle.join().is_ok(), "progress thread panicked");
     }
 
     #[test]
