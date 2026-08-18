@@ -56,7 +56,7 @@ impl Redactor {
         let mut result = text.to_string();
         for re in [ipv4, ipv6, mac] {
             let replaced = re.replace_all(&result, |caps: &regex::Captures| {
-                format!("[redacted:{}]", &self.redact_value(&caps[0]))
+                format!("[redacted:{}]", self.redact_value(&caps[0]))
             });
             result = replaced.into_owned();
         }
@@ -79,7 +79,7 @@ impl Redactor {
                 if !hostname.is_empty() {
                     excerpt.output = excerpt
                         .output
-                        .replace(&hostname, &format!("[redacted:{}]", &redacted_hostname));
+                        .replace(&hostname, &format!("[redacted:{}]", redacted_hostname));
                 }
                 excerpt.output = self.redact_text(&excerpt.output);
                 excerpt

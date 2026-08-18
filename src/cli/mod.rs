@@ -433,8 +433,8 @@ pub fn main() -> miette::Result<()> {
     let profile_name = opt.profile.as_ref().unwrap_or(&config.defaults.profile);
 
     if opt.debug {
-        log::debug!("Options: {:#?}", &opt);
-        log::debug!("Configuration: {:#?}", &config);
+        log::debug!("Options: {:#?}", opt);
+        log::debug!("Configuration: {:#?}", config);
         log::debug!("Using profile '{}'", profile_name);
     }
 
