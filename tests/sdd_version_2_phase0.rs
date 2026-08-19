@@ -101,8 +101,10 @@ fn criterion_3_output_writer_creates_parent_dirs() {
 
 #[test]
 fn criterion_3_output_writer_none_returns_writer() {
-    // output_writer is pub(crate); stdout path is tested via unit test in src/cli/mod.rs.
-    // This criterion is satisfied when the crate compiles with the bin feature.
+    // adlc-lint: allow-no-assert
+    // output_writer is pub(crate); the stdout path is tested by a unit test in
+    // src/cli/mod.rs. This criterion is satisfied when the crate COMPILES with
+    // the bin feature, so there is nothing here to assert at runtime.
     let _ = std::io::stdout();
 }
 

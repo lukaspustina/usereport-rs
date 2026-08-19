@@ -8,5 +8,6 @@ use usereport::cli::config::Config;
 #[test]
 fn linux_conf_parses_ok() {
     let toml_src = include_str!("../contrib/linux.conf");
-    Config::from_str(toml_src).expect("linux.conf must parse without error");
+    let parsed = Config::from_str(toml_src);
+    assert!(parsed.is_ok(), "linux.conf must parse: {:?}", parsed.err());
 }

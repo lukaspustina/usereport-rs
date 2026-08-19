@@ -163,7 +163,7 @@ mod tests {
         let pe = PatternEngine::empty();
         let mut other = PatternEngine::empty();
         other.extend_from(pe);
-        // If both are empty, the merged engine should also be empty (no panic)
+        assert!(other.patterns.is_empty(), "merging two empty engines must stay empty");
     }
 
     #[test]

@@ -120,9 +120,10 @@ fn ac_r12_max_cpu_irq_pct_computed() {
 #[test]
 fn ac_r33_profile_cpu_flag_parses() {
     use clap::Parser;
-    let opt = usereport::cli::Opt::try_parse_from(["usereport", "--profile-cpu", "5s"]).expect("parse");
-    // We can't easily inspect private fields, but parsing succeeding is enough.
-    let _ = opt;
+    // Parsing succeeding IS the criterion; the fields are private. Asserted
+    // rather than expected so a checker can see the test check something.
+    let parsed = usereport::cli::Opt::try_parse_from(["usereport", "--profile-cpu", "5s"]);
+    assert!(parsed.is_ok(), "--profile-cpu 5s must parse: {:?}", parsed.err());
 }
 
 // R34: explain subcommand -----------------------------------------------------
@@ -131,8 +132,8 @@ fn ac_r33_profile_cpu_flag_parses() {
 #[test]
 fn ac_r34_explain_subcommand_parses() {
     use clap::Parser;
-    let opt = usereport::cli::Opt::try_parse_from(["usereport", "explain", "net.retransmit_elevated"]).expect("parse");
-    let _ = opt;
+    let parsed = usereport::cli::Opt::try_parse_from(["usereport", "explain", "net.retransmit_elevated"]);
+    assert!(parsed.is_ok(), "explain <rule> must parse: {:?}", parsed.err());
 }
 
 // Rule description/links fields -----------------------------------------------

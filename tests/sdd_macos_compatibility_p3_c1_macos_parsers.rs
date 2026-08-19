@@ -79,6 +79,10 @@ fn p3_read_host_snapshot_returns_some_on_macos() {
 // Ensure this file compiles on non-macOS platforms.
 #[test]
 fn p3_platform_smoke() {
+    // adlc-lint: allow-no-assert
+    // The contract of this test is that the file COMPILES on a non-macOS
+    // platform — the call is there to instantiate the import, and any runtime
+    // assertion about its result would be vacuous on the platform that matters.
     use usereport::collector::platform;
     let _ = platform::read_cpufreq_snapshot();
 }

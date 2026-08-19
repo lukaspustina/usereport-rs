@@ -8,5 +8,6 @@ use usereport::cli::config::Config;
 #[test]
 fn osx_conf_parses_ok() {
     let toml_src = include_str!("../contrib/osx.conf");
-    Config::from_str(toml_src).expect("osx.conf must parse without error");
+    let parsed = Config::from_str(toml_src);
+    assert!(parsed.is_ok(), "osx.conf must parse: {:?}", parsed.err());
 }

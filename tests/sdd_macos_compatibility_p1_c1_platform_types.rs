@@ -49,8 +49,11 @@ fn platform_snapshot_types_clone_and_debug() {
         mem_total_bytes: 8 * 1024 * 1024 * 1024,
         load_avg_1m: 1.5,
     };
-    let _cloned = host.clone();
-    let _dbg = format!("{:?}", _cloned);
+    let cloned = host.clone();
+    assert_eq!(cloned.cpu_count, host.cpu_count);
+    assert_eq!(cloned.mem_total_bytes, host.mem_total_bytes);
+    let dbg = format!("{cloned:?}");
+    assert!(dbg.contains("cpu_count"), "Debug must name the fields: {dbg}");
 
     let mem = MemSnapshot {
         total_mb: 8192.0,
@@ -88,5 +91,6 @@ fn platform_snapshot_types_clone_and_debug() {
         tcp_estab_resets: 0,
         tcp_tw_count: Some(50),
     };
-    let _cloned_net = net.clone();
+    let cloned_net = net.clone();
+    assert_eq!(cloned_net.tcp_out_segs, net.tcp_out_segs);
 }

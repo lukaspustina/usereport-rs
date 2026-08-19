@@ -59,7 +59,9 @@ fn p2_cpu_collector_collect_returns_cpu_usr_pct_on_linux() {
 // Ensure this file compiles even on non-Linux platforms.
 #[test]
 fn p2_platform_module_accessible() {
-    // Just verify the import works on all platforms.
+    // adlc-lint: allow-no-assert
+    // Same as p3_platform_smoke: the contract is that this compiles on a
+    // non-Linux platform. A runtime assertion here would assert nothing.
     let _ = platform::read_cpufreq_snapshot();
     let _ = platform::read_disk_snapshots();
 }
