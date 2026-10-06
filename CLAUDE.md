@@ -2,11 +2,12 @@
 
 ## Build and test
 
-Everything runs through `just` (pdt-adlc ADR 0008; `make` until 2026-08-18). The recipes always
+Everything runs through `just` (`make` until 2026-08-18). The recipes always
 pass `--all-features` — the binary, table rendering, and progress bar are all feature-gated under
 the `bin` feature — so never call `cargo` directly:
 
 ```sh
+just adlc-setup    # once per machine: cargo-mutants, -audit, -deny, -machete, pinned
 just adlc-verify   # the ADLC gate: fmt-check + clippy + the whole suite, no network
 just test          # the suite alone
 just lint          # fmt-check + clippy
@@ -17,6 +18,12 @@ just build         # release binary
 There is deliberately no fast-compile recipe: `check` used to be `cargo check`, the contract
 resolver preferred that name, and so every attestation proved that the tests compile rather than
 that they pass.
+
+The gate is `adlc` v2, declared in `adlc.toml`. This repository is public on GitHub, whose CI
+cannot reach the adlc source, so `[exceptions] no-ci` makes the local hooks the gate: a commit gets
+a secret scan, a tamper check over the protected tests (changing one needs
+`ADLC-Test-Change: <path> -- <why>`), and an assertion lint; a push needs `adlc verify` for the
+tree. `adlc audit` says what is declared and missing.
 
 ## Architecture
 

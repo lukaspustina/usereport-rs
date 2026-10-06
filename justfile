@@ -27,6 +27,15 @@ default: adlc-verify
 # What the ADLC gate runs: fmt-check, clippy, the whole suite. No network.
 adlc-verify: lint test
 
+# rustup if it is missing, the toolchain rust-toolchain.toml pins (rustfmt and clippy with it), and
+# the cargo tools the contract and `check` call beyond it, pinned, into ~/.cargo/bin.
+
+# Install the pinned toolchain and the tools mutation testing and the dependency checks need.
+adlc-setup:
+    @command -v rustup >/dev/null || curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path --default-toolchain none
+    rustup toolchain install
+    {{cargo}} install --locked cargo-mutants@27.1.0 cargo-audit@0.22.2 cargo-deny@0.20.2 cargo-machete@0.9.2
+
 # Everything, network included: the gate plus the dependency-hygiene pass.
 check: lint test audit deny machete
 

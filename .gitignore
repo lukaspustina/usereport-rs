@@ -4,3 +4,6 @@
 *.iml
 .cargo.cache/
 .claude/
+
+# cargo mutants writes its report here; adlc mutate runs it.
+mutants.out*/
