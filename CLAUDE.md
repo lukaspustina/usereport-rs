@@ -2,49 +2,11 @@
 
 ## Build and test
 
-Everything runs through `just` (`make` until 2026-08-18). The recipes always
-pass `--all-features` — the binary, table rendering, and progress bar are all feature-gated under
-the `bin` feature — so never call `cargo` directly:
-
-```sh
-just adlc-setup    # once per machine: cargo-mutants, -audit, -deny, -machete, pinned
-just adlc-verify   # the ADLC gate: fmt-check + clippy + the whole suite, no network
-just test          # the suite alone
-just lint          # fmt-check + clippy
-just check         # everything, including cargo audit / deny / machete (network)
-just build         # release binary
-```
-
-There is deliberately no fast-compile recipe: `check` used to be `cargo check`, the contract
-resolver preferred that name, and so every attestation proved that the tests compile rather than
-that they pass.
-
-The gate is `adlc` v2, declared in `adlc.toml`. This repository is public on GitHub, whose CI
-cannot reach the adlc source, so `[exceptions] no-ci` makes the local hooks the gate: a commit gets
-a secret scan, a tamper check over the protected tests (changing one needs
-`ADLC-Test-Change: <path> -- <why>`), and an assertion lint; a push needs `adlc verify` for the
-tree. `adlc audit` says what is declared and missing.
-
-## Architecture
-
-```
-src/
-  lib.rs          — public re-exports
-  command.rs      — Command struct + CommandResult enum; exec() runs a subprocess via tempfile
-  analysis.rs     — Analysis orchestrates runner; AnalysisReport + Context (hostname, uname, datetime)
-  runner.rs       — Runner trait; ThreadRunner runs commands in parallel chunks, sorts by insertion order
-  renderer.rs     — Renderer trait; TemplateRenderer (minijinja) + JsonRenderer
-  cli/
-    mod.rs        — clap v4 CLI; Opt, OutputType, generate_report
-    config.rs     — TOML config: Config, Defaults, Profile, Hostinfo
-  bin/
-    usereport.rs  — entry point: calls usereport::cli::main()
-contrib/
-  osx.conf        — default macOS config (TOML)
-  linux.conf      — default Linux config (TOML)
-  html.j2         — default HTML report template (Jinja2)
-  markdown.j2     — default Markdown report template (Jinja2)
-```
+- Always through `just` (`just --list`), never `cargo` directly: the recipes pass `--all-features`
+  (binary, table rendering and progress bar sit behind the `bin` feature).
+- `just adlc-verify` is the gate (fmt-check, clippy, whole suite, no network); `[exceptions] no-ci`
+  makes the local hooks the gate. `just check` adds audit/deny/machete (network).
+- No fast-compile recipe on purpose (`docs/architecture.md`). Module layout: same file.
 
 ## Key design points
 
