@@ -108,3 +108,7 @@ allow-dirty = ["ci"]
 # Native arm64 runner — avoids cross/Docker for the aarch64-musl build.
 aarch64-unknown-linux-musl = "ubuntu-24.04-arm"
 
+
+# Line tables keep backtraces and panics readable; full debug info (the default) makes every worktree's target/ several times larger.
+[profile.dev]
+debug = "line-tables-only"
