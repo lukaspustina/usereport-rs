@@ -1,1 +1,1 @@
-.adlc/measurements/*.jsonl merge=union
+.harness/measurements/*.jsonl merge=union

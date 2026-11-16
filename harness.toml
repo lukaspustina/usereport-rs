@@ -3,7 +3,7 @@
 
 # The contract: the one recipe in the justfile that runs the suite. Only this value is read.
 [contract]
-recipe = "adlc-verify"
+recipe = "harness-verify"
 
 # Paths the test classifier must not count as tests, and the reason when there is no suite at all.
 [exceptions]

@@ -4,7 +4,7 @@
 # gone rather than ported — help (`just --list` builds the listing), all (a bare
 # alias for build), clean (`cargo clean` is shorter than the recipe), and the two
 # aggregates ci and pre-push, whose contents the contract already names: ci is
-# `check`, pre-push is `adlc-verify`.
+# `check`, pre-push is `harness-verify`.
 #
 # The sixth removal is the point of the migration. `check` was
 # `cargo check --workspace --all-features --tests --examples` — a compile, no
@@ -16,22 +16,22 @@
 # cheaper answer to any question asked here.
 #
 # audit, deny and machete fetch an advisory database, so they hang off `check`
-# and never off `adlc-verify` — repo-contract requirement 4.
+# and never off `harness-verify` — repo-contract requirement 4.
 
 cargo := "cargo"
 
-default: adlc-verify
+default: harness-verify
 
 # --- the contract ------------------------------------------------------------
 
 # What the ADLC gate runs: fmt-check, clippy, the whole suite. No network.
-adlc-verify: lint test
+harness-verify: lint test
 
 # rustup if it is missing, the toolchain rust-toolchain.toml pins (rustfmt and clippy with it), and
 # the cargo tools the contract and `check` call beyond it, pinned, into ~/.cargo/bin.
 
 # Install the pinned toolchain and the tools mutation testing and the dependency checks need.
-adlc-setup:
+harness-setup:
     @command -v rustup >/dev/null || curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path --default-toolchain none
     rustup toolchain install
     {{cargo}} install --locked cargo-mutants@27.1.0 cargo-audit@0.22.2 cargo-deny@0.20.2 cargo-machete@0.9.2
